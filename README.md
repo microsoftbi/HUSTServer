@@ -88,6 +88,72 @@ HUSTServer/
 └── docs/                  # 设计文档与截图
 ```
 
+## 架构
+
+HUSTServer 采用 pnpm monorepo 分层架构，自上而下分为四层：
+
+- **前端层**：`apps/web`（React 19 控制台）负责认证、工作流管理与运行观测；画布编辑能力由独立包 `packages/workflow-designer` 提供——该包逐字节复用 HUSTERYX 前端设计器并裁剪运行态，通过 `DesignerAdapter` 适配器注入平台能力（保存发布、文件上传、结构探测），包内不依赖路由与平台 API。
+- **服务层**：`apps/server`（Fastify 5）提供 REST API 与 SSE 实时日志，承担会话认证与工作流级 RBAC、node-cron 调度、运行编排（并发控制、失败重试、日志保留清理）与连接密码加密，生产模式下同时静态托管前端产物（SPA 回退）。
+- **执行引擎**：`packages/engine` 是 HUSTERYX 后端引擎的移植（基线 `39451d8`），基于 DuckDB 内存计算与 mssql 驱动，将 13 种节点（CSV / Excel / SQL Server 输入，Select / Filter / Join / Union / Aggregation / Sort 转换，CSV / Excel / SQL Server / Browser 输出）按拓扑顺序执行。
+- **存储**：SQLite 单文件承载全部元数据（用户、会话、工作流 payload、连接密文、运行与日志）；上传的数据文件、运行输出与溢出数据落在 `HUSTSERVER_DATA_DIR` 文件目录。
+
+```mermaid
+flowchart LR
+    subgraph Browser["浏览器"]
+        direction TB
+        Web["管理控制台<br/>apps/web<br/>React 19 + Vite + Tailwind"]
+        Designer["工作流设计器<br/>packages/workflow-designer<br/>复用 HUSTERYX 画布"]
+    end
+
+    subgraph Server["apps/server · Fastify 5"]
+        direction TB
+        API["REST API + SSE<br/>会话认证 / RBAC"]
+        Sched["调度器<br/>node-cron"]
+        Runner["运行编排<br/>并发控制 / 重试 / 保留清理"]
+        Crypto["连接密码加密<br/>ENCRYPTION_KEY"]
+        DB[("SQLite<br/>用户 / 工作流 / 连接密文<br/>运行 / 日志")]
+        Files[("数据目录<br/>uploads / outputs / spill")]
+    end
+
+    Engine["执行引擎<br/>packages/engine<br/>DuckDB + mssql<br/>13 种节点按拓扑序执行"]
+
+    SQL[("SQL Server")]
+
+    Server -->|"静态托管 web/dist · SPA 回退"| Web
+    Web -->|"HTTP · Cookie 会话"| API
+    Designer -->|"DesignerAdapter<br/>保存发布 / 上传"| API
+    Sched --> Runner
+    API --> Runner
+    Runner --> Engine
+    Engine --> SQL
+    Runner --> DB
+    Runner --> Files
+    API --> DB
+    Crypto --> DB
+```
+
+执行链路：调度器或手动触发 → 运行编排从 SQLite 读取工作流 payload → 引擎按拓扑序执行节点（DuckDB 处理数据流，mssql 读写 SQL Server）→ 节点状态与日志回写 SQLite → SSE 实时推送到运行详情页。
+
+### 技术栈
+
+| 层 | 技术 | 用途 |
+|---|---|---|
+| 前端 | React 19 + TypeScript 5.6 | 管理控制台与设计器 UI |
+| | Vite + Tailwind CSS v4 | 构建工具与样式（`@source` 跨包扫描设计器 class） |
+| | react-router-dom 7 | 路由与受保护路由（`RequireAuth`） |
+| | @xyflow/react 12 + Zustand 5 | 设计器画布渲染与画布状态（成环检测 / 端口约束） |
+| | Radix UI（shadcn 风格）+ lucide-react | 设计器原子组件与图标 |
+| 服务端 | Node.js ≥ 20 + Fastify 5 | REST API、静态托管、SPA 回退 |
+| | better-sqlite3 13 | 单文件元数据存储（同步事务，支撑连接对账） |
+| | @fastify/multipart / @fastify/static | 工作流与数据文件上传 / 前端产物托管 |
+| | node-cron + cron-parser | Cron 调度触发与下次执行时间计算 |
+| | bcryptjs + Cookie 会话 | 密码哈希与登录态（SSE 同源凭据） |
+| 执行引擎 | DuckDB（@duckdb/node-api 1.5.6） | 节点间数据流的内存列式计算 |
+| | mssql 12 | SQL Server 读取 / 写入 |
+| | xlsx 0.18 | Excel 读写 |
+| 工程 | pnpm workspace | monorepo（`@hustserver/*` 包约定） |
+| | vitest 2 | 单元测试（server / engine / 设计器包） |
+
 ## 快速开始
 
 环境要求：Node.js ≥ 20、pnpm。
