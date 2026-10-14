@@ -12,6 +12,8 @@ import { createRunService, type RunService } from './modules/runs/service.js';
 import { schedulesRepo } from './modules/schedules/repo.js';
 import { scheduleRoutes } from './modules/schedules/routes.js';
 import { createScheduler, type Scheduler } from './modules/schedules/scheduler.js';
+import { settingsRepo } from './modules/settings/repo.js';
+import { settingsRoutes } from './modules/settings/routes.js';
 import { userAdminRoutes } from './modules/users/routes.js';
 import { usersRepo } from './modules/users/repo.js';
 import { workflowRoutes } from './modules/workflows/routes.js';
@@ -57,6 +59,9 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
   connectionRoutes(app, { db: deps.db, config: deps.config, users, sessions });
   runRoutes(app, { db: deps.db, config: deps.config, users, sessions, recorder, runService });
   scheduleRoutes(app, { db: deps.db, config: deps.config, users, sessions, scheduler });
+
+  const settings = settingsRepo(deps.db);
+  settingsRoutes(app, { config: deps.config, users, sessions, settings });
 
   return app;
 }
