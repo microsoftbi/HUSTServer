@@ -3,13 +3,19 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "husteryxBaseline": "microsoftbi/HUSTERYX@39451d8",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": { ".": "./dist/index.js" },
-  "scripts": { "build": "tsc -p tsconfig.json" },
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run" },
   "dependencies": {
     "@duckdb/node-api": "1.5.6-r.1",
+    "mssql": "^12.7.4",
     "nanoid": "^6.0.2",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/mssql": "^12.3.0",
+    "vitest": "^2.1.8"
   }
 }

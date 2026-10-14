@@ -2,7 +2,7 @@ import type { NodeKind, Workflow, WorkflowEdge, WorkflowNode } from '@hustserver
 
 export const NODE_KIND_WHITELIST: readonly NodeKind[] = [
   'inputCsv', 'inputExcel', 'inputSqlServer',
-  'filter', 'select', 'join', 'union', 'sort', 'aggregate', 'derive', 'dedupe', 'limit',
+  'filter', 'select', 'join', 'union', 'sort', 'aggregation',
   'outputCsv', 'outputExcel', 'outputSqlServer',
 ];
 
