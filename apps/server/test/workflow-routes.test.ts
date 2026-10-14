@@ -117,8 +117,9 @@ describe('workflow routes', () => {
     const list = await app.inject({ method: 'GET', url: `/api/workflows/${id}/files`, headers: { cookie: aliceCookie } });
     expect(list.json()).toHaveLength(1);
     const detail = await app.inject({ method: 'GET', url: `/api/workflows/${id}`, headers: { cookie: aliceCookie } });
-    const inputMap = (detail.json().mappings as Array<{ node_id: string; target_type: string }>).find((m) => m.node_id === 'n1');
+    const inputMap = (detail.json().mappings as Array<{ node_id: string; target_type: string; target_ref: string }>).find((m) => m.node_id === 'n1');
     expect(inputMap?.target_type).toBe('uploaded_file');
+    expect(inputMap?.target_ref).toBe(up.json().stored_name);
   });
 
   it('更新映射与删除工作流', async () => {

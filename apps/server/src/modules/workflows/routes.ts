@@ -144,19 +144,22 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
     renameSync(join(deps.config.uploadDir, uploaded.storedName), join(deps.config.uploadDir, dir, uploaded.storedName));
 
     const existing = files.findByNode(wf.id, nodeId);
-    if (existing) files.remove(existing.id);
-    const row = files.add({
-      workflowId: wf.id, nodeId,
-      originalRef: existing?.original_ref ?? part.filename ?? 'data.csv',
-      storedName: uploaded.storedName, size: uploaded.size,
+    const originalRef = existing?.original_ref ?? part.filename ?? 'data.csv';
+    const write = deps.db.transaction(() => {
+      if (existing) files.remove(existing.id);
+      const added = files.add({
+        workflowId: wf.id, nodeId,
+        originalRef, storedName: uploaded.storedName, size: uploaded.size,
+      });
+      const current = mappings.listByWorkflow(wf.id).filter((m) => !(m.direction === 'input' && m.node_id === nodeId));
+      current.push({
+        id: '', workflow_id: wf.id, node_id: nodeId, direction: 'input',
+        original_ref: originalRef, target_type: 'uploaded_file', target_ref: uploaded.storedName,
+      });
+      mappings.replaceForWorkflow(wf.id, current.map(({ id: _id, ...rest }) => rest));
+      return added;
     });
-
-    const current = mappings.listByWorkflow(wf.id).filter((m) => !(m.direction === 'input' && m.node_id === nodeId));
-    current.push({
-      id: '', workflow_id: wf.id, node_id: nodeId, direction: 'input',
-      original_ref: row.original_ref, target_type: 'uploaded_file', target_ref: uploaded.storedName,
-    });
-    mappings.replaceForWorkflow(wf.id, current.map(({ id: _id, ...rest }) => rest));
+    const row = write();
 
     return reply.code(201).send({ id: row.id, stored_name: row.stored_name, size: row.size, original_ref: row.original_ref });
   });
