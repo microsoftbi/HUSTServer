@@ -1,0 +1,15 @@
+{
+  "id": "wf-sample",
+  "name": "示例：CSV 清洗输出",
+  "nodes": [
+    { "id": "n1", "kind": "inputCsv", "name": "读取订单", "position": { "x": 0, "y": 0 }, "config": { "path": "/Users/me/data/orders.csv" } },
+    { "id": "n2", "kind": "filter", "name": "过滤有效", "position": { "x": 200, "y": 0 }, "config": { "expression": "amount > 0" } },
+    { "id": "n3", "kind": "outputCsv", "name": "导出结果", "position": { "x": 400, "y": 0 }, "config": { "path": "/Users/me/data/out.csv" } }
+  ],
+  "edges": [
+    { "id": "e1", "source": "n1", "target": "n2" },
+    { "id": "e2", "source": "n2", "target": "n3" }
+  ],
+  "createdAt": 1700000000000,
+  "updatedAt": 1700000000000
+}
