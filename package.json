@@ -1,0 +1,16 @@
+{
+  "name": "hustserver",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "vitest run",
+    "dev": "pnpm -r --parallel dev"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
