@@ -5,6 +5,7 @@ export {
   disposeRun,
   subscribe,
   registerEventSink,
+  publishEvent,
 } from './engine/runStore.js';
 export type {
   RunContext,
