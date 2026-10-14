@@ -9,6 +9,9 @@ import { connectionRoutes } from './modules/connections/routes.js';
 import { createRecorder, type Recorder } from './modules/runs/recorder.js';
 import { runRoutes } from './modules/runs/routes.js';
 import { createRunService, type RunService } from './modules/runs/service.js';
+import { schedulesRepo } from './modules/schedules/repo.js';
+import { scheduleRoutes } from './modules/schedules/routes.js';
+import { createScheduler, type Scheduler } from './modules/schedules/scheduler.js';
 import { userAdminRoutes } from './modules/users/routes.js';
 import { usersRepo } from './modules/users/repo.js';
 import { workflowRoutes } from './modules/workflows/routes.js';
@@ -16,6 +19,7 @@ import { workflowRoutes } from './modules/workflows/routes.js';
 export interface AppOverrides {
   recorder?: Recorder;
   runService?: RunService;
+  scheduler?: Scheduler;
 }
 
 export interface AppDeps {
@@ -37,11 +41,22 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
   const runService =
     deps.overrides?.runService ?? createRunService({ db: deps.db, config: deps.config, recorder });
 
+  const scheduler =
+    deps.overrides?.scheduler ??
+    createScheduler({
+      schedules: schedulesRepo(deps.db),
+      triggerRun: (workflowId, scheduleId) => {
+        runService.trigger(workflowId, { triggerType: 'schedule', scheduleId });
+      },
+      onError: (err) => app.log.error({ err }, '调度触发失败'),
+    });
+
   authRoutes(app, { users, sessions, sessionTtlMs: deps.config.sessionTtlMs });
   userAdminRoutes(app, { users, sessions });
   workflowRoutes(app, { db: deps.db, config: deps.config, users, sessions });
   connectionRoutes(app, { db: deps.db, config: deps.config, users, sessions });
   runRoutes(app, { db: deps.db, config: deps.config, users, sessions, recorder, runService });
+  scheduleRoutes(app, { db: deps.db, config: deps.config, users, sessions, scheduler });
 
   return app;
 }
