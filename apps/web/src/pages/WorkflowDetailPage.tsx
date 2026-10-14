@@ -13,9 +13,13 @@ const TARGET_LABEL: Record<MappingTargetType, string> = {
 
 const STATUS_LABEL: Record<string, string> = {
   pending: '排队中',
+  queued: '排队中',
   running: '运行中',
   success: '成功',
+  error: '失败',
   failed: '失败',
+  canceled: '已取消',
+  skipped: '已跳过',
 };
 
 export function WorkflowDetailPage() {

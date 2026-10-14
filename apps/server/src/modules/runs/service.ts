@@ -39,6 +39,12 @@ const defaultExecutor: RunExecutor = async ({ workflow, onEngineRunId }) => {
   const ctx = await createRun(workflow);
   onEngineRunId(ctx.runId);
   await executeWorkflow(ctx.runId);
+  // 引擎在节点失败时只置状态、不抛异常；若不在此显式抛出，
+  // worker 会把真实失败误记为 success 并跳过重试。
+  if (ctx.status === 'error') {
+    const failed = [...ctx.nodeResults.values()].find((result) => result.status === 'error');
+    throw new Error(failed?.error ?? '工作流执行失败');
+  }
 };
 
 /** 把共享目录内的相对/绝对引用解析为绝对路径，越界即拒绝。 */
