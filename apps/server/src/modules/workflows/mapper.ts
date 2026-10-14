@@ -12,6 +12,8 @@ export interface MapperDeps {
   outputDir: string;
   resolveServerPath(rel: string): string;
   connections: Map<string, ResolvedConnection>;
+  /** 工作流私有连接：node_id -> 明文连接配置（优先于全局连接映射）。 */
+  workflowConnections?: Map<string, Record<string, unknown>>;
 }
 
 export interface BuildInput {
@@ -48,6 +50,10 @@ export function buildRuntimeWorkflow(input: BuildInput): Workflow {
       const name = basename(outMap.original_ref || 'output.csv');
       config.path = join(input.deps.outputDir, input.workflowId, input.runId, name);
     }
+
+    // 工作流私有连接（来自 .htyx 内嵌配置）优先于全局连接映射。
+    const privateConn = input.deps.workflowConnections?.get(node.id);
+    if (privateConn) config.connection = privateConn;
 
     return { ...node, config };
   });

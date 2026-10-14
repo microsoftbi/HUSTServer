@@ -1,10 +1,7 @@
-import type { NodeKind, Workflow, WorkflowEdge, WorkflowNode } from '@hustserver/engine';
+import { NODE_KINDS, type NodeKind, type Workflow, type WorkflowEdge, type WorkflowNode } from '@hustserver/engine';
 
-export const NODE_KIND_WHITELIST: readonly NodeKind[] = [
-  'inputCsv', 'inputExcel', 'inputSqlServer',
-  'filter', 'select', 'join', 'union', 'sort', 'aggregation',
-  'outputCsv', 'outputExcel', 'outputSqlServer',
-];
+/** 允许的节点类型：直接以引擎实际支持的 NODE_KINDS 为唯一事实来源，避免两侧漂移。 */
+export const NODE_KIND_WHITELIST: readonly NodeKind[] = NODE_KINDS;
 
 export const INPUT_NODE_KINDS: readonly NodeKind[] = ['inputCsv', 'inputExcel', 'inputSqlServer'];
 export const OUTPUT_NODE_KINDS: readonly NodeKind[] = ['outputCsv', 'outputExcel', 'outputSqlServer'];

@@ -30,9 +30,14 @@ export function WorkflowListPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">工作流</h1>
-        <Link className="rounded bg-blue-600 px-3 py-1.5 text-white" to="/workflows/new">
-          上传工作流
-        </Link>
+        <div className="flex gap-2">
+          <Link className="rounded bg-blue-600 px-3 py-1.5 text-white" to="/workflows/new">
+            上传工作流
+          </Link>
+          <Link className="rounded bg-blue-600 px-3 py-1.5 text-white" to="/workflows/new/designer">
+            新建画布
+          </Link>
+        </div>
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <table className="w-full border text-left text-sm">
@@ -52,7 +57,13 @@ export function WorkflowListPage() {
                 </Link>
               </td>
               <td className="p-2">{new Date(w.updated_at).toLocaleString()}</td>
-              <td className="p-2">
+              <td className="space-x-2 p-2">
+                <Link className="text-blue-600 underline" to={`/workflows/${w.id}/connections`}>
+                  数据连接
+                </Link>
+                <Link className="text-blue-600 underline" to={`/workflows/${w.id}/designer`}>
+                  编辑画布
+                </Link>
                 <button className="text-red-600" onClick={() => void remove(w.id, w.name)}>
                   删除
                 </button>

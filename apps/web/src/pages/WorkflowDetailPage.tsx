@@ -79,13 +79,18 @@ export function WorkflowDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">{detail.name}</h1>
-        <button
-          className="rounded bg-green-600 px-4 py-1.5 text-white disabled:opacity-50"
-          disabled={busy}
-          onClick={() => void runNow()}
-        >
-          {busy ? '提交中…' : '立即运行'}
-        </button>
+        <div className="flex gap-2">
+          <Link className="rounded bg-green-600 px-4 py-1.5 text-white" to={`/workflows/${id}/designer`}>
+            编辑画布
+          </Link>
+          <button
+            className="rounded bg-green-600 px-4 py-1.5 text-white disabled:opacity-50"
+            disabled={busy}
+            onClick={() => void runNow()}
+          >
+            {busy ? '提交中…' : '立即运行'}
+          </button>
+        </div>
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
 

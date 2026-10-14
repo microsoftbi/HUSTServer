@@ -44,4 +44,18 @@ describe('buildRuntimeWorkflow', () => {
     });
     expect((runtime.nodes[0].config as { path: string }).path).toBe('/Users/me/a.csv');
   });
+
+  it('工作流私有连接优先于全局连接映射', () => {
+    const runtime = buildRuntimeWorkflow({
+      workflow, mappings, files: [], workflowId: 'wf1', runId: 'run9',
+      deps: {
+        uploadDir: '/data/uploads', outputDir: '/data/outputs',
+        resolveServerPath: (rel) => `/srv/${rel}`,
+        connections: new Map([['conn1', { id: 'conn1', config: { server: 'db.internal', port: 1433, database: 'prod', user: 'app', password: 'enc' } }]]),
+        workflowConnections: new Map([['in2', { server: 'private.host', port: 1433, database: 'pd', user: 'u', password: 'p' }]]),
+      },
+    });
+    const in2 = runtime.nodes.find((n) => n.id === 'in2')!;
+    expect((in2.config as { connection: { server: string } }).connection.server).toBe('private.host');
+  });
 });

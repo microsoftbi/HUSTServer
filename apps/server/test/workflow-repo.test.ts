@@ -24,7 +24,7 @@ describe('workflowsRepo', () => {
     expect(repo.findById(w1.id)?.name).toBe('A');
     expect(repo.listForOwner(ownerId)).toHaveLength(1);
     expect(repo.listAll()).toHaveLength(1);
-    repo.updatePayload(w1.id, '{"nodes":[1],"edges":[]}');
+    repo.update(w1.id, { payload: '{"nodes":[1],"edges":[]}' });
     expect(repo.findById(w1.id)?.payload).toContain('[1]');
     expect(repo.remove(w1.id)).toBe(true);
     expect(repo.findById(w1.id)).toBeNull();

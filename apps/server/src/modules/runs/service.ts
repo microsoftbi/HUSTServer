@@ -5,7 +5,7 @@ import type { AppConfig } from '../../config.js';
 import { decryptConfig } from '../connections/crypto.js';
 import { connectionsRepo } from '../connections/repo.js';
 import { buildRuntimeWorkflow, type MapperDeps, type ResolvedConnection } from '../workflows/mapper.js';
-import { pathMappingsRepo, workflowFilesRepo, workflowsRepo, type PathMappingRow, type WorkflowRow } from '../workflows/repo.js';
+import { pathMappingsRepo, workflowConnectionsRepo, workflowFilesRepo, workflowsRepo, type PathMappingRow, type WorkflowRow } from '../workflows/repo.js';
 import { createSemaphore } from './queue.js';
 import type { Recorder } from './recorder.js';
 import { runsRepo, type RunRow, type TriggerType } from './repo.js';
@@ -76,6 +76,7 @@ export function createRunService(deps: RunServiceDeps): RunService {
   const files = workflowFilesRepo(db);
   const mappings = pathMappingsRepo(db);
   const connections = connectionsRepo(db);
+  const workflowConnections = workflowConnectionsRepo(db);
   const executor = deps.executor ?? defaultExecutor;
   const sem = createSemaphore(deps.concurrency ?? config.maxConcurrentRuns);
 
@@ -105,6 +106,14 @@ export function createRunService(deps: RunServiceDeps): RunService {
     return map;
   }
 
+  function resolveWorkflowConnections(workflowId: string): Map<string, Record<string, unknown>> {
+    const map = new Map<string, Record<string, unknown>>();
+    for (const row of workflowConnections.listByWorkflow(workflowId)) {
+      map.set(row.node_id, decryptConfig(row.config_encrypted, config.encryptionKey));
+    }
+    return map;
+  }
+
   function buildRuntime(run: RunRow): Workflow {
     const row = workflows.findById(run.workflow_id);
     if (!row) throw new Error('工作流不存在');
@@ -115,6 +124,7 @@ export function createRunService(deps: RunServiceDeps): RunService {
       outputDir: config.outputDir,
       resolveServerPath: (rel) => resolveServerPath(config.sharedDirs, rel),
       connections: resolveConnections(maps),
+      workflowConnections: resolveWorkflowConnections(run.workflow_id),
     };
     return buildRuntimeWorkflow({
       workflow,

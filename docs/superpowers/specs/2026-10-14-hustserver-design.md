@@ -23,13 +23,15 @@ HUSTERYX 是一个单机桌面低代码 ETL 工具：用拖拽 DAG 构建数据�
 
 ### 非目标（明确不做）
 
-画布 / DAG 编辑、工作流可视化只读渲染、分布式多机执行、容器化、SSO / LDAP、邮件或 IM 告警、工作流版本回滚、数据预览 UI。
+工作流可视化只读渲染、分布式多机执行、容器化、SSO / LDAP、邮件或 IM 告警、工作流版本回滚、数据预览 UI。
+
+> 修订：画布 / DAG 编辑不再是非目标——已由 [Web 工作流设计器](./2026-10-14-web-workflow-designer-design.md) 作为站点内编辑能力引入。
 
 ## 2. 范围与关键决策
 
 | 决策项 | 结论 |
 |---|---|
-| 与 HUSTERYX 的关系 | **仅调度托管层**：站点不提供画布，用户上传本地导出的工作流 JSON |
+| 与 HUSTERYX 的关系 | **调度托管层 + Web 画布设计**：站点提供 Web 画布设计器（共享包 `packages/workflow-designer`，见 [Web 工作流设计器](./2026-10-14-web-workflow-designer-design.md)），上传本地导出的工作流 JSON 仍是入口之一 |
 | 服务端执行引擎 | **复用 HUSTERYX 后端引擎**（DuckDB 执行节点），以 vendored 方式引入 |
 | 技术栈 | 与 HUSTERYX 一致：Fastify 5 + TypeScript(ESM) 后端；React 19 + Vite + Tailwind 前端 |
 | 账号开通 | **仅管理员创建账号**，不开放自助注册 |
@@ -125,10 +127,11 @@ DuckDB 会话、图编译、执行器、节点注册表、`runStore`（新增 si
 
 ### 前端 `apps/web`
 
-React 19 + Vite + Tailwind，管理控制台，无画布。页面：
+React 19 + Vite + Tailwind，管理控制台，含画布设计器——设计器实现为共享包 `packages/workflow-designer`（复用 HUSTERYX 前端画布），由 `apps/web` 消费，详见 [Web 工作流设计器](./2026-10-14-web-workflow-designer-design.md)。页面：
 
 - 登录页
 - 我的工作流：列表 / 上传（解析后引导绑定数据）/ 详情
+- 工作流画布设计器：新建空白画布（`/workflows/new/designer`）/ 编辑已有工作流（`/workflows/:id/designer`），「保存并发布」覆盖 payload
 - 调度配置：周期、Cron、启停、手动运行
 - 运行历史：列表 / 日志详情（节点结果 + 逐条日志，支持实时）
 - 用户管理（管理员）
@@ -276,6 +279,7 @@ CREATE INDEX idx_run_nodes_run      ON run_node_results(run_id);
 | POST | `/api/workflows/upload` | multipart 上传工作流 JSON，返回解析结果与待绑定的输入/输出引用 |
 | POST | `/api/workflows` | 由解析结果 + 绑定信息创建工作流 |
 | GET | `/api/workflows/:id` | 详情 |
+| PUT | `/api/workflows/:id` | 保存并发布（覆盖 payload）：请求 `{ name?, workflow }`，响应 `{ ok, id, name }`；仅 owner/管理员（越权 403），结构非法 400；内嵌连接抽取后 AES 加密留存并从 payload 剥离；掩码密码留空 = 沿用原值（`******` 哨兵由客户端清洗，不落库） |
 | DELETE | `/api/workflows/:id` | 删除 |
 | PUT | `/api/workflows/:id/mappings` | 更新路径/连接重映射 |
 | POST | `/api/workflows/:id/files` | 上传输入数据文件并绑定到节点 |

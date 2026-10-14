@@ -1,0 +1,92 @@
+@import '@xyflow/react/dist/style.css';
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.55 0.19 258);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.62 0.17 150);
+  --warning: oklch(0.75 0.16 75);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.55 0.19 258);
+}
+
+.dark {
+  --background: oklch(0.16 0.005 260);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 260);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 260);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.68 0.16 258);
+  --primary-foreground: oklch(0.16 0.005 260);
+  --secondary: oklch(0.27 0.006 260);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.27 0.006 260);
+  --muted-foreground: oklch(0.7 0.01 260);
+  --accent: oklch(0.31 0.008 260);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.62 0.21 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.7 0.16 150);
+  --warning: oklch(0.8 0.15 80);
+  --border: oklch(0.3 0.008 260);
+  --input: oklch(0.32 0.008 260);
+  --ring: oklch(0.68 0.16 258);
+}
+
+/* 滚动条美化（限定在设计器容器内，避免影响宿主其它页面） */
+.hust-designer ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.hust-designer ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.hust-designer ::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--muted-foreground) 35%, transparent);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.hust-designer ::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, var(--muted-foreground) 55%, transparent);
+  background-clip: content-box;
+}
+
+/* ReactFlow 主题适配（限定在设计器容器内） */
+.hust-designer .react-flow__attribution {
+  display: none;
+}
+.hust-designer .react-flow__handle {
+  width: 9px;
+  height: 9px;
+  background: var(--primary);
+  border: 2px solid var(--card);
+}
+.hust-designer .react-flow__edge-path {
+  stroke-width: 2;
+}
+.hust-designer .react-flow__controls-button {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  color: var(--foreground);
+  fill: var(--foreground);
+}
+.hust-designer .react-flow__controls-button:hover {
+  background: var(--accent);
+}

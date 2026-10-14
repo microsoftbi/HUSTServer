@@ -58,6 +58,15 @@ CREATE TABLE IF NOT EXISTS path_mappings (
   target_ref   TEXT
 );
 
+CREATE TABLE IF NOT EXISTS workflow_connections (
+  id               TEXT PRIMARY KEY,
+  workflow_id      TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+  node_id          TEXT NOT NULL,
+  config_encrypted TEXT NOT NULL,
+  created_at       INTEGER NOT NULL,
+  updated_at       INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS schedules (
   id          TEXT PRIMARY KEY,
   workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
@@ -111,6 +120,7 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wf_conn_node ON workflow_connections(workflow_id, node_id);
 CREATE INDEX IF NOT EXISTS idx_runs_workflow ON runs(workflow_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_run_logs_run  ON run_logs(run_id, ts);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_run_nodes_run ON run_node_results(run_id, node_id);

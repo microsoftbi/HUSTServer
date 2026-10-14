@@ -16,7 +16,7 @@ export interface WorkflowsRepo {
   listForOwner(ownerId: string): WorkflowRow[];
   listAll(): WorkflowRow[];
   remove(id: string): boolean;
-  updatePayload(id: string, payload: string): WorkflowRow | null;
+  update(id: string, patch: { name?: string; payload?: string }): WorkflowRow | null;
 }
 
 export function workflowsRepo(db: Database): WorkflowsRepo {
@@ -25,7 +25,7 @@ export function workflowsRepo(db: Database): WorkflowsRepo {
   const byOwner = db.prepare('SELECT * FROM workflows WHERE owner_id = ? ORDER BY updated_at DESC');
   const all = db.prepare('SELECT * FROM workflows ORDER BY updated_at DESC');
   const del = db.prepare('DELETE FROM workflows WHERE id = ?');
-  const update = db.prepare('UPDATE workflows SET payload = ?, updated_at = ? WHERE id = ?');
+  const update = db.prepare('UPDATE workflows SET name = COALESCE(?, name), payload = COALESCE(?, payload), updated_at = ? WHERE id = ?');
   const get = (id: string) => (byId.get(id) as WorkflowRow | undefined) ?? null;
 
   return {
@@ -39,8 +39,8 @@ export function workflowsRepo(db: Database): WorkflowsRepo {
     listForOwner: (ownerId) => byOwner.all(ownerId) as WorkflowRow[],
     listAll: () => all.all() as WorkflowRow[],
     remove: (id) => del.run(id).changes > 0,
-    updatePayload(id, payload) {
-      update.run(payload, Date.now(), id);
+    update(id: string, patch: { name?: string; payload?: string }) {
+      update.run(patch.name ?? null, patch.payload ?? null, Date.now(), id);
       return get(id);
     },
   };
@@ -119,5 +119,59 @@ export function pathMappingsRepo(db: Database): PathMappingsRepo {
       tx();
     },
     listByWorkflow: (workflowId) => byWf.all(workflowId) as PathMappingRow[],
+  };
+}
+
+export interface WorkflowConnectionRow {
+  id: string;
+  workflow_id: string;
+  node_id: string;
+  config_encrypted: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface WorkflowConnectionsRepo {
+  upsert(input: { workflowId: string; nodeId: string; configEncrypted: string }): WorkflowConnectionRow;
+  listByWorkflow(workflowId: string): WorkflowConnectionRow[];
+  findByNode(workflowId: string, nodeId: string): WorkflowConnectionRow | null;
+  remove(workflowId: string, nodeId: string): void;
+  /** 对账删除：清除该工作流下 node_id 不在集合中的行；集合为空时清除全部。 */
+  delNotIn(workflowId: string, nodeIds: string[]): void;
+}
+
+export function workflowConnectionsRepo(db: Database): WorkflowConnectionsRepo {
+  const insert = db.prepare('INSERT INTO workflow_connections (id, workflow_id, node_id, config_encrypted, created_at, updated_at) VALUES (?,?,?,?,?,?)');
+  const update = db.prepare('UPDATE workflow_connections SET config_encrypted = ?, updated_at = ? WHERE id = ?');
+  const byWf = db.prepare('SELECT * FROM workflow_connections WHERE workflow_id = ? ORDER BY node_id ASC');
+  const byNode = db.prepare('SELECT * FROM workflow_connections WHERE workflow_id = ? AND node_id = ? LIMIT 1');
+  const del = db.prepare('DELETE FROM workflow_connections WHERE workflow_id = ? AND node_id = ?');
+  const delAllByWf = db.prepare('DELETE FROM workflow_connections WHERE workflow_id = ?');
+  const get = (workflowId: string, nodeId: string) => (byNode.get(workflowId, nodeId) as WorkflowConnectionRow | undefined) ?? null;
+  return {
+    upsert({ workflowId, nodeId, configEncrypted }) {
+      const existing = get(workflowId, nodeId);
+      if (existing) {
+        update.run(configEncrypted, Date.now(), existing.id);
+        return get(workflowId, nodeId)!;
+      }
+      const now = Date.now();
+      insert.run(nanoid(12), workflowId, nodeId, configEncrypted, now, now);
+      return get(workflowId, nodeId)!;
+    },
+    listByWorkflow: (workflowId) => byWf.all(workflowId) as WorkflowConnectionRow[],
+    findByNode: get,
+    remove: (workflowId, nodeId) => {
+      del.run(workflowId, nodeId);
+    },
+    // SQL 的 NOT IN 不支持空集合：为空时退化为删除该工作流全部连接行。
+    delNotIn(workflowId, nodeIds) {
+      if (nodeIds.length === 0) {
+        delAllByWf.run(workflowId);
+        return;
+      }
+      const sql = `DELETE FROM workflow_connections WHERE workflow_id = ? AND node_id NOT IN (${nodeIds.map(() => '?').join(', ')})`;
+      db.prepare(sql).run(workflowId, ...nodeIds);
+    },
   };
 }

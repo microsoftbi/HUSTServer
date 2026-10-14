@@ -98,11 +98,11 @@ export function WorkflowUploadPage() {
     return (
       <div className="space-y-3">
         <h1 className="text-xl font-semibold">上传工作流</h1>
-        <p className="text-sm text-slate-600">选择 HUSTERYX 导出的工作流 JSON 文件（.json）。</p>
+        <p className="text-sm text-slate-600">选择 HUSTERYX 导出的工作流文件（.htyx / .json）。</p>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <input
           type="file"
-          accept="application/json,.json"
+          accept="application/json,.json,.htyx"
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) void parseJson(file);

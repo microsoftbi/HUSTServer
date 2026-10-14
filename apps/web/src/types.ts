@@ -53,6 +53,14 @@ export interface WorkflowDetail {
   updated_at: number;
 }
 
+/** 工作流内 SQL Server 节点的连接配置（后端返回时密码已掩码）。 */
+export interface WorkflowConnectionNode {
+  node_id: string;
+  kind: string;
+  name: string | null;
+  config: Record<string, unknown> | null;
+}
+
 export interface RunSummary {
   id: string;
   workflow_id: string;
