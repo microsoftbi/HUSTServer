@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
+import { ScheduleSection } from '../components/ScheduleSection.js';
 import type { MappingTargetType, RunSummary, WorkflowDetail } from '../types.js';
 
 const TARGET_LABEL: Record<MappingTargetType, string> = {
@@ -138,7 +139,7 @@ export function WorkflowDetailPage() {
           ))}
       </section>
 
-      {/* Task 24: 在此插入 <ScheduleSection workflowId={id} /> */}
+      <ScheduleSection workflowId={id} />
 
       <section className="space-y-2">
         <h2 className="font-medium">运行历史</h2>
