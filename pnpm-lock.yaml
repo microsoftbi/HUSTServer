@@ -54,6 +54,9 @@ importers:
       '@types/better-sqlite3':
         specifier: ^7.6.12
         version: 7.6.13
+      '@types/node-cron':
+        specifier: ^3.0.11
+        version: 3.0.11
       tsx:
         specifier: ^4.19.2
         version: 4.23.15
@@ -988,6 +991,9 @@ packages:
 
   '@types/mssql@12.3.0':
     resolution: {integrity: sha512-+jy+AJtfuTDI5+nhh0hDNcir1p8P+pf+qsHXpUpYvg7EikxUUePBe+a+Kr6j/Xs89o4EbHlVzrh0HOxbqWM31Q==}
+
+  '@types/node-cron@3.0.11':
+    resolution: {integrity: sha512-0ikrnug3/IyneSHqCBeslAhlK2aBfYek1fGo4bP4QnZPmiqSGRK+Oy7ZMisLWkesffJvQ1cqAcBnJC+8+nxIAg==}
 
   '@types/node@22.20.5':
     resolution: {integrity: sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA==}
@@ -2473,6 +2479,8 @@ snapshots:
       tedious: 20.3.7
     transitivePeerDependencies:
       - supports-color
+
+  '@types/node-cron@3.0.11': {}
 
   '@types/node@22.20.5':
     dependencies:
