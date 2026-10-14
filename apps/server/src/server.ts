@@ -18,6 +18,12 @@ import { userAdminRoutes } from './modules/users/routes.js';
 import { usersRepo } from './modules/users/repo.js';
 import { workflowRoutes } from './modules/workflows/routes.js';
 
+declare module 'fastify' {
+  interface FastifyInstance {
+    scheduler: Scheduler;
+  }
+}
+
 export interface AppOverrides {
   recorder?: Recorder;
   runService?: RunService;
@@ -52,6 +58,8 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
       },
       onError: (err) => app.log.error({ err }, '调度触发失败'),
     });
+
+  app.decorate('scheduler', scheduler);
 
   authRoutes(app, { users, sessions, sessionTtlMs: deps.config.sessionTtlMs });
   userAdminRoutes(app, { users, sessions });
