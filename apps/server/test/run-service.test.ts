@@ -4,6 +4,7 @@ import { loadConfig } from '../src/config.js';
 import { migrate } from '../src/db/migrate.js';
 import { createRecorder } from '../src/modules/runs/recorder.js';
 import { runsRepo } from '../src/modules/runs/repo.js';
+import type { RunStatus } from '../src/modules/runs/repo.js';
 import { createRunService, type RunExecutor } from '../src/modules/runs/service.js';
 import { usersRepo } from '../src/modules/users/repo.js';
 import { workflowsRepo } from '../src/modules/workflows/repo.js';
@@ -87,5 +88,23 @@ describe('createRunService', () => {
   it('工作流不存在时抛错', () => {
     const service = createRunService({ db, config: cfg, recorder: createRecorder(db), executor: async () => {} });
     expect(() => service.trigger('missing')).toThrow('工作流不存在');
+  });
+
+  it('awaitRun 等待终态并返回状态；已终态立即返回', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const recorder = createRecorder(db);
+    const service = createRunService({ db, config: cfg, recorder, executor: async () => { await gate; } });
+    const run = service.trigger(workflowId);
+    let resolved: RunStatus | undefined;
+    const waiter = service.awaitRun(run.id).then((s) => { resolved = s; return s; });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(resolved).toBeUndefined(); // 尚未终态，仍挂起
+    release();
+    await expect(waiter).resolves.toBe('success');
+    expect(await service.awaitRun(run.id)).toBe('success'); // 已终态立即返回
+    recorder.dispose();
   });
 });

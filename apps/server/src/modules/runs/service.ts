@@ -8,7 +8,7 @@ import { buildRuntimeWorkflow, type MapperDeps, type ResolvedConnection } from '
 import { pathMappingsRepo, workflowConnectionsRepo, workflowFilesRepo, workflowsRepo, type PathMappingRow, type WorkflowRow } from '../workflows/repo.js';
 import { createSemaphore } from './queue.js';
 import type { Recorder } from './recorder.js';
-import { runsRepo, type RunRow, type TriggerType } from './repo.js';
+import { runsRepo, type RunRow, type RunStatus, type TriggerType } from './repo.js';
 
 export interface RunExecutorInput {
   runId: string;
@@ -39,6 +39,8 @@ export interface RunService {
       triggerType?: TriggerType;
       scheduleId?: string | null;
       triggeredBy?: string | null;
+      /** 触发本次运行的 job run（若有）。 */
+      jobRunId?: string | null;
       /** 「运行至此」目标节点。 */
       targetNodeId?: string;
       /** 「缓存至此」：成功后钉住会话的冻结令牌。 */
@@ -47,6 +49,7 @@ export interface RunService {
       cacheToken?: string;
     },
   ): RunRow;
+  awaitRun(runId: string): Promise<RunStatus>;
   whenIdle(): Promise<void>;
 }
 
@@ -122,6 +125,18 @@ export function createRunService(deps: RunServiceDeps): RunService {
     }
   }
 
+  const RUN_TERMINAL = new Set<RunStatus>(['success', 'error', 'canceled']);
+  const runWaiters = new Map<string, Array<(status: RunStatus) => void>>();
+
+  /** run 到达终态后唤醒全部等待者；行已丢失时按 error 兜底。 */
+  function notifyRunFinished(runId: string): void {
+    const waiters = runWaiters.get(runId);
+    if (!waiters) return;
+    runWaiters.delete(runId);
+    const row = runs.findById(runId);
+    for (const w of waiters) w(row?.status ?? 'error');
+  }
+
   function resolveConnections(rows: PathMappingRow[]): Map<string, ResolvedConnection> {
     const map = new Map<string, ResolvedConnection>();
     for (const r of rows) {
@@ -168,53 +183,57 @@ export function createRunService(deps: RunServiceDeps): RunService {
   }
 
   async function worker(run: RunRow): Promise<void> {
-    const startedAt = Date.now();
-    const params = runParams.get(run.id);
-    runParams.delete(run.id);
-    let runtime: Workflow;
     try {
-      runtime = buildRuntime(run);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      runs.finish(run.id, { status: 'error', finishedAt: startedAt, durationMs: 0, error: message });
-      return;
-    }
-
-    runs.markRunning(run.id, startedAt);
-    let lastError: string | null = null;
-
-    for (let attempt = 0; attempt <= config.runMaxRetries; attempt += 1) {
-      let engineRunId: string | null = null;
+      const startedAt = Date.now();
+      const params = runParams.get(run.id);
+      runParams.delete(run.id);
+      let runtime: Workflow;
       try {
-        await executor({
-          runId: run.id,
-          workflow: runtime,
-          ...params,
-          onEngineRunId: (id) => {
-            engineRunId = id;
-            runs.setEngineRunId(run.id, id);
-            recorder.attach(run.id, id, runtime);
-          },
-        });
-        lastError = null;
-        break;
+        runtime = buildRuntime(run);
       } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
-      } finally {
-        if (engineRunId) {
-          recorder.detach(engineRunId);
-          engineRunId = null;
+        const message = err instanceof Error ? err.message : String(err);
+        runs.finish(run.id, { status: 'error', finishedAt: startedAt, durationMs: 0, error: message });
+        return;
+      }
+
+      runs.markRunning(run.id, startedAt);
+      let lastError: string | null = null;
+
+      for (let attempt = 0; attempt <= config.runMaxRetries; attempt += 1) {
+        let engineRunId: string | null = null;
+        try {
+          await executor({
+            runId: run.id,
+            workflow: runtime,
+            ...params,
+            onEngineRunId: (id) => {
+              engineRunId = id;
+              runs.setEngineRunId(run.id, id);
+              recorder.attach(run.id, id, runtime);
+            },
+          });
+          lastError = null;
+          break;
+        } catch (err) {
+          lastError = err instanceof Error ? err.message : String(err);
+        } finally {
+          if (engineRunId) {
+            recorder.detach(engineRunId);
+            engineRunId = null;
+          }
         }
       }
-    }
 
-    const finishedAt = Date.now();
-    runs.finish(run.id, {
-      status: lastError === null ? 'success' : 'error',
-      finishedAt,
-      durationMs: finishedAt - startedAt,
-      error: lastError,
-    });
+      const finishedAt = Date.now();
+      runs.finish(run.id, {
+        status: lastError === null ? 'success' : 'error',
+        finishedAt,
+        durationMs: finishedAt - startedAt,
+        error: lastError,
+      });
+    } finally {
+      notifyRunFinished(run.id);
+    }
   }
 
   return {
@@ -228,6 +247,7 @@ export function createRunService(deps: RunServiceDeps): RunService {
         triggerType: opts.triggerType ?? 'manual',
         triggeredBy: opts.triggeredBy ?? null,
         status: 'queued',
+        jobRunId: opts.jobRunId ?? null,
       });
       runParams.set(run.id, {
         ...(opts.targetNodeId ? { targetNodeId: opts.targetNodeId } : {}),
@@ -242,6 +262,15 @@ export function createRunService(deps: RunServiceDeps): RunService {
         })
         .finally(settle);
       return run;
+    },
+    awaitRun(runId) {
+      const row = runs.findById(runId);
+      if (row && RUN_TERMINAL.has(row.status)) return Promise.resolve(row.status);
+      return new Promise<RunStatus>((resolve) => {
+        const list = runWaiters.get(runId) ?? [];
+        list.push(resolve);
+        runWaiters.set(runId, list);
+      });
     },
     whenIdle() {
       if (pending === 0) return Promise.resolve();

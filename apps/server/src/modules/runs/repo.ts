@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid';
 import type { NodeRunStatus } from '@hustserver/engine';
 
 export type RunStatus = 'queued' | 'running' | 'success' | 'error' | 'canceled';
-export type TriggerType = 'manual' | 'schedule';
+export type TriggerType = 'manual' | 'schedule' | 'job';
 export type LogLevel = 'info' | 'warn' | 'error' | 'success';
 
 export interface RunRow {
@@ -19,6 +19,7 @@ export interface RunRow {
   duration_ms: number | null;
   error: string | null;
   created_at: number;
+  job_run_id: string | null;
 }
 
 export interface RunNodeResultRow {
@@ -50,6 +51,7 @@ export interface RunsRepo {
     triggerType: TriggerType;
     triggeredBy?: string | null;
     status?: RunStatus;
+    jobRunId?: string | null;
   }): RunRow;
   findById(id: string): RunRow | null;
   listByWorkflow(workflowId: string, opts: { limit: number; offset: number }): RunRow[];
@@ -67,7 +69,7 @@ export interface RunsRepo {
 export function runsRepo(db: Database): RunsRepo {
   const getStmt = db.prepare('SELECT * FROM runs WHERE id = ?');
   const insertStmt = db.prepare(
-    'INSERT INTO runs (id,workflow_id,schedule_id,trigger_type,triggered_by,status,engine_run_id,started_at,finished_at,duration_ms,error,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO runs (id,workflow_id,schedule_id,trigger_type,triggered_by,status,engine_run_id,started_at,finished_at,duration_ms,error,created_at,job_run_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
   );
   const listStmt = db.prepare(
     'SELECT * FROM runs WHERE workflow_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
@@ -85,9 +87,9 @@ export function runsRepo(db: Database): RunsRepo {
   const get = (id: string): RunRow | null => (getStmt.get(id) as RunRow | undefined) ?? null;
 
   return {
-    create({ workflowId, scheduleId = null, triggerType, triggeredBy = null, status = 'queued' }) {
+    create({ workflowId, scheduleId = null, triggerType, triggeredBy = null, status = 'queued', jobRunId = null }) {
       const id = nanoid(12);
-      insertStmt.run(id, workflowId, scheduleId, triggerType, triggeredBy, status, null, null, null, null, null, Date.now());
+      insertStmt.run(id, workflowId, scheduleId, triggerType, triggeredBy, status, null, null, null, null, null, Date.now(), jobRunId);
       return get(id)!;
     },
     findById: get,
