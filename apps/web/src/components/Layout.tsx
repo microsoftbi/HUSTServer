@@ -16,6 +16,7 @@ export function Layout() {
           <NavLink to="/workflows" className={linkClass}>工作流</NavLink>
           <NavLink to="/resources" className={linkClass}>资源管理</NavLink>
           <NavLink to="/connections" className={linkClass}>连接</NavLink>
+          <NavLink to="/jobs" className={linkClass}>Job编排</NavLink>
           {user?.role === 'admin' && (
             <>
               <NavLink to="/users" className={linkClass}>用户</NavLink>
