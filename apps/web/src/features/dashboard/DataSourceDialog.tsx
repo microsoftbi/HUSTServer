@@ -92,7 +92,7 @@ export function DataSourceDialog({ open, onOpenChange, onSaved }: DataSourceDial
     setRunning(true);
     try {
       const result = await api.post<QueryResult>('/api/data/query', {
-        body: { connectionId, query: sqlText.trim(), limit: 100 },
+        body: { connectionId, query: sqlText.trim() },
       });
       setSqlPreview(datasetFromQueryResult('SQL 数据集', connectionId, sqlText.trim(), result));
       setSqlTruncated(result.truncated);
@@ -176,7 +176,7 @@ export function DataSourceDialog({ open, onOpenChange, onSaved }: DataSourceDial
               <Button size="sm" disabled={running} onClick={() => void runSql()}>
                 {running ? '执行中…' : '执行'}
               </Button>
-              {sqlTruncated ? <span className="text-xs text-slate-500">预览仅显示前 100 行</span> : null}
+              {sqlTruncated ? <span className="text-xs text-slate-500">预览最多加载 1000 行</span> : null}
             </div>
             {sqlPreview ? (
               <div className="space-y-2">
