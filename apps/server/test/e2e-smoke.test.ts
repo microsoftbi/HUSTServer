@@ -7,6 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ensureBootstrapAdmin } from '../src/bootstrap.js';
 import { loadConfig } from '../src/config.js';
 import { migrate } from '../src/db/migrate.js';
+import { jobRunsRepo, jobStepRunsRepo, jobsRepo } from '../src/modules/jobs/repo.js';
+import type { JobService } from '../src/modules/jobs/service.js';
 import { createRecorder, type Recorder } from '../src/modules/runs/recorder.js';
 import { runsRepo } from '../src/modules/runs/repo.js';
 import type { RunService } from '../src/modules/runs/service.js';
@@ -37,6 +39,7 @@ describe('端到端冒烟：建号 → 工作流 → 调度 → 运行 → 设�
   let userCookie = '';
   let workflowId = '';
   let stubScheduler: Scheduler;
+  let stubJobScheduler: Scheduler;
 
   beforeAll(async () => {
     db = new Database(path.join(dataDir, 'e2e.sqlite'));
@@ -58,12 +61,30 @@ describe('端到端冒烟：建号 → 工作流 → 调度 → 运行 → 设�
       },
       async whenIdle() {},
     };
-    stubScheduler = { start() {}, stop() {}, reload() {}, registeredIds: () => [] };
+    stubScheduler = { start() {}, stop() {}, sync() {}, registeredIds: () => [] } as unknown as Scheduler;
+    stubJobScheduler = { start() {}, stop() {}, sync() {}, registeredIds: () => [] } as unknown as Scheduler;
+    const stubJobService: JobService = {
+      trigger(jobId, opts) {
+        const jobRun = jobRunsRepo(db).create({
+          jobId, triggerType: opts?.triggerType ?? 'manual', triggeredBy: opts?.triggeredBy ?? null,
+        });
+        const steps = jobsRepo(db).listSteps(jobId);
+        jobStepRunsRepo(db).createBatch(jobRun.id, steps.map((s) => ({
+          stepId: s.id, seq: s.seq, type: s.type, name: s.name, config: s.config, onFailure: s.on_failure,
+        })));
+        for (const s of jobStepRunsRepo(db).listByJobRun(jobRun.id)) {
+          jobStepRunsRepo(db).finish(s.id, { status: 'success', finishedAt: Date.now(), durationMs: 0 });
+        }
+        jobRunsRepo(db).finish(jobRun.id, { status: 'success', finishedAt: Date.now(), durationMs: 0, error: null });
+        return jobRunsRepo(db).findById(jobRun.id)!;
+      },
+      async whenIdle() {},
+    };
 
     app = await buildServer({
       db,
       config: cfg,
-      overrides: { recorder, runService, scheduler: stubScheduler },
+      overrides: { recorder, runService, scheduler: stubScheduler, jobService: stubJobService, jobScheduler: stubJobScheduler },
     });
 
     const login = await app.inject({
@@ -176,5 +197,27 @@ describe('端到端冒烟：建号 → 工作流 → 调度 → 运行 → 设�
 
     const userGet = await app.inject({ method: 'GET', url: '/api/admin/settings', headers: { cookie: userCookie } });
     expect(userGet.statusCode).toBe(403);
+  });
+
+  it('Job 编排闭环：创建 → 手动运行 → 查看步骤结果', async () => {
+    const created = await app.inject({
+      method: 'POST', url: '/api/jobs', headers: { cookie: userCookie },
+      payload: {
+        name: '日结', steps: [{ type: 'workflow', name: '跑清洗', workflowId, onFailure: 'abort' }],
+        schedule: { enabled: true, freqType: 'daily', time: '07:30' },
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const jobId = (created.json() as { id: string }).id;
+
+    const started = await app.inject({ method: 'POST', url: `/api/jobs/${jobId}/runs`, headers: { cookie: userCookie } });
+    expect(started.statusCode).toBe(202);
+    const jobRunId = (started.json() as { jobRunId: string }).jobRunId;
+
+    const detail = await app.inject({ method: 'GET', url: `/api/job-runs/${jobRunId}`, headers: { cookie: userCookie } });
+    expect(detail.statusCode).toBe(200);
+    const body = detail.json() as { jobRun: { status: string }; steps: Array<{ status: string }> };
+    expect(body.jobRun.status).toBe('success');
+    expect(body.steps.map((s) => s.status)).toEqual(['success']);
   });
 });

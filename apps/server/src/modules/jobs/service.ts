@@ -80,7 +80,7 @@ export function createJobService(deps: JobServiceDeps): JobService {
       if (!stepCfg.sql?.trim()) throw new Error('SQL 不能为空');
       const conn = connections.findById(stepCfg.connectionId);
       if (!conn) throw new Error('连接不存在');
-      const connConfig = decryptConfig(conn.config_encrypted, config.encryptionKey.toString('hex')) as SqlServerConnection;
+      const connConfig = decryptConfig(conn.config_encrypted, config.encryptionKey.toString('hex')) as unknown as SqlServerConnection;
       const result = await runSql(connConfig, stepCfg.sql);
       output = JSON.stringify(result);
       return done(true, null);

@@ -63,6 +63,7 @@ async function main(): Promise<void> {
 
   await app.listen({ host: cfg.host, port: cfg.port });
   app.scheduler.start();
+  app.jobScheduler.start();
   retention.start();
   app.log.info(`HUSTServer 已启动：http://${cfg.host}:${cfg.port}`);
 
@@ -72,6 +73,7 @@ async function main(): Promise<void> {
     closing = true;
     app.log.info(`收到 ${signal}，正在优雅退出…`);
     app.scheduler.stop();
+    app.jobScheduler.stop();
     retention.stop();
     try {
       await app.close();
