@@ -3,6 +3,9 @@ import { AuthProvider, RequireAuth } from './auth.js';
 import { Layout } from './components/Layout.js';
 import { ConnectionsPage } from './pages/ConnectionsPage.js';
 import { HomePage } from './pages/HomePage.js';
+import { JobEditorPage } from './pages/JobEditorPage.js';
+import { JobListPage } from './pages/JobListPage.js';
+import { JobRunDetailPage } from './pages/JobRunDetailPage.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { ResourcesPage } from './pages/ResourcesPage.js';
 import { RunDetailPage } from './pages/RunDetailPage.js';
@@ -41,6 +44,10 @@ export function App() {
             <Route path="/workflows/:id" element={<WorkflowDetailPage />} />
             <Route path="/workflows/:id/connections" element={<WorkflowConnectionsPage />} />
             <Route path="/runs/:id" element={<RunDetailPage />} />
+            <Route path="/jobs" element={<JobListPage />} />
+            <Route path="/jobs/new" element={<JobEditorPage />} />
+            <Route path="/jobs/:id" element={<JobEditorPage />} />
+            <Route path="/job-runs/:id" element={<JobRunDetailPage />} />
             <Route path="/connections" element={<ConnectionsPage />} />
             <Route path="/resources" element={<ResourcesPage />} />
             <Route path="/users" element={<UsersPage />} />
