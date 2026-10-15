@@ -26,7 +26,7 @@ let adminCookie: string;
 let aliceCookie: string;
 let bobCookie: string;
 let workflowId: string;
-const reload = vi.fn();
+const sync = vi.fn();
 
 async function login(username: string, password: string): Promise<string> {
   const res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { username, password } });
@@ -34,7 +34,6 @@ async function login(username: string, password: string): Promise<string> {
 }
 
 beforeEach(async () => {
-  reload.mockClear();
   db = new Database(':memory:');
   migrate(db);
   await usersRepo(db).create({ username: 'admin', passwordHash: await hashPassword('admin123'), role: 'admin' });
@@ -43,7 +42,7 @@ beforeEach(async () => {
 
   const recorder = {} as Recorder;
   const runService = { trigger: vi.fn(), whenIdle: async () => {} } as unknown as RunService;
-  const scheduler = { reload } as unknown as Scheduler;
+  const scheduler = { sync } as unknown as Scheduler;
 
   app = await buildServer({
     db,
@@ -52,6 +51,7 @@ beforeEach(async () => {
     overrides: { recorder, runService, scheduler },
   });
   await app.ready();
+  sync.mockClear();
   adminCookie = await login('admin', 'admin123');
   aliceCookie = await login('alice', 'alice123');
   bobCookie = await login('bob', 'bob12345');
@@ -78,7 +78,7 @@ describe('schedule routes', () => {
     expect(body.cron_expr).toBe('30 9 * * *');
     expect(body.timezone).toBe('Asia/Shanghai');
     expect(typeof body.nextRunAt).toBe('number');
-    expect(reload).toHaveBeenCalled();
+    expect(sync).toHaveBeenCalled();
 
     const list = await app.inject({ method: 'GET', url: `/api/workflows/${workflowId}/schedules`, headers: { cookie: aliceCookie } });
     expect(list.json().items).toHaveLength(1);
@@ -122,7 +122,7 @@ describe('schedule routes', () => {
     });
     const id = created.json().id;
     expect(created.json().cron_expr).toBe('0 8 * * 1');
-    reload.mockClear();
+    sync.mockClear();
 
     const off = await app.inject({
       method: 'PUT',
@@ -133,7 +133,7 @@ describe('schedule routes', () => {
     expect(off.statusCode).toBe(200);
     expect(off.json().enabled).toBe(0);
     expect(off.json().cron_expr).toBe('0 8 * * 1');
-    expect(reload).toHaveBeenCalledTimes(1);
+    expect(sync).toHaveBeenCalledTimes(1);
 
     const changed = await app.inject({
       method: 'PUT',
@@ -152,11 +152,11 @@ describe('schedule routes', () => {
       payload: { freqType: 'daily', time: '09:00' },
     });
     const id = created.json().id;
-    reload.mockClear();
+    sync.mockClear();
 
     const del = await app.inject({ method: 'DELETE', url: `/api/schedules/${id}`, headers: { cookie: aliceCookie } });
     expect(del.statusCode).toBe(200);
-    expect(reload).toHaveBeenCalledTimes(1);
+    expect(sync).toHaveBeenCalledTimes(1);
 
     const list = await app.inject({ method: 'GET', url: `/api/workflows/${workflowId}/schedules`, headers: { cookie: aliceCookie } });
     expect(list.json().items).toHaveLength(0);

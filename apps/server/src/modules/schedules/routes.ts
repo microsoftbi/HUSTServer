@@ -7,14 +7,13 @@ import type { Role, UsersRepo } from '../users/repo.js';
 import { workflowsRepo } from '../workflows/repo.js';
 import { CronFormatError, isFreqType, nextRunAt, presetToCron, validateCron } from './cron.js';
 import { schedulesRepo } from './repo.js';
-import type { Scheduler } from './scheduler.js';
 
 export interface ScheduleRoutesDeps {
   db: Database;
   config: AppConfig;
   users: UsersRepo;
   sessions: SessionsRepo;
-  scheduler: Pick<Scheduler, 'reload'>;
+  resync: () => void;
 }
 
 interface ScheduleBody {
@@ -98,7 +97,7 @@ export function scheduleRoutes(app: FastifyInstance, deps: ScheduleRoutesDeps): 
       timezone,
       enabled: body.enabled === undefined ? true : Boolean(body.enabled),
     });
-    deps.scheduler.reload();
+    deps.resync();
     return reply.code(201).send({ ...row, nextRunAt: row.enabled ? runAt(row.cron_expr, row.timezone) : null });
   });
 
@@ -146,7 +145,7 @@ export function scheduleRoutes(app: FastifyInstance, deps: ScheduleRoutesDeps): 
       timezone: body.timezone !== undefined ? timezone : undefined,
       enabled: body.enabled === undefined ? undefined : Boolean(body.enabled),
     })!;
-    deps.scheduler.reload();
+    deps.resync();
     return { ...updated, nextRunAt: updated.enabled ? runAt(updated.cron_expr, updated.timezone) : null };
   });
 
@@ -159,7 +158,7 @@ export function scheduleRoutes(app: FastifyInstance, deps: ScheduleRoutesDeps): 
       return reply.code(403).send({ error: '无权访问' });
     }
     schedules.remove(id);
-    deps.scheduler.reload();
+    deps.resync();
     return { ok: true };
   });
 }
