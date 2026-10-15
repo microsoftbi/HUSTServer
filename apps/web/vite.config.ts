@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('../../packages/workflow-designer/src', import.meta.url)),
+      '@bi': fileURLToPath(new URL('./src/features/dashboard', import.meta.url)),
     },
   },
   build: { outDir: 'dist' },

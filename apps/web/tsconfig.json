@@ -2,7 +2,8 @@
   "compilerOptions": {
     "target": "ES2022",
     "baseUrl": ".",
-    "paths": { "@/*": ["../../packages/workflow-designer/src/*"] },
+    "paths": { "@/*": ["../../packages/workflow-designer/src/*"], "@bi/*": ["src/features/dashboard/*"] },
+    "resolveJsonModule": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
