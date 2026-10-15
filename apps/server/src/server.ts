@@ -6,6 +6,7 @@ import type { AppConfig } from './config.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { sessionsRepo } from './modules/auth/sessions.js';
 import { connectionRoutes } from './modules/connections/routes.js';
+import { dataRoutes } from './modules/data/routes.js';
 import { dashboardRoutes } from './modules/dashboards/routes.js';
 import { jobsRepo } from './modules/jobs/repo.js';
 import { jobRoutes } from './modules/jobs/routes.js';
@@ -101,6 +102,7 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
   workflowRoutes(app, { db: deps.db, config: deps.config, users, sessions });
   connectionRoutes(app, { db: deps.db, config: deps.config, users, sessions });
   dashboardRoutes(app, { db: deps.db, config: deps.config, users, sessions });
+  dataRoutes(app, { db: deps.db, config: deps.config, users, sessions });
   resourceRoutes(app, {
     resourceDir: deps.config.resourceDir,
     uploadDir: deps.config.uploadDir,

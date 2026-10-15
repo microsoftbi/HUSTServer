@@ -1,0 +1,56 @@
+import sql from 'mssql';
+import { buildMssqlConfig, type SqlServerConnection } from '@hustserver/engine';
+
+export type QueryCell = string | number | boolean | null;
+
+export interface QueryColumn {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'date' | 'unknown';
+}
+
+export interface QueryResult {
+  columns: QueryColumn[];
+  rows: QueryCell[][];
+  truncated: boolean;
+}
+
+const DEFAULT_LIMIT = 1000;
+const MAX_LIMIT = 10000;
+
+/** 按列的首个非空值推断类型（mssql 已返回强类型值；字符串仅识别日期）。 */
+function inferColumnType(values: unknown[]): QueryColumn['type'] {
+  for (const v of values) {
+    if (v === null || v === undefined) continue;
+    if (typeof v === 'number') return 'number';
+    if (typeof v === 'boolean') return 'boolean';
+    if (v instanceof Date) return 'date';
+    if (typeof v === 'string') return Number.isNaN(Date.parse(v)) ? 'string' : 'date';
+    return 'string';
+  }
+  return 'unknown';
+}
+
+function toCell(v: unknown): QueryCell {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v === 'number' || typeof v === 'boolean') return v;
+  return String(v);
+}
+
+export async function runQuery(conn: SqlServerConnection, query: string, limit?: number): Promise<QueryResult> {
+  const cap = Math.min(Math.max(Number(limit) || DEFAULT_LIMIT, 1), MAX_LIMIT);
+  const pool = new sql.ConnectionPool(buildMssqlConfig(conn));
+  try {
+    await pool.connect();
+    const result = await pool.request().query(query);
+    const recordset = (result.recordset ?? []) as Array<Record<string, unknown>>;
+    const names = Object.keys(result.recordset?.columns ?? recordset[0] ?? {});
+    return {
+      columns: names.map((name) => ({ name, type: inferColumnType(recordset.map((r) => r[name])) })),
+      rows: recordset.slice(0, cap).map((r) => names.map((n) => toCell(r[n]))),
+      truncated: recordset.length > cap,
+    };
+  } finally {
+    await pool.close().catch(() => undefined);
+  }
+}
