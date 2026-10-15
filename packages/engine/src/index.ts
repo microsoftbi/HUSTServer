@@ -21,6 +21,7 @@ export type {
 export { executeWorkflow } from './engine/executor.js';
 export { listExcelSheets } from './util/excel.js';
 export { tableNameForNode, quoteIdent } from './util/sqlIdent.js';
+export { buildMssqlConfig } from './util/mssql.js';
 export {
   readNodePreview,
   RunExpiredError,
