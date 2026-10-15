@@ -6,6 +6,7 @@ import type { AppConfig } from './config.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { sessionsRepo } from './modules/auth/sessions.js';
 import { connectionRoutes } from './modules/connections/routes.js';
+import { dashboardRoutes } from './modules/dashboards/routes.js';
 import { jobsRepo } from './modules/jobs/repo.js';
 import { jobRoutes } from './modules/jobs/routes.js';
 import { createJobService, type JobService } from './modules/jobs/service.js';
@@ -46,7 +47,8 @@ export interface AppDeps {
 }
 
 export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
-  const app = Fastify({ logger: deps.logger ?? false });
+  // bodyLimit 高于仪表板 payload 上限（8MB），让路由层自己返回 payload_too_large
+  const app = Fastify({ logger: deps.logger ?? false, bodyLimit: 16 * 1024 * 1024 });
   await app.register(cookie, { secret: deps.config.sessionSecret });
   await app.register(multipart, { limits: { fileSize: 200 * 1024 * 1024 } });
 
@@ -98,6 +100,7 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
   userAdminRoutes(app, { users, sessions });
   workflowRoutes(app, { db: deps.db, config: deps.config, users, sessions });
   connectionRoutes(app, { db: deps.db, config: deps.config, users, sessions });
+  dashboardRoutes(app, { db: deps.db, config: deps.config, users, sessions });
   resourceRoutes(app, {
     resourceDir: deps.config.resourceDir,
     uploadDir: deps.config.uploadDir,
