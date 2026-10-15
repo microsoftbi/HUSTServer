@@ -51,3 +51,84 @@
     -webkit-font-smoothing: antialiased;
   }
 }
+
+/* 报表画布：选中视觉对象的 8 向缩放手柄（源自 tinybi，对齐 Power BI） */
+.vbi-handle {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  background: var(--background);
+  border: 1.5px solid #2563eb;
+  border-radius: 2px;
+  z-index: 30;
+}
+.vbi-handle[data-dir='n'] {
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, -50%);
+  cursor: n-resize;
+}
+.vbi-handle[data-dir='s'] {
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 50%);
+  cursor: s-resize;
+}
+.vbi-handle[data-dir='e'] {
+  top: 50%;
+  right: 0;
+  transform: translate(50%, -50%);
+  cursor: e-resize;
+}
+.vbi-handle[data-dir='w'] {
+  top: 50%;
+  left: 0;
+  transform: translate(-50%, -50%);
+  cursor: w-resize;
+}
+.vbi-handle[data-dir='ne'] {
+  right: 0;
+  top: 0;
+  transform: translate(50%, -50%);
+  cursor: ne-resize;
+}
+.vbi-handle[data-dir='nw'] {
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  cursor: nw-resize;
+}
+.vbi-handle[data-dir='se'] {
+  right: 0;
+  bottom: 0;
+  transform: translate(50%, 50%);
+  cursor: se-resize;
+}
+.vbi-handle[data-dir='sw'] {
+  left: 0;
+  bottom: 0;
+  transform: translate(-50%, 50%);
+  cursor: sw-resize;
+}
+
+/* 拖动/缩放时的对齐辅助线 */
+.vbi-guide-v {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+  background: #e11d48;
+  z-index: 40;
+  pointer-events: none;
+}
+.vbi-guide-h {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  margin-top: -0.5px;
+  background: #e11d48;
+  z-index: 40;
+  pointer-events: none;
+}
