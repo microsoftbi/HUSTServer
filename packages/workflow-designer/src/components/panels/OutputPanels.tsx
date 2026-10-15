@@ -1,3 +1,6 @@
+import { useCallback, useEffect, useState } from 'react';
+import { Loader2, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -7,9 +10,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { useDesignerHost } from '@/context';
 import { Field, Section, useNodeConfig, type PanelProps } from '@/components/panels/fields';
-import { SqlConnectionForm } from '@/components/panels/SqlConnectionForm';
-import type { OutputCsvConfig, OutputExcelConfig, OutputSqlServerConfig } from '@/types';
+import { SqlConnectionPicker } from '@/components/panels/SqlConnectionPicker';
+import type { OutputCsvConfig, OutputExcelConfig, OutputSqlServerConfig, SqlObjectRef } from '@/types';
+
+/** 目标表建议列表的 datalist id（同一时刻只渲染一个面板，固定 id 即可）。 */
+const TARGET_TABLE_LIST_ID = 'output-sql-target-tables';
 
 /* ----------------------------- CSV 输出 ----------------------------- */
 
@@ -86,23 +93,76 @@ export function OutputExcelPanel({ node }: PanelProps) {
 /* ----------------------------- SQL Server 输出 ----------------------------- */
 
 export function OutputSqlServerPanel({ node }: PanelProps) {
+  const { adapter } = useDesignerHost();
   const [config, patch] = useNodeConfig<OutputSqlServerConfig>(node);
+  const [objects, setObjects] = useState<SqlObjectRef[]>([]);
+  const [loadingObjects, setLoadingObjects] = useState(false);
+  const [objectError, setObjectError] = useState<string | null>(null);
+  const connectionId = config.connectionId ?? '';
+
+  const loadObjects = useCallback(async (id: string) => {
+    if (!id || !adapter.listSqlObjectsByConnection) {
+      setObjects([]);
+      setObjectError(null);
+      return;
+    }
+    setLoadingObjects(true);
+    setObjectError(null);
+    try {
+      const refs = await adapter.listSqlObjectsByConnection(id);
+      setObjects(refs);
+    } catch (err) {
+      setObjects([]);
+      setObjectError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoadingObjects(false);
+    }
+  }, [adapter]);
+
+  useEffect(() => {
+    void loadObjects(connectionId);
+  }, [connectionId, loadObjects]);
+
   return (
     <div className="flex flex-col gap-4">
-      <SqlConnectionForm
-        connection={config.connection}
-        onChange={(connection) => patch({ connection })}
+      <SqlConnectionPicker
+        value={connectionId}
+        legacyEmbedded={Boolean(config.connection)}
+        onChange={(nextId) => patch({ connectionId: nextId })}
       />
 
       <Section title="写入设置">
-        <Field label="目标表">
-          <Input
-            value={config.table ?? ''}
-            onChange={(event) => patch({ table: event.target.value })}
-            placeholder="dbo.TargetTable"
-            className="h-8 text-xs"
-          />
+        <Field
+          label="目标表"
+          hint="可从下拉选择连接下的已有表 / 视图，也可直接输入新表名（配合「表不存在时自动创建」）。"
+        >
+          <div className="flex items-center gap-1.5">
+            <Input
+              list={TARGET_TABLE_LIST_ID}
+              value={config.table ?? ''}
+              onChange={(event) => patch({ table: event.target.value })}
+              placeholder="dbo.TargetTable"
+              className="h-8 text-xs"
+            />
+            <datalist id={TARGET_TABLE_LIST_ID}>
+              {objects.map((obj) => {
+                const value = `${obj.schema}.${obj.name}`;
+                return <option key={value} value={value} />;
+              })}
+            </datalist>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              title="刷新表 / 视图列表"
+              disabled={loadingObjects || !connectionId}
+              onClick={() => void loadObjects(connectionId)}
+            >
+              {loadingObjects ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+            </Button>
+          </div>
         </Field>
+        {objectError && <p className="text-xs text-destructive">{objectError}</p>}
 
         <Field label="写入模式">
           <Select

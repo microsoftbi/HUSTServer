@@ -171,6 +171,10 @@ export function createRunService(deps: RunServiceDeps): RunService {
       resolveServerPath: (rel) => resolveServerPath(config.sharedDirs, rel),
       connections: resolveConnections(maps),
       workflowConnections: resolveWorkflowConnections(run.workflow_id),
+      resolveConnectionById: (id) => {
+        const conn = connections.findById(id);
+        return conn ? decryptConfig(conn.config_encrypted, config.encryptionKey) : undefined;
+      },
     };
     return buildRuntimeWorkflow({
       workflow,

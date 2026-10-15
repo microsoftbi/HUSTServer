@@ -10,11 +10,20 @@ import type {
   PreviewData,
   RunLogEvent,
   RunStatusEvent,
+  SqlObjectRef,
   Workflow,
 } from '@hustserver/workflow-designer';
 
 const MASKED = '******';
 const SQL_KINDS = new Set(['inputSqlServer', 'outputSqlServer']);
+
+/** 「连接」模块列出的连接摘要（config 中的凭据为掩码）。 */
+interface ConnectionDto {
+  id: string;
+  name: string;
+  type: string;
+  config?: Record<string, unknown>;
+}
 
 interface RunSnapshot {
   run: { status: string };
@@ -49,7 +58,8 @@ function hydrateWorkflow(raw: unknown, name: string, connections: WorkflowConnec
     nodes: wf.nodes.map((node) => {
       if (!SQL_KINDS.has(node.kind)) return node;
       const remote = byNode.get(node.id);
-      if (!remote?.config) return node;
+      // 空配置（引用连接的节点曾被写入过空连接记录）不合并，避免凭空造出 connection 字段。
+      if (!remote?.config || Object.keys(remote.config).length === 0) return node;
       const config = node.config as Record<string, unknown>;
       return {
         ...node,
@@ -66,9 +76,13 @@ function stripMaskedPasswords(wf: Workflow): Workflow {
     nodes: wf.nodes.map((node) => {
       if (!SQL_KINDS.has(node.kind)) return node;
       const config = { ...(node.config as Record<string, unknown>) };
-      const conn = { ...((config.connection as Record<string, unknown>) ?? {}) };
-      if (conn.password === MASKED) conn.password = '';
-      config.connection = conn;
+      // 仅清洗已有的内嵌连接；引用连接（connectionId）的节点不写 connection，
+      // 否则会被后端留存为空连接记录、回显时误报为旧版内嵌配置。
+      if (config.connection !== undefined) {
+        const conn = { ...((config.connection as Record<string, unknown>) ?? {}) };
+        if (conn.password === MASKED) conn.password = '';
+        config.connection = conn;
+      }
       return { ...node, config };
     }),
   };
@@ -148,6 +162,26 @@ export function WorkflowDesignerPage() {
           `/api/resources/sheets?path=${encodeURIComponent(filePath)}`,
         );
         return res.sheets;
+      },
+      // 列出「连接」模块中可用的 SQL Server 连接，供节点下拉引用（凭据不入工作流）。
+      listSqlConnections: async () => {
+        const rows = await api.get<ConnectionDto[]>('/api/connections');
+        return rows
+          .filter((row) => row.type === 'sqlserver')
+          .map((row) => ({
+            id: row.id,
+            name: row.name,
+            type: row.type,
+            server: row.config?.server as string | undefined,
+            database: row.config?.database as string | undefined,
+          }));
+      },
+      // 列出指定连接自身数据库下的表/视图（后端按连接解密凭据后查询）。
+      listSqlObjectsByConnection: async (connectionId) => {
+        const res = await api.get<{ objects: SqlObjectRef[] }>(
+          `/api/connections/${connectionId}/objects`,
+        );
+        return res.objects;
       },
       // 输入节点结构探测：按节点类型映射到后端 schema 端点，返回列供下游面板下拉。
       probeSchema: async (kind, config) => {

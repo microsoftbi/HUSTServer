@@ -105,6 +105,8 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
     sessions,
   });
   schemaRoutes(app, {
+    db: deps.db,
+    config: deps.config,
     resourceDir: deps.config.resourceDir,
     uploadDir: deps.config.uploadDir,
     users,

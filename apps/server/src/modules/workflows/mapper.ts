@@ -17,6 +17,8 @@ export interface MapperDeps {
   connections: Map<string, ResolvedConnection>;
   /** 工作流私有连接：node_id -> 明文连接配置（优先于全局连接映射）。 */
   workflowConnections?: Map<string, Record<string, unknown>>;
+  /** 按 id 解析「连接」模块中的连接（明文配置），供节点 connectionId 引用。 */
+  resolveConnectionById?: (id: string) => Record<string, unknown> | undefined;
 }
 
 export interface BuildInput {
@@ -59,6 +61,13 @@ export function buildRuntimeWorkflow(input: BuildInput): Workflow {
     // 工作流私有连接（来自 .htyx 内嵌配置）优先于全局连接映射。
     const privateConn = input.deps.workflowConnections?.get(node.id);
     if (privateConn) config.connection = privateConn;
+
+    // 引用「连接」模块的连接：新节点只保存 connectionId，运行时在此注入明文配置。
+    const connId = config.connectionId;
+    if (typeof connId === 'string' && connId) {
+      const resolved = input.deps.resolveConnectionById?.(connId);
+      if (resolved) config.connection = resolved;
+    }
 
     return { ...node, config };
   });

@@ -36,16 +36,6 @@ export interface NodeMeta {
   defaultConfig: Record<string, unknown>;
 }
 
-const DEFAULT_SQL_CONNECTION = {
-  server: '',
-  port: 1433,
-  database: '',
-  user: '',
-  password: '',
-  encrypt: true,
-  trustServerCertificate: true,
-};
-
 export const NODE_META: Record<NodeKind, NodeMeta> = {
   inputCsv: {
     kind: 'inputCsv',
@@ -75,7 +65,7 @@ export const NODE_META: Record<NodeKind, NodeMeta> = {
     icon: Database,
     inputs: [],
     outputs: [{ id: 'out', label: '输出' }],
-    defaultConfig: { connection: { ...DEFAULT_SQL_CONNECTION }, query: '' },
+    defaultConfig: { connectionId: '', query: '' },
   },
   select: {
     kind: 'select',
@@ -172,7 +162,7 @@ export const NODE_META: Record<NodeKind, NodeMeta> = {
     inputs: [{ id: 'in', label: '输入' }],
     outputs: [],
     defaultConfig: {
-      connection: { ...DEFAULT_SQL_CONNECTION },
+      connectionId: '',
       table: '',
       mode: 'append',
       createTable: true,

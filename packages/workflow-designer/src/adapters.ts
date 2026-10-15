@@ -7,8 +7,8 @@ import type {
   ResourceBrowseResult,
   RunLogEvent,
   RunStatusEvent,
+  SqlConnectionRef,
   SqlObjectRef,
-  SqlServerConnection,
   Workflow,
 } from './types';
 
@@ -65,8 +65,10 @@ export interface DesignerAdapter {
   /** 浏览资源库目录（'' 为根目录）；文件条目带可直接写入配置的绝对路径。 */
   listResourceEntries?: (dir: string) => Promise<ResourceBrowseResult>;
   listSheets?: (path: string) => Promise<string[]>;
-  listSqlDatabases?: (connection: SqlServerConnection) => Promise<string[]>;
-  listSqlObjects?: (connection: SqlServerConnection) => Promise<SqlObjectRef[]>;
+  /** 列出「连接」模块中可用的 SQL Server 连接。 */
+  listSqlConnections?: () => Promise<SqlConnectionRef[]>;
+  /** 列出指定连接自身数据库下的表/视图。 */
+  listSqlObjectsByConnection?: (connectionId: string) => Promise<SqlObjectRef[]>;
   probeSchema?: (kind: NodeKind, config: Record<string, unknown>) => Promise<ColumnMeta[]>;
   /** 发起一次工作流运行。 */
   runWorkflow?: (

@@ -20,6 +20,12 @@ interface EditorStep {
   onFailure: JobOnFailure;
 }
 
+/** 步骤编辑弹窗状态；editingKey 为 null 表示新增。 */
+interface StepModalState {
+  editingKey: number | null;
+  step: EditorStep;
+}
+
 interface ScheduleForm {
   enabled: boolean;
   freqType: 'daily' | 'weekly' | 'monthly' | 'cron';
@@ -71,11 +77,18 @@ function nextStepKey(): number {
   return stepKeySeed;
 }
 
+function defaultStepName(type: JobStepType): string {
+  return type === 'workflow' ? '运行工作流' : '运行 SQL';
+}
+
+/** 自动生成的默认名称集合；名称仍为其中之一时，切换类型会同步更新。 */
+const DEFAULT_STEP_NAMES: readonly string[] = [defaultStepName('sql'), defaultStepName('workflow')];
+
 function newStep(type: JobStepType): EditorStep {
   return {
     key: nextStepKey(),
     type,
-    name: type === 'workflow' ? '运行工作流' : '运行 SQL',
+    name: defaultStepName(type),
     workflowId: '',
     connectionId: '',
     sql: '',
@@ -107,7 +120,9 @@ export function JobEditorPage() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [steps, setSteps] = useState<EditorStep[]>([newStep('workflow')]);
+  const [steps, setSteps] = useState<EditorStep[]>([]);
+  const [modal, setModal] = useState<StepModalState | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [schedule, setSchedule] = useState<ScheduleForm>(DEFAULT_SCHEDULE);
   const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
   const [connections, setConnections] = useState<ConnectionOption[]>([]);
@@ -154,9 +169,61 @@ export function JobEditorPage() {
       .catch(() => {});
   }, [id, isNew]);
 
-  const updateStep = (key: number, patch: Partial<EditorStep>): void => {
-    setSteps((prev) => prev.map((s) => (s.key === key ? { ...s, ...patch } : s)));
+  const openAdd = (): void => {
+    setModalError(null);
+    setModal({ editingKey: null, step: newStep('sql') });
   };
+
+  const openEdit = (step: EditorStep): void => {
+    setModalError(null);
+    setModal({ editingKey: step.key, step: { ...step } });
+  };
+
+  const closeModal = (): void => {
+    setModal(null);
+    setModalError(null);
+  };
+
+  const patchDraft = (patch: Partial<EditorStep>): void => {
+    setModal((prev) => (prev ? { ...prev, step: { ...prev.step, ...patch } } : prev));
+  };
+
+  const switchDraftType = (type: JobStepType): void => {
+    setModal((prev) => {
+      if (!prev) return prev;
+      const { step } = prev;
+      const shouldRename = DEFAULT_STEP_NAMES.includes(step.name.trim());
+      return { ...prev, step: { ...step, type, name: shouldRename ? defaultStepName(type) : step.name } };
+    });
+  };
+
+  const confirmDraft = (): void => {
+    if (!modal) return;
+    const draft = modal.step;
+    if (draft.type === 'workflow') {
+      if (!draft.workflowId) return setModalError('请选择工作流');
+    } else {
+      if (!draft.connectionId) return setModalError('请选择连接');
+      if (!draft.sql.trim()) return setModalError('请填写 SQL');
+    }
+    const next: EditorStep = { ...draft, name: draft.name.trim() || defaultStepName(draft.type) };
+    setSteps((prev) =>
+      modal.editingKey == null ? [...prev, next] : prev.map((s) => (s.key === modal.editingKey ? next : s)),
+    );
+    closeModal();
+  };
+
+  useEffect(() => {
+    if (!modal) return;
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        setModal(null);
+        setModalError(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [modal]);
 
   const moveStep = (index: number, dir: -1 | 1): void => {
     setSteps((prev) => {
@@ -260,74 +327,35 @@ export function JobEditorPage() {
 
       <section className="space-y-3 rounded border bg-white p-4">
         <h2 className="font-medium">步骤编排</h2>
-        {steps.map((s, i) => (
-          <div key={s.key} className="space-y-2 rounded border p-3">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="font-medium">{i + 1}.</span>
-              <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">{s.type === 'workflow' ? '工作流' : 'SQL'}</span>
-              <input
-                className={`${inputClass} max-w-48`}
-                value={s.name}
-                onChange={(e) => updateStep(s.key, { name: e.target.value })}
-              />
-              <div className="ml-auto flex gap-1">
-                <button className="rounded border px-2" disabled={i === 0} onClick={() => moveStep(i, -1)}>上移</button>
-                <button className="rounded border px-2" disabled={i === steps.length - 1} onClick={() => moveStep(i, 1)}>下移</button>
-                <button className="rounded border px-2 text-red-600" onClick={() => setSteps((prev) => prev.filter((x) => x.key !== s.key))}>删除</button>
+        {steps.length === 0 ? (
+          <p className="text-sm text-slate-500">暂无步骤，请点击下方按钮添加。</p>
+        ) : (
+          steps.map((s, i) => {
+            const workflowName = workflows.find((w) => w.id === s.workflowId)?.name ?? '（未选择）';
+            const connectionName = connections.find((c) => c.id === s.connectionId)?.name ?? '（未选择）';
+            const sqlLine = s.sql.trim() ? s.sql.trim().split('\n')[0].slice(0, 60) : '（空）';
+            return (
+              <div key={s.key} className="space-y-1 rounded border p-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{i + 1}.</span>
+                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">{s.type === 'workflow' ? '工作流' : 'SQL'}</span>
+                  <span className="font-medium">{s.name}</span>
+                  <div className="ml-auto flex gap-1">
+                    <button className="rounded border px-2" disabled={i === 0} onClick={() => moveStep(i, -1)}>上移</button>
+                    <button className="rounded border px-2" disabled={i === steps.length - 1} onClick={() => moveStep(i, 1)}>下移</button>
+                    <button className="rounded border px-2" onClick={() => openEdit(s)}>编辑</button>
+                    <button className="rounded border px-2 text-red-600" onClick={() => setSteps((prev) => prev.filter((x) => x.key !== s.key))}>删除</button>
+                  </div>
+                </div>
+                <p className="text-slate-600">
+                  {s.type === 'workflow' ? `工作流：${workflowName}` : `连接：${connectionName} · SQL：${sqlLine}`}
+                </p>
+                <p className="text-slate-500">失败策略：{s.onFailure === 'abort' ? '中止' : '继续'}</p>
               </div>
-            </div>
-            <label className="block text-sm">
-              失败策略
-              <select
-                className={inputClass}
-                value={s.onFailure}
-                onChange={(e) => updateStep(s.key, { onFailure: e.target.value as JobOnFailure })}
-              >
-                <option value="abort">中止（后续步骤跳过）</option>
-                <option value="continue">继续（记录失败并执行下一步）</option>
-              </select>
-            </label>
-            {s.type === 'workflow' ? (
-              <label className="block text-sm">
-                工作流
-                <select className={inputClass} value={s.workflowId} onChange={(e) => updateStep(s.key, { workflowId: e.target.value })}>
-                  <option value="">请选择…</option>
-                  {workflows.map((w) => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <>
-                <label className="block text-sm">
-                  连接（SQL Server）
-                  <select className={inputClass} value={s.connectionId} onChange={(e) => updateStep(s.key, { connectionId: e.target.value })}>
-                    <option value="">请选择…</option>
-                    {connections.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block text-sm">
-                  SQL（将直接在该连接上执行）
-                  <textarea className={`${inputClass} h-24 font-mono`} value={s.sql} onChange={(e) => updateStep(s.key, { sql: e.target.value })} />
-                </label>
-              </>
-            )}
-          </div>
-        ))}
-        <select
-          className={inputClass}
-          value=""
-          onChange={(e) => {
-            if (e.target.value) setSteps((prev) => [...prev, newStep(e.target.value as JobStepType)]);
-            e.target.value = '';
-          }}
-        >
-          <option value="">+ 添加步骤…</option>
-          <option value="workflow">运行工作流</option>
-          <option value="sql">运行 SQL</option>
-        </select>
+            );
+          })
+        )}
+        <button className="rounded border px-3 py-1.5 text-sm" onClick={openAdd}>+ 添加步骤</button>
       </section>
 
       <section className="space-y-2 rounded border bg-white p-4">
@@ -425,6 +453,76 @@ export function JobEditorPage() {
             </table>
           )}
         </section>
+      )}
+
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeModal}>
+          <div
+            className="w-full max-w-lg space-y-3 rounded bg-white p-4 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="font-medium">{modal.editingKey == null ? '添加步骤' : '编辑步骤'}</h2>
+            <div className="flex gap-1 rounded bg-slate-100 p-1 text-sm">
+              <button
+                className={`flex-1 rounded px-3 py-1 ${modal.step.type === 'sql' ? 'bg-white shadow' : ''}`}
+                onClick={() => switchDraftType('sql')}
+              >
+                运行 SQL
+              </button>
+              <button
+                className={`flex-1 rounded px-3 py-1 ${modal.step.type === 'workflow' ? 'bg-white shadow' : ''}`}
+                onClick={() => switchDraftType('workflow')}
+              >
+                运行工作流
+              </button>
+            </div>
+            {modalError && <p className="text-sm text-red-600">{modalError}</p>}
+            <label className="block text-sm">
+              步骤名称
+              <input className={inputClass} value={modal.step.name} onChange={(e) => patchDraft({ name: e.target.value })} />
+            </label>
+            {modal.step.type === 'workflow' ? (
+              <label className="block text-sm">
+                工作流
+                <select className={inputClass} value={modal.step.workflowId} onChange={(e) => patchDraft({ workflowId: e.target.value })}>
+                  <option value="">请选择…</option>
+                  {workflows.map((w) => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <>
+                <label className="block text-sm">
+                  连接（SQL Server）
+                  <select className={inputClass} value={modal.step.connectionId} onChange={(e) => patchDraft({ connectionId: e.target.value })}>
+                    <option value="">请选择…</option>
+                    {connections.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  SQL（将直接在该连接上执行）
+                  <textarea className={`${inputClass} h-28 font-mono`} value={modal.step.sql} onChange={(e) => patchDraft({ sql: e.target.value })} />
+                </label>
+              </>
+            )}
+            <label className="block text-sm">
+              失败策略
+              <select className={inputClass} value={modal.step.onFailure} onChange={(e) => patchDraft({ onFailure: e.target.value as JobOnFailure })}>
+                <option value="abort">中止（后续步骤跳过）</option>
+                <option value="continue">继续（记录失败并执行下一步）</option>
+              </select>
+            </label>
+            <div className="flex justify-end gap-2">
+              <button className="rounded border px-4 py-1.5" onClick={closeModal}>取消</button>
+              <button className="rounded bg-blue-600 px-4 py-1.5 text-white" onClick={confirmDraft}>
+                {modal.editingKey == null ? '添加' : '保存'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

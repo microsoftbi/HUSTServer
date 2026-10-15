@@ -100,7 +100,10 @@ export interface SqlObjectRef {
 }
 
 export interface InputSqlServerConfig {
-  connection: SqlServerConnection;
+  /** 引用「连接」模块中的连接 id；新节点使用，运行时由服务端解析为真实连接。 */
+  connectionId?: string;
+  /** 内嵌连接信息（旧节点兼容；同时存在 connectionId 时以 connectionId 为准）。 */
+  connection?: SqlServerConnection;
   /** 记录所选表/视图，仅用于重新打开面板时回显。 */
   object?: SqlObjectRef;
   query: string;
@@ -194,7 +197,10 @@ export interface OutputExcelConfig {
 }
 
 export interface OutputSqlServerConfig {
-  connection: SqlServerConnection;
+  /** 引用「连接」模块中的连接 id；新节点使用，运行时由服务端解析为真实连接。 */
+  connectionId?: string;
+  /** 内嵌连接信息（旧节点兼容；同时存在 connectionId 时以 connectionId 为准）。 */
+  connection?: SqlServerConnection;
   table: string;
   mode: 'append' | 'overwrite';
   createTable?: boolean;

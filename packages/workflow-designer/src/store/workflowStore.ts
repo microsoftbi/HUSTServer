@@ -110,8 +110,19 @@ function buildProbePlan(node: WorkflowNode): ProbePlan | null {
       };
     }
     case 'inputSqlServer': {
-      const connection = cfg.connection as SqlServerConnection | undefined;
       const query = String(cfg.query ?? '');
+      const connectionId = typeof cfg.connectionId === 'string' ? cfg.connectionId : '';
+      if (connectionId) {
+        if (!query) return null;
+        // 引用「连接」模块：签名只需连接 id + 查询，探测由服务端解析连接。
+        return {
+          signature: JSON.stringify(['sqlserver-conn', connectionId, query]),
+          kind: 'inputSqlServer',
+          config: { connectionId, query },
+        };
+      }
+      // 旧节点：内嵌连接信息。
+      const connection = cfg.connection as SqlServerConnection | undefined;
       if (!connection?.server || !connection.database || !connection.user || !query) return null;
       return {
         // 签名包含密码：平台留存的连接密码为掩码，用户重填真实密码后需重新探测。

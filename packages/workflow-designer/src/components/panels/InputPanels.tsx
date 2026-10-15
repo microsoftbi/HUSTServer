@@ -14,14 +14,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { useDesignerHost } from '@/context';
 import { Field, useNodeConfig, type PanelProps } from '@/components/panels/fields';
 import { FilePathField } from '@/components/panels/FilePicker';
-import { SqlConnectionForm } from '@/components/panels/SqlConnectionForm';
+import { SqlConnectionPicker } from '@/components/panels/SqlConnectionPicker';
 import type {
   FileUploadResult,
   InputCsvConfig,
   InputExcelConfig,
   InputSqlServerConfig,
   SqlObjectRef,
-  SqlServerConnection,
 } from '@/types';
 
 /* ----------------------------- CSV 输入 ----------------------------- */
@@ -195,10 +194,10 @@ export function InputSqlServerPanel({ node }: PanelProps) {
   const [objects, setObjects] = useState<SqlObjectRef[]>([]);
   const [loadingObjects, setLoadingObjects] = useState(false);
   const [objectError, setObjectError] = useState<string | null>(null);
-  const connection = config.connection;
+  const connectionId = config.connectionId ?? '';
 
-  const loadObjects = useCallback(async (conn: SqlServerConnection) => {
-    if (!conn?.server || !conn?.database || !adapter.listSqlObjects) {
+  const loadObjects = useCallback(async (id: string) => {
+    if (!id || !adapter.listSqlObjectsByConnection) {
       setObjects([]);
       setObjectError(null);
       return;
@@ -206,7 +205,7 @@ export function InputSqlServerPanel({ node }: PanelProps) {
     setLoadingObjects(true);
     setObjectError(null);
     try {
-      const refs = await adapter.listSqlObjects(conn);
+      const refs = await adapter.listSqlObjectsByConnection(id);
       setObjects(refs);
     } catch (err) {
       setObjects([]);
@@ -217,10 +216,8 @@ export function InputSqlServerPanel({ node }: PanelProps) {
   }, [adapter]);
 
   useEffect(() => {
-    void loadObjects(connection);
-    // 连接关键字段变化时重新拉取表/视图列表
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connection.server, connection.port, connection.database, connection.user, loadObjects]);
+    void loadObjects(connectionId);
+  }, [connectionId, loadObjects]);
 
   const objectValue = config.object ? `${config.object.schema}.${config.object.name}` : '';
   const hasObjectFallback =
@@ -239,12 +236,13 @@ export function InputSqlServerPanel({ node }: PanelProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <SqlConnectionForm
-        connection={connection}
-        onChange={(next) => patch({ connection: next })}
+      <SqlConnectionPicker
+        value={connectionId}
+        legacyEmbedded={Boolean(config.connection)}
+        onChange={(nextId) => patch({ connectionId: nextId, object: undefined })}
       />
 
-      <Field label="表 / 视图" hint="选择数据库下的一张表或视图，点击「加载」生成查询。">
+      <Field label="表 / 视图" hint="选择连接下的一张表或视图，点击「加载」生成查询。">
         <div className="flex items-center gap-1.5">
           {objects.length > 0 ? (
             <Select value={objectValue} onValueChange={handleSelectObject}>
@@ -268,18 +266,18 @@ export function InputSqlServerPanel({ node }: PanelProps) {
             <Input
               value={objectValue}
               readOnly
-              placeholder="请先连接并选择数据库"
+              placeholder={connectionId ? '该连接下暂无表 / 视图' : '请先选择连接'}
               className="h-8 text-xs"
             />
           )}
-          {adapter.listSqlObjects && (
+          {adapter.listSqlObjectsByConnection && (
             <Button
               type="button"
               variant="outline"
               size="icon-sm"
               title="刷新表 / 视图列表"
-              disabled={loadingObjects || !connection.server || !connection.database}
-              onClick={() => void loadObjects(connection)}
+              disabled={loadingObjects || !connectionId}
+              onClick={() => void loadObjects(connectionId)}
             >
               {loadingObjects ? <Loader2 className="animate-spin" /> : <RefreshCw />}
             </Button>

@@ -21,4 +21,6 @@ export type {
   ResourceEntryRef,
   ResourceBrowseResult,
   SqlServerConnection,
+  SqlConnectionRef,
+  SqlObjectRef,
 } from './types';

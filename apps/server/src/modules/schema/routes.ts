@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
+import type { Database } from 'better-sqlite3';
 import {
   probeCsvSchema,
   probeExcelSchema,
@@ -7,10 +8,15 @@ import {
   type SqlServerConnection,
 } from '@hustserver/engine';
 import { requireAuth } from '../../plugins/guards.js';
+import type { AppConfig } from '../../config.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import type { UsersRepo } from '../users/repo.js';
+import { decryptConfig } from '../connections/crypto.js';
+import { connectionsRepo } from '../connections/repo.js';
 
 export interface SchemaRouteDeps {
+  db: Database;
+  config: AppConfig;
   resourceDir: string;
   /** 上传目录：相对路径的 CSV/Excel 引用按引擎语义落到此处。 */
   uploadDir: string;
@@ -26,6 +32,7 @@ const errMessage = (err: unknown): string => (err instanceof Error ? err.message
  */
 export function schemaRoutes(app: FastifyInstance, deps: SchemaRouteDeps): void {
   const auth = requireAuth({ users: deps.users, sessions: deps.sessions });
+  const repo = connectionsRepo(deps.db);
   const root = path.resolve(deps.resourceDir);
   const uploadRoot = path.resolve(deps.uploadDir);
 
@@ -64,13 +71,37 @@ export function schemaRoutes(app: FastifyInstance, deps: SchemaRouteDeps): void 
     }
   });
 
+  // 探测 SQL 查询结果的列结构。连接来源二选一：
+  //   connectionId → 引用「连接」模块中的连接（服务端解密解析）
+  //   connection   → 内嵌连接信息（旧节点兼容）
   app.post('/api/schema/sqlserver', { preHandler: auth }, async (req, reply) => {
-    const body = (req.body ?? {}) as { connection?: SqlServerConnection; query?: string };
-    const conn = body.connection;
+    const body = (req.body ?? {}) as {
+      connectionId?: string;
+      connection?: SqlServerConnection;
+      query?: string;
+    };
+    if (!body.query?.trim()) return reply.code(400).send({ error: '缺少查询语句' });
+    let conn: SqlServerConnection | undefined;
+    if (body.connectionId) {
+      const row = repo.findById(body.connectionId);
+      if (!row) return reply.code(404).send({ error: '连接不存在' });
+      const canUse =
+        req.auth!.role === 'admin' || row.shared === 1 || row.owner_id === req.auth!.userId;
+      if (!canUse) return reply.code(403).send({ error: '无权使用该连接' });
+      const cfg = decryptConfig(row.config_encrypted, deps.config.encryptionKey);
+      conn = {
+        server: String(cfg.server ?? ''),
+        port: Number(cfg.port ?? 1433),
+        database: String(cfg.database ?? ''),
+        user: String(cfg.user ?? ''),
+        password: String(cfg.password ?? ''),
+      };
+    } else {
+      conn = body.connection;
+    }
     if (!conn?.server || !conn.database || !conn.user) {
       return reply.code(400).send({ error: '连接信息不完整' });
     }
-    if (!body.query?.trim()) return reply.code(400).send({ error: '缺少查询语句' });
     try {
       return { columns: await probeSqlServerSchema({ connection: conn, query: body.query }) };
     } catch (err) {
