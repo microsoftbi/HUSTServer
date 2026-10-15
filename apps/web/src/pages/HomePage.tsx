@@ -11,6 +11,10 @@ export function HomePage() {
           <div className="font-medium">工作流</div>
           <div className="text-sm text-slate-500">上传、设计与运行数据工作流</div>
         </Link>
+        <Link className="rounded border bg-white p-4 hover:border-blue-500" to="/dashboards">
+          <div className="font-medium">仪表板</div>
+          <div className="text-sm text-slate-500">19 种视觉对象的数据看板</div>
+        </Link>
         <Link className="rounded border bg-white p-4 hover:border-blue-500" to="/jobs">
           <div className="font-medium">Job 编排</div>
           <div className="text-sm text-slate-500">把工作流与 SQL 串成定时流水线</div>

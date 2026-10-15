@@ -1,6 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, RequireAuth } from './auth.js';
 import { Layout } from './components/Layout.js';
+import { DashboardEditorPage } from './features/dashboard/DashboardEditorPage.js';
+import { DashboardListPage } from './features/dashboard/DashboardListPage.js';
 import { ConnectionsPage } from './pages/ConnectionsPage.js';
 import { HomePage } from './pages/HomePage.js';
 import { JobEditorPage } from './pages/JobEditorPage.js';
@@ -32,6 +34,14 @@ export function App() {
             }
           />
           <Route
+            path="/dashboards/:id"
+            element={
+              <RequireAuth>
+                <DashboardEditorPage />
+              </RequireAuth>
+            }
+          />
+          <Route
             element={
               <RequireAuth>
                 <Layout />
@@ -40,6 +50,7 @@ export function App() {
           >
             <Route path="/" element={<HomePage />} />
             <Route path="/workflows" element={<WorkflowListPage />} />
+            <Route path="/dashboards" element={<DashboardListPage />} />
             <Route path="/workflows/new" element={<WorkflowUploadPage />} />
             <Route path="/workflows/:id" element={<WorkflowDetailPage />} />
             <Route path="/workflows/:id/connections" element={<WorkflowConnectionsPage />} />
