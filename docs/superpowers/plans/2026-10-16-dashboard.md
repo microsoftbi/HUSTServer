@@ -69,7 +69,7 @@ SQLite
 11. **样式**：`.vbi-*` 三类追加到 `apps/web/src/index.css` 末尾，`hsl(var(--background))` 改 `var(--background)`；tw-animate-css 已覆盖 `animate-in` 系列类，不改 UI 基元的动画类。
 12. **平台**：派发子代理绝不传 model 参数；禁用 kill/pkill（停后端用 StopCommand 工具）；`pnpm --filter @hustserver/workflow-designer build` 会报 `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`，不要执行。
 13. **提交纪律**：每任务完成并验证通过后单独 commit（`feat:`/`test:`/`chore:` + 中文一句话）；不 `git add -A`。
-14. **重启纪律**：后端路由/表结构改动必须重启后端进程（环境变量：`SESSION_SECRET=please-change-me`、`ENCRYPTION_KEY=0123456789abcdef0123456789abcdef`、`HUSTSERVER_PORT=8787`、`BOOTSTRAP_ADMIN_USER=admin`、`BOOTSTRAP_ADMIN_PASSWORD=admin1234`、`ICUBE_DATABASE_BACKUP_INTERVAL=300000`、`ICUBE_ENABLE_DATABASE_BACKUP=0`；cwd=仓库根）；纯前端改动只需重新 build。
+14. **重启纪律**：后端路由/表结构改动必须重启后端进程（环境变量：`SESSION_SECRET=please-change-me`、`ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`、`HUSTSERVER_PORT=8787`、`BOOTSTRAP_ADMIN_USER=admin`、`BOOTSTRAP_ADMIN_PASSWORD=admin1234`、`ICUBE_DATABASE_BACKUP_INTERVAL=300000`、`ICUBE_ENABLE_DATABASE_BACKUP=0`；cwd=仓库根）；纯前端改动只需重新 build。
 15. **导入风格**：新页面（ListPage/EditorPage）引用 `api` 用 `../../api.js`、`useAuth` 用 `../../auth.js`（沿用 web 既有相对路径 + `.js` 后缀风格）；dashboard 特性内部沿用 tinybi 的无扩展名相对导入。
 
 ---
@@ -1800,7 +1800,7 @@ import { DashboardEditorPage } from './features/dashboard/DashboardEditorPage.js
 - [ ] 重启后端：用 StopCommand 停掉现有后端进程（**禁用 kill/pkill**），再于仓库根以完整环境变量启动：
 
 ```bash
-SESSION_SECRET=please-change-me ENCRYPTION_KEY=0123456789abcdef0123456789abcdef HUSTSERVER_PORT=8787 BOOTSTRAP_ADMIN_USER=admin BOOTSTRAP_ADMIN_PASSWORD=admin1234 ICUBE_DATABASE_BACKUP_INTERVAL=300000 ICUBE_ENABLE_DATABASE_BACKUP=0 pnpm --filter @hustserver/server dev
+SESSION_SECRET=please-change-me ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef HUSTSERVER_PORT=8787 BOOTSTRAP_ADMIN_USER=admin BOOTSTRAP_ADMIN_PASSWORD=admin1234 ICUBE_DATABASE_BACKUP_INTERVAL=300000 ICUBE_ENABLE_DATABASE_BACKUP=0 pnpm --filter @hustserver/server dev
 ```
 
 - [ ] 浏览器访问 `http://127.0.0.1:5173`（vite dev 代理 /api → 8787）或 `http://127.0.0.1:8787`（静态托管），确认登录后无白屏
