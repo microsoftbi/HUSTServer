@@ -24,7 +24,7 @@ describe('buildRuntimeWorkflow', () => {
     const runtime = buildRuntimeWorkflow({
       workflow, mappings, files: [], workflowId: 'wf1', runId: 'run9',
       deps: {
-        uploadDir: '/data/uploads', outputDir: '/data/outputs',
+        uploadDir: '/data/uploads', outputDir: '/data/outputs', resourceDir: '/data/resources',
         resolveServerPath: (rel) => `/srv/${rel}`,
         connections: new Map([['conn1', { id: 'conn1', config: { server: 'db.internal', port: 1433, database: 'prod', user: 'app', password: 'enc' } }]]),
       },
@@ -40,7 +40,7 @@ describe('buildRuntimeWorkflow', () => {
   it('未提供映射的节点保持原样', () => {
     const runtime = buildRuntimeWorkflow({
       workflow, mappings: [], files: [], workflowId: 'wf1', runId: 'run9',
-      deps: { uploadDir: '/u', outputDir: '/o', resolveServerPath: (r) => r, connections: new Map() },
+      deps: { uploadDir: '/u', outputDir: '/o', resourceDir: '/r', resolveServerPath: (r) => r, connections: new Map() },
     });
     expect((runtime.nodes[0].config as { path: string }).path).toBe('/Users/me/a.csv');
   });
@@ -49,7 +49,7 @@ describe('buildRuntimeWorkflow', () => {
     const runtime = buildRuntimeWorkflow({
       workflow, mappings, files: [], workflowId: 'wf1', runId: 'run9',
       deps: {
-        uploadDir: '/data/uploads', outputDir: '/data/outputs',
+        uploadDir: '/data/uploads', outputDir: '/data/outputs', resourceDir: '/data/resources',
         resolveServerPath: (rel) => `/srv/${rel}`,
         connections: new Map([['conn1', { id: 'conn1', config: { server: 'db.internal', port: 1433, database: 'prod', user: 'app', password: 'enc' } }]]),
         workflowConnections: new Map([['in2', { server: 'private.host', port: 1433, database: 'pd', user: 'u', password: 'p' }]]),

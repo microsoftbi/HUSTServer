@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Play, Save } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,22 @@ export function Toolbar() {
   const markSaved = useWorkflowStore((s) => s.markSaved);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const workflowId = useWorkflowStore((s) => s.workflowId);
+  const nodeCount = useWorkflowStore((s) => s.nodes.length);
+  const runStatus = useWorkflowStore((s) => s.runStatus);
+  const runHost = useWorkflowStore((s) => s.runHost);
+  const run = useWorkflowStore((s) => s.run);
+
+  const running = runStatus === 'running';
+  const runDisabled = !workflowId || nodeCount === 0 || running || !runHost;
+  const runHint = !workflowId
+    ? '请先保存工作流'
+    : nodeCount === 0
+      ? '请先添加节点'
+      : !runHost
+        ? '当前宿主不支持运行'
+        : undefined;
 
   async function handleSave() {
     setSaving(true);
@@ -59,6 +75,19 @@ export function Toolbar() {
       )}
 
       <div className="ml-auto flex items-center gap-2">
+        {runStatus === 'success' && <Badge variant="success">运行成功</Badge>}
+        {runStatus === 'error' && <Badge variant="destructive">运行失败</Badge>}
+
+        <Button
+          size="sm"
+          onClick={() => void run()}
+          disabled={runDisabled}
+          title={runHint}
+        >
+          {running ? <Loader2 className="animate-spin" /> : <Play />}
+          运行
+        </Button>
+
         <Button variant="outline" size="sm" onClick={handleSave} disabled={saving}>
           {saving ? <Loader2 className="animate-spin" /> : <Save />}
           保存

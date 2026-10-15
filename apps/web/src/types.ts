@@ -31,7 +31,7 @@ export interface WorkflowFileRow {
   created_at: number;
 }
 
-export type MappingTargetType = 'uploaded_file' | 'server_path' | 'connection' | 'output_dir';
+export type MappingTargetType = 'uploaded_file' | 'server_path' | 'connection' | 'output_dir' | 'resource';
 
 export interface PathMappingRow {
   id: string;

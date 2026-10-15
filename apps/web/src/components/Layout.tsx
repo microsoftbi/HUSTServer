@@ -14,6 +14,7 @@ export function Layout() {
         <span className="font-semibold">HUSTServer</span>
         <nav className="flex items-center gap-1 text-sm">
           <NavLink to="/workflows" className={linkClass}>工作流</NavLink>
+          <NavLink to="/resources" className={linkClass}>资源管理</NavLink>
           <NavLink to="/connections" className={linkClass}>连接</NavLink>
           {user?.role === 'admin' && (
             <>

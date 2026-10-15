@@ -1,5 +1,18 @@
+import {
+  ancestorNodeIds,
+  getPinnedCache,
+  NodeNotReadyError,
+  NodeOutputMissingError,
+  readNodePreview,
+  RunExpiredError,
+  unpinCache,
+  type Workflow,
+  type WorkflowEdge,
+  type WorkflowNode,
+} from '@hustserver/engine';
 import type { Database } from 'better-sqlite3';
 import type { FastifyInstance } from 'fastify';
+import { nanoid } from 'nanoid';
 import type { AppConfig } from '../../config.js';
 import { requireAuth } from '../../plugins/guards.js';
 import type { SessionsRepo } from '../auth/sessions.js';
@@ -44,8 +57,68 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
     if (!canAccess(wf.owner_id, req.auth!.role, req.auth!.userId)) {
       return reply.code(403).send({ error: '无权访问' });
     }
-    const run = deps.runService.trigger(id, { triggerType: 'manual', triggeredBy: req.auth!.userId });
+
+    const body = (req.body ?? {}) as {
+      targetNodeId?: string;
+      /** 「缓存至此」：本次运行成功后冻结该节点及其上游。 */
+      freeze?: boolean;
+      /** 复用已有缓存：从缓存节点之后继续运行。 */
+      cacheToken?: string;
+    };
+    const targetNodeId = body.targetNodeId?.trim() || undefined;
+
+    let workflow: Workflow | null = null;
+    if (targetNodeId || body.freeze) {
+      const payload = JSON.parse(wf.payload) as { nodes: WorkflowNode[]; edges: WorkflowEdge[] };
+      workflow = {
+        id: wf.id,
+        name: wf.name,
+        nodes: payload.nodes ?? [],
+        edges: payload.edges ?? [],
+        createdAt: wf.created_at,
+        updatedAt: wf.updated_at,
+      };
+      if (targetNodeId && !workflow.nodes.some((node) => node.id === targetNodeId)) {
+        return reply.code(400).send({ error: `目标节点不存在：${targetNodeId}` });
+      }
+    }
+
+    // 「缓存至此」：为边界节点分配缓存令牌，成功后钉住其会话。
+    if (body.freeze) {
+      if (!targetNodeId || !workflow) {
+        return reply.code(400).send({ error: '缓存至此需要指定目标节点' });
+      }
+      const cacheToken = nanoid(12);
+      const run = deps.runService.trigger(id, {
+        triggerType: 'manual',
+        triggeredBy: req.auth!.userId,
+        targetNodeId,
+        freezeToken: cacheToken,
+      });
+      // 边界节点及其全部上游：前端据此标记「已缓存」。
+      const cachedNodeIds = [...ancestorNodeIds(workflow, targetNodeId), targetNodeId];
+      return reply.code(202).send({ runId: run.id, cacheToken, cachedNodeIds });
+    }
+
+    // 复用已有缓存：令牌已失效则回 400，前端据此回退为全量重跑。
+    const cacheToken = body.cacheToken?.trim() || undefined;
+    if (cacheToken && !getPinnedCache(cacheToken)) {
+      return reply.code(400).send({ error: '缓存已失效', code: 'CACHE_EXPIRED' });
+    }
+
+    const run = deps.runService.trigger(id, {
+      triggerType: 'manual',
+      triggeredBy: req.auth!.userId,
+      ...(targetNodeId ? { targetNodeId } : {}),
+      ...(cacheToken ? { cacheToken } : {}),
+    });
     return reply.code(202).send({ runId: run.id });
+  });
+
+  // 取消缓存：关闭被钉住的会话并清理缓存状态。
+  app.delete('/api/runs/cache/:cacheToken', { preHandler: guard }, async (req) => {
+    const { cacheToken } = req.params as { cacheToken: string };
+    return { ok: unpinCache(cacheToken) };
   });
 
   app.get('/api/workflows/:id/runs', { preHandler: guard }, async (req, reply) => {
@@ -83,6 +156,42 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
     return { items: logs.listByRun(runId, { after, limit }) };
   });
 
+  app.get('/api/runs/:runId/preview', { preHandler: guard }, async (req, reply) => {
+    const { runId } = req.params as { runId: string };
+    const authorized = authorizeRun(runId, req.auth!.role, req.auth!.userId);
+    if (!authorized.run) return reply.code(404).send({ error: '运行不存在' });
+    if (!authorized.ok) return reply.code(403).send({ error: '无权访问' });
+
+    const q = req.query as { nodeId?: string; limit?: string; handle?: string };
+    const nodeId = q.nodeId?.trim();
+    if (!nodeId) return reply.code(400).send({ error: '缺少 nodeId 参数' });
+
+    const engineRunId = authorized.run.engine_run_id;
+    if (!engineRunId) {
+      return reply.code(409).send({ error: '运行尚未开始', detail: '该运行还没有可用的引擎会话' });
+    }
+
+    const limit = q.limit === undefined ? undefined : Number(q.limit);
+    try {
+      const preview = await readNodePreview(engineRunId, nodeId, {
+        handle: q.handle ?? null,
+        ...(limit === undefined ? {} : { limit }),
+      });
+      return preview;
+    } catch (error) {
+      if (error instanceof RunExpiredError) {
+        return reply.code(410).send({ error: error.message, code: error.code });
+      }
+      if (error instanceof NodeNotReadyError) {
+        return reply.code(409).send({ error: error.message, detail: error.detail, code: error.code });
+      }
+      if (error instanceof NodeOutputMissingError) {
+        return reply.code(404).send({ error: error.message, code: error.code });
+      }
+      throw error;
+    }
+  });
+
   app.get('/api/runs/:runId/events', { preHandler: guard }, async (req, reply) => {
     const { runId } = req.params as { runId: string };
     const authorized = authorizeRun(runId, req.auth!.role, req.auth!.userId);
@@ -90,21 +199,46 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
     if (!authorized.ok) return reply.code(403).send({ error: '无权访问' });
 
     openSse(reply);
-    const off = deps.recorder.subscribe(
-      runId,
-      (event) => writeEvent(reply, eventName(event), event),
-      () => {
-        writeEvent(reply, 'done', { runId });
-        endSse(reply);
-      },
-    );
-    if (!off) {
-      // 运行已结束：让前端回退到 /runs/:id 与 /logs
-      writeEvent(reply, 'done', { runId, finished: true });
+
+    let closed = false;
+    let off: (() => void) | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const finish = (): void => {
+      if (closed) return;
+      closed = true;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      writeEvent(reply, 'done', { runId });
       endSse(reply);
-      return reply;
-    }
-    req.raw.on('close', () => off());
+    };
+
+    // 运行可能仍在排队（引擎会话尚未挂载，recorder 里还没有条目）。此时若立刻收尾，
+    // 前端会读到 queued 快照并卡在「运行中」；故轮询等待会话挂载或运行进入终态。
+    const subscribe = (): void => {
+      if (closed) return;
+      off = deps.recorder.subscribe(
+        runId,
+        (event) => writeEvent(reply, eventName(event), event),
+        finish,
+      );
+      if (off) return;
+      const run = runs.findById(runId);
+      if (!run || run.status === 'success' || run.status === 'error' || run.status === 'canceled') {
+        finish();
+        return;
+      }
+      retryTimer = setTimeout(subscribe, 200);
+    };
+
+    subscribe();
+    req.raw.on('close', () => {
+      closed = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      off?.();
+    });
     return reply;
   });
 }

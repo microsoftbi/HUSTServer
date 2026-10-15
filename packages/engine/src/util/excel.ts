@@ -9,6 +9,14 @@ export interface ExcelSheetData {
   dataRows: unknown[][];
 }
 
+/** 列出 Excel 文件的工作表名（只读工作簿元信息，不解析单元格）。 */
+export function listExcelSheets(path: string): string[] {
+  const filePath = resolveInputPath(path);
+  if (!fs.existsSync(filePath)) throw new Error(`Excel 文件不存在：${filePath}`);
+  const workbook = XLSX.readFile(filePath, { bookSheets: true });
+  return workbook.SheetNames;
+}
+
 /**
  * 读取 Excel 指定工作表，推导列名并返回数据行。
  * 供输入节点执行与结构探测共用，避免两处列推导逻辑漂移。

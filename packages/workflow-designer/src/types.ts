@@ -192,9 +192,66 @@ export interface ColumnMeta {
   type: string;
 }
 
+/* ----------------------------- 运行与预览类型 ----------------------------- */
+
+export interface RunLogEvent {
+  runId: string;
+  nodeId?: string;
+  level: 'info' | 'warn' | 'error' | 'success';
+  message: string;
+  ts: number;
+}
+
+export interface NodeResultEvent {
+  runId: string;
+  type: 'node-result';
+  nodeId: string;
+  status: NodeRunStatus;
+  rowCount: number;
+  durationMs: number;
+  error?: string;
+}
+
+export interface RunStatusEvent {
+  runId: string;
+  type: 'run-status';
+  status: 'running' | 'success' | 'error';
+  message?: string;
+}
+
+/** 单个节点运行结束后的输出数据（来自宿主预览端点）。 */
+export interface PreviewData {
+  nodeId: string;
+  columns: ColumnMeta[];
+  rows: Record<string, unknown>[];
+  totalRows: number;
+  truncated: boolean;
+}
+
+/** 应用设置（全局，所有组件共用）。 */
+export interface AppSettings {
+  /** 数据预览时每个节点取回的行数上限。 */
+  previewRowLimit: number;
+}
+
 export interface FileUploadResult {
   path: string;
   name: string;
   size: number;
   sheets?: string[];
+}
+
+/** 资源库目录中的一个条目。 */
+export interface ResourceEntryRef {
+  name: string;
+  kind: 'folder' | 'file';
+  size?: number;
+  /** 仅文件：绝对路径，可直接写入节点 config.path。 */
+  path?: string;
+}
+
+/** 资源库目录浏览结果；dir 为相对资源库根的路径（'' 表示根目录）。 */
+export interface ResourceBrowseResult {
+  dir: string;
+  entries: ResourceEntryRef[];
 }

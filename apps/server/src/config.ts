@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export interface AppConfig {
   host: string;
@@ -10,6 +11,8 @@ export interface AppConfig {
   uploadDir: string;
   outputDir: string;
   spillDir: string;
+  /** 资源库根目录：web 前端项目的 DATA 文件夹。 */
+  resourceDir: string;
   sessionSecret: string;
   encryptionKey: Buffer;
   sessionTtlMs: number;
@@ -25,6 +28,9 @@ export interface AppConfig {
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const dataDir = env.HUSTSERVER_DATA_DIR || path.join(os.homedir(), '.hustserver');
+  // 资源库默认落在 web 前端项目的 DATA 文件夹；src 与 dist 下此处均解析到 apps/web/DATA。
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const resourceDir = env.HUSTSERVER_RESOURCE_DIR || path.resolve(here, '../../web/DATA');
   const sessionSecret = env.SESSION_SECRET;
   if (!sessionSecret) throw new Error('缺少环境变量 SESSION_SECRET');
   const keyHex = env.ENCRYPTION_KEY;
@@ -39,6 +45,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     uploadDir: path.join(dataDir, 'uploads'),
     outputDir: path.join(dataDir, 'outputs'),
     spillDir: path.join(dataDir, 'spill'),
+    resourceDir,
     sessionSecret,
     encryptionKey: Buffer.from(keyHex, 'hex'),
     sessionTtlMs: Number(env.SESSION_TTL_MS || 7 * 24 * 60 * 60 * 1000),

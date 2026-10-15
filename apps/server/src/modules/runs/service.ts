@@ -13,6 +13,12 @@ import { runsRepo, type RunRow, type TriggerType } from './repo.js';
 export interface RunExecutorInput {
   runId: string;
   workflow: Workflow;
+  /** 「运行至此」目标节点；为空表示全量运行。 */
+  targetNodeId?: string;
+  /** 「缓存至此」：本次运行成功后钉住会话。 */
+  freezeToken?: string;
+  /** 复用已有缓存：跳过缓存节点、共享其会话。 */
+  reuseToken?: string;
   onEngineRunId(engineRunId: string): void;
 }
 
@@ -29,14 +35,34 @@ export interface RunServiceDeps {
 export interface RunService {
   trigger(
     workflowId: string,
-    opts?: { triggerType?: TriggerType; scheduleId?: string | null; triggeredBy?: string | null },
+    opts?: {
+      triggerType?: TriggerType;
+      scheduleId?: string | null;
+      triggeredBy?: string | null;
+      /** 「运行至此」目标节点。 */
+      targetNodeId?: string;
+      /** 「缓存至此」：成功后钉住会话的冻结令牌。 */
+      freezeToken?: string;
+      /** 复用已有缓存。 */
+      cacheToken?: string;
+    },
   ): RunRow;
   whenIdle(): Promise<void>;
 }
 
 /** 默认执行器：走 vendored 引擎（createRun + executeWorkflow）。 */
-const defaultExecutor: RunExecutor = async ({ workflow, onEngineRunId }) => {
-  const ctx = await createRun(workflow);
+const defaultExecutor: RunExecutor = async ({
+  workflow,
+  onEngineRunId,
+  targetNodeId,
+  freezeToken,
+  reuseToken,
+}) => {
+  const ctx = await createRun(
+    workflow,
+    targetNodeId,
+    freezeToken ? { freezeToken } : reuseToken ? { reuseToken } : undefined,
+  );
   onEngineRunId(ctx.runId);
   await executeWorkflow(ctx.runId);
   // 引擎在节点失败时只置状态、不抛异常；若不在此显式抛出，
@@ -80,6 +106,10 @@ export function createRunService(deps: RunServiceDeps): RunService {
   const executor = deps.executor ?? defaultExecutor;
   const sem = createSemaphore(deps.concurrency ?? config.maxConcurrentRuns);
 
+  type RunParams = Pick<RunExecutorInput, 'targetNodeId' | 'freezeToken' | 'reuseToken'>;
+  /** 运行参数（内存态）：队列式运行在 worker 内读取，无需为此扩展 DB 列。 */
+  const runParams = new Map<string, RunParams>();
+
   let pending = 0;
   let idleResolvers: Array<() => void> = [];
 
@@ -122,6 +152,7 @@ export function createRunService(deps: RunServiceDeps): RunService {
     const mapperDeps: MapperDeps = {
       uploadDir: config.uploadDir,
       outputDir: config.outputDir,
+      resourceDir: config.resourceDir,
       resolveServerPath: (rel) => resolveServerPath(config.sharedDirs, rel),
       connections: resolveConnections(maps),
       workflowConnections: resolveWorkflowConnections(run.workflow_id),
@@ -138,6 +169,8 @@ export function createRunService(deps: RunServiceDeps): RunService {
 
   async function worker(run: RunRow): Promise<void> {
     const startedAt = Date.now();
+    const params = runParams.get(run.id);
+    runParams.delete(run.id);
     let runtime: Workflow;
     try {
       runtime = buildRuntime(run);
@@ -156,6 +189,7 @@ export function createRunService(deps: RunServiceDeps): RunService {
         await executor({
           runId: run.id,
           workflow: runtime,
+          ...params,
           onEngineRunId: (id) => {
             engineRunId = id;
             runs.setEngineRunId(run.id, id);
@@ -187,12 +221,18 @@ export function createRunService(deps: RunServiceDeps): RunService {
     trigger(workflowId, opts = {}) {
       const workflow = workflows.findById(workflowId);
       if (!workflow) throw new Error('工作流不存在');
+      if (opts.freezeToken && !opts.targetNodeId) throw new Error('缓存至此需要指定目标节点');
       const run = runs.create({
         workflowId,
         scheduleId: opts.scheduleId ?? null,
         triggerType: opts.triggerType ?? 'manual',
         triggeredBy: opts.triggeredBy ?? null,
         status: 'queued',
+      });
+      runParams.set(run.id, {
+        ...(opts.targetNodeId ? { targetNodeId: opts.targetNodeId } : {}),
+        ...(opts.freezeToken ? { freezeToken: opts.freezeToken } : {}),
+        ...(opts.cacheToken ? { reuseToken: opts.cacheToken } : {}),
       });
       pending += 1;
       void sem

@@ -4,6 +4,7 @@ import { Layout } from './components/Layout.js';
 import { ConnectionsPage } from './pages/ConnectionsPage.js';
 import { HomePage } from './pages/HomePage.js';
 import { LoginPage } from './pages/LoginPage.js';
+import { ResourcesPage } from './pages/ResourcesPage.js';
 import { RunDetailPage } from './pages/RunDetailPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { UsersPage } from './pages/UsersPage.js';
@@ -41,6 +42,7 @@ export function App() {
             <Route path="/workflows/:id/connections" element={<WorkflowConnectionsPage />} />
             <Route path="/runs/:id" element={<RunDetailPage />} />
             <Route path="/connections" element={<ConnectionsPage />} />
+            <Route path="/resources" element={<ResourcesPage />} />
             <Route path="/users" element={<UsersPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>

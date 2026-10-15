@@ -35,6 +35,11 @@ const STATUS_LABEL: Record<string, string> = {
   skipped: '已跳过',
 };
 
+/** 处于这些状态的运行需要主动轮询刷新；到达终态后停止。 */
+const ACTIVE_STATUSES = new Set(['pending', 'queued', 'running']);
+/** 轮询间隔（毫秒）。 */
+const POLL_INTERVAL_MS = 2000;
+
 export function RunDetailPage() {
   const { id = '' } = useParams();
   const [run, setRun] = useState<RunSummary | null>(null);
@@ -42,8 +47,8 @@ export function RunDetailPage() {
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [live, setLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // SSE 的 log 事件无自增 id，前端用本地计数器生成稳定 key
-  const nextLogId = useRef(0);
+  // 已拉取日志的最大 id：轮询时作为 after 游标只取增量，避免重复追加
+  const logCursor = useRef(0);
 
   const loadSnapshot = useCallback(async () => {
     try {
@@ -54,7 +59,7 @@ export function RunDetailPage() {
       setRun(detail.run);
       setNodes(detail.nodes);
       setLogs(logRes.items);
-      nextLogId.current = logRes.items.reduce((max, l) => Math.max(max, l.id), 0) + 1;
+      logCursor.current = logRes.items.reduce((max, l) => Math.max(max, l.id), 0);
       setError(null);
     } catch (err) {
       setError((err as Error).message);
@@ -67,31 +72,48 @@ export function RunDetailPage() {
       setRun(detail.run);
       setNodes(detail.nodes);
     } catch {
-      /* 忽略瞬时错误，done 时会再拉一次完整快照 */
+      /* 忽略瞬时错误，下一轮轮询会再拉一次 */
     }
   }, [id]);
+
+  /** 增量拉取运行状态与新增日志（按 id 游标），失败时保留上一轮数据。 */
+  const refreshProgress = useCallback(async () => {
+    try {
+      const [detail, logRes] = await Promise.all([
+        api.get<{ run: RunSummary; nodes: RunNodeResult[] }>(`/api/runs/${id}`),
+        api.get<{ items: LogItem[] }>(`/api/runs/${id}/logs?after=${logCursor.current}&limit=1000`),
+      ]);
+      setRun(detail.run);
+      setNodes(detail.nodes);
+      if (logRes.items.length > 0) {
+        logCursor.current = logRes.items.reduce((max, l) => Math.max(max, l.id), logCursor.current);
+        setLogs((prev) => [...prev, ...logRes.items]);
+      }
+      setError(null);
+    } catch {
+      /* 忽略瞬时错误，下一轮轮询会再拉一次 */
+    }
+  }, [id]);
+
+  const polling = run === null || ACTIVE_STATUSES.has(run.status);
 
   useEffect(() => {
     void loadSnapshot();
   }, [loadSnapshot]);
 
-  // 无论运行是否已结束都订阅：已结束时服务端立即下发 done 并关闭连接。
+  // 运行进行中时主动轮询日志与状态；到达终态（成功/失败/取消）后自动停止。
+  // 首屏 run 尚未加载时也轮询，确保快照请求失败后仍能自愈。
+  useEffect(() => {
+    if (!polling) return;
+    const timer = window.setInterval(() => void refreshProgress(), POLL_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [polling, refreshProgress]);
+
+  // SSE 只承担节点结果 / 运行状态的即时更新与结束通知；日志统一由上面的轮询增量拉取。
   useEffect(() => {
     const es = new EventSource(`/api/runs/${id}/events`);
     setLive(true);
 
-    es.addEventListener('log', (ev) => {
-      const e = JSON.parse((ev as MessageEvent).data) as {
-        level: string;
-        nodeId?: string;
-        message: string;
-        ts: number;
-      };
-      setLogs((prev) => [
-        ...prev,
-        { id: nextLogId.current++, ts: e.ts, level: e.level, node_id: e.nodeId ?? null, message: e.message },
-      ]);
-    });
     // node-result / run-status 的具体字段由引擎定义，直接回拉快照最稳妥
     es.addEventListener('node-result', () => void refreshDetail());
     es.addEventListener('run-status', () => void refreshDetail());

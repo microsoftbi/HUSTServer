@@ -86,7 +86,7 @@ export function workflowFilesRepo(db: Database): WorkflowFilesRepo {
 }
 
 export type MappingDirection = 'input' | 'output';
-export type MappingTargetType = 'uploaded_file' | 'server_path' | 'connection' | 'output_dir';
+export type MappingTargetType = 'uploaded_file' | 'server_path' | 'connection' | 'output_dir' | 'resource';
 
 export interface PathMappingRow {
   id: string;

@@ -1,5 +1,6 @@
 import { basename, join } from 'node:path';
 import type { Workflow, WorkflowNode } from '@hustserver/engine';
+import { resolveResourcePath } from '../resources/paths.js';
 import type { PathMappingRow, WorkflowFileRow } from './repo.js';
 
 export interface ResolvedConnection {
@@ -10,6 +11,8 @@ export interface ResolvedConnection {
 export interface MapperDeps {
   uploadDir: string;
   outputDir: string;
+  /** 资源库根目录（web 前端 DATA 文件夹）。 */
+  resourceDir: string;
   resolveServerPath(rel: string): string;
   connections: Map<string, ResolvedConnection>;
   /** 工作流私有连接：node_id -> 明文连接配置（优先于全局连接映射）。 */
@@ -39,6 +42,8 @@ export function buildRuntimeWorkflow(input: BuildInput): Workflow {
         config.path = join(input.deps.uploadDir, input.workflowId, stored);
       } else if (inMap.target_type === 'server_path') {
         config.path = input.deps.resolveServerPath(inMap.target_ref ?? '');
+      } else if (inMap.target_type === 'resource') {
+        config.path = resolveResourcePath(input.deps.resourceDir, inMap.target_ref ?? '');
       } else if (inMap.target_type === 'connection') {
         const conn = input.deps.connections.get(inMap.target_ref ?? '');
         if (conn) config.connection = conn.config;

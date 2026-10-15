@@ -9,6 +9,8 @@ import { connectionRoutes } from './modules/connections/routes.js';
 import { createRecorder, type Recorder } from './modules/runs/recorder.js';
 import { runRoutes } from './modules/runs/routes.js';
 import { createRunService, type RunService } from './modules/runs/service.js';
+import { resourceRoutes } from './modules/resources/routes.js';
+import { schemaRoutes } from './modules/schema/routes.js';
 import { schedulesRepo } from './modules/schedules/repo.js';
 import { scheduleRoutes } from './modules/schedules/routes.js';
 import { createScheduler, type Scheduler } from './modules/schedules/scheduler.js';
@@ -65,6 +67,18 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
   userAdminRoutes(app, { users, sessions });
   workflowRoutes(app, { db: deps.db, config: deps.config, users, sessions });
   connectionRoutes(app, { db: deps.db, config: deps.config, users, sessions });
+  resourceRoutes(app, {
+    resourceDir: deps.config.resourceDir,
+    uploadDir: deps.config.uploadDir,
+    users,
+    sessions,
+  });
+  schemaRoutes(app, {
+    resourceDir: deps.config.resourceDir,
+    uploadDir: deps.config.uploadDir,
+    users,
+    sessions,
+  });
   runRoutes(app, { db: deps.db, config: deps.config, users, sessions, recorder, runService });
   scheduleRoutes(app, { db: deps.db, config: deps.config, users, sessions, scheduler });
 

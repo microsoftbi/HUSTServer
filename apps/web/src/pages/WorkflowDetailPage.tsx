@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
-import { ScheduleSection } from '../components/ScheduleSection.js';
 import type { MappingTargetType, RunSummary, WorkflowDetail } from '../types.js';
 
 const TARGET_LABEL: Record<MappingTargetType, string> = {
@@ -9,6 +8,7 @@ const TARGET_LABEL: Record<MappingTargetType, string> = {
   server_path: '服务端路径',
   connection: '连接',
   output_dir: '服务端输出目录',
+  resource: '资源库文件',
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -147,8 +147,6 @@ export function WorkflowDetailPage() {
             </p>
           ))}
       </section>
-
-      <ScheduleSection workflowId={id} />
 
       <section className="space-y-2">
         <h2 className="font-medium">运行历史</h2>

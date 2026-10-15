@@ -16,6 +16,12 @@ interface ConnectionOption {
   name: string;
 }
 
+interface ResourceFile {
+  name: string;
+  path: string;
+  size: number;
+}
+
 export function WorkflowUploadPage() {
   const navigate = useNavigate();
   const [parsed, setParsed] = useState<ParsedUpload | null>(null);
@@ -23,6 +29,7 @@ export function WorkflowUploadPage() {
   const [bindings, setBindings] = useState<Record<string, InputBinding>>({});
   const [dataFiles, setDataFiles] = useState<Record<string, File>>({});
   const [connections, setConnections] = useState<ConnectionOption[]>([]);
+  const [resources, setResources] = useState<ResourceFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -30,6 +37,10 @@ export function WorkflowUploadPage() {
     api
       .get<ConnectionOption[]>('/api/connections')
       .then(setConnections)
+      .catch(() => undefined);
+    api
+      .get<{ files: ResourceFile[] }>('/api/resources/tree')
+      .then((res) => setResources(res.files))
       .catch(() => undefined);
   }, []);
 
@@ -64,6 +75,10 @@ export function WorkflowUploadPage() {
       const binding = bindings[input.nodeId];
       if (binding?.targetType === 'uploaded_file' && !dataFiles[input.nodeId]) {
         setError(`输入「${input.name}」选择了上传数据文件，但未选择文件。`);
+        return;
+      }
+      if (binding?.targetType === 'resource' && !binding.targetRef) {
+        setError(`输入「${input.name}」选择了资源库文件，但未选择具体文件。`);
         return;
       }
     }
@@ -157,6 +172,14 @@ export function WorkflowUploadPage() {
                   />
                   连接
                 </label>
+                <label className="flex items-center gap-1">
+                  <input
+                    type="radio"
+                    checked={binding?.targetType === 'resource'}
+                    onChange={() => setBinding(input.nodeId, { targetType: 'resource', targetRef: resources[0]?.path ?? '' })}
+                  />
+                  资源库文件
+                </label>
               </div>
 
               {binding?.targetType === 'server_path' && (
@@ -178,6 +201,21 @@ export function WorkflowUploadPage() {
                   {connections.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {binding?.targetType === 'resource' && (
+                <select
+                  className="w-full border px-2 py-1 text-sm"
+                  value={binding.targetRef}
+                  onChange={(e) => setBinding(input.nodeId, { targetRef: e.target.value })}
+                >
+                  <option value="">请选择资源库文件…</option>
+                  {resources.map((r) => (
+                    <option key={r.path} value={r.path}>
+                      {r.path}
                     </option>
                   ))}
                 </select>

@@ -10,8 +10,8 @@ export interface MappingDraft {
 }
 
 export interface InputBinding {
-  targetType: 'uploaded_file' | 'server_path' | 'connection';
-  /** 文件绑定存 stored_name；服务端路径存绝对路径；连接存 connectionId。 */
+  targetType: 'uploaded_file' | 'server_path' | 'connection' | 'resource';
+  /** 文件绑定存 stored_name；服务端路径存绝对路径；连接存 connectionId；资源库存 DATA 内相对路径。 */
   targetRef: string;
 }
 
