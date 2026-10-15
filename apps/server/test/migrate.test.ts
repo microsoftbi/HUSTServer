@@ -13,7 +13,7 @@ describe('migrate', () => {
     migrate(db);
     const names = tableNames(db);
     for (const t of ['users', 'sessions', 'workflows', 'workflow_files', 'connections',
-      'path_mappings', 'schedules', 'runs', 'run_node_results', 'run_logs', 'settings']) {
+      'path_mappings', 'schedules', 'runs', 'run_node_results', 'run_logs', 'settings', 'dashboards']) {
       expect(names).toContain(t);
     }
   });
@@ -29,5 +29,12 @@ describe('migrate', () => {
     migrate(db);
     const idx = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='run_node_results'").all() as Array<{ name: string }>;
     expect(idx.map((r) => r.name)).toContain('idx_run_nodes_run');
+  });
+
+  it('dashboards 具备 (owner_id, created_at) 索引', () => {
+    const db = new Database(':memory:');
+    migrate(db);
+    const idx = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='dashboards'").all() as Array<{ name: string }>;
+    expect(idx.map((r) => r.name)).toContain('idx_dashboards_owner');
   });
 });
