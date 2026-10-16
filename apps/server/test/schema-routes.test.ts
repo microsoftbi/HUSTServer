@@ -37,7 +37,7 @@ beforeEach(async () => {
   await usersRepo(db).create({
     username: 'alice',
     passwordHash: await hashPassword('alice123'),
-    role: 'user',
+    roles: ['workflow_author'],
   });
   const cfg = loadConfig({
     SESSION_SECRET: 'x'.repeat(32),

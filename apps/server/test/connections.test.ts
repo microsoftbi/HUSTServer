@@ -25,9 +25,9 @@ async function login(u: string, p: string): Promise<string> {
 beforeEach(async () => {
   db = new Database(':memory:');
   migrate(db);
-  await usersRepo(db).create({ username: 'admin', passwordHash: await hashPassword('admin123'), role: 'admin' });
-  await usersRepo(db).create({ username: 'alice', passwordHash: await hashPassword('alice123'), role: 'user' });
-  await usersRepo(db).create({ username: 'bob', passwordHash: await hashPassword('bob12345'), role: 'user' });
+  await usersRepo(db).create({ username: 'admin', passwordHash: await hashPassword('admin123'), roles: ['admin'] });
+  await usersRepo(db).create({ username: 'alice', passwordHash: await hashPassword('alice123'), roles: ['workflow_author'] });
+  await usersRepo(db).create({ username: 'bob', passwordHash: await hashPassword('bob12345'), roles: ['workflow_author'] });
   app = await buildServer({ db, config: cfg, logger: false });
   await app.ready();
   adminCookie = await login('admin', 'admin123');

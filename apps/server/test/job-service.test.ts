@@ -68,7 +68,7 @@ let workflowId: string;
 beforeEach(() => {
   db = new Database(':memory:');
   migrate(db);
-  ownerId = usersRepo(db).create({ username: 'alice', passwordHash: 'x', role: 'user' }).id;
+  ownerId = usersRepo(db).create({ username: 'alice', passwordHash: 'x', roles: ['workflow_author'] }).id;
   workflowId = workflowsRepo(db).create({ ownerId, name: 'W', payload: WF_PAYLOAD }).id;
 });
 

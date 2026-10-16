@@ -19,8 +19,8 @@ let db: Database.Database;
 beforeEach(async () => {
   db = new Database(':memory:');
   migrate(db);
-  await usersRepo(db).create({ username: 'admin', passwordHash: await hashPassword('admin123'), role: 'admin' });
-  await usersRepo(db).create({ username: 'alice', passwordHash: await hashPassword('alice123'), role: 'user' });
+  await usersRepo(db).create({ username: 'admin', passwordHash: await hashPassword('admin123'), roles: ['admin'] });
+  await usersRepo(db).create({ username: 'alice', passwordHash: await hashPassword('alice123'), roles: ['workflow_author'] });
   app = await buildServer({ db, config: cfg, logger: false });
   await app.ready();
 });
@@ -29,7 +29,7 @@ describe('auth routes', () => {
   it('正确凭据可登录并拿到 Cookie', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { username: 'alice', password: 'alice123' } });
     expect(res.statusCode).toBe(200);
-    expect(res.json().role).toBe('user');
+    expect(res.json().role).toBe('workflow_author');
     expect(res.headers['set-cookie']).toContain('hs_session=');
   });
 

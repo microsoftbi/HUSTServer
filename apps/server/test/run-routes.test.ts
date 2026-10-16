@@ -34,8 +34,8 @@ async function login(u: string, p: string): Promise<string> {
 beforeEach(async () => {
   db = new Database(':memory:');
   migrate(db);
-  const owner = await usersRepo(db).create({ username: 'alice', passwordHash: await hashPassword('alice123'), role: 'user' });
-  await usersRepo(db).create({ username: 'bob', passwordHash: await hashPassword('bob12345'), role: 'user' });
+  const owner = await usersRepo(db).create({ username: 'alice', passwordHash: await hashPassword('alice123'), roles: ['workflow_author'] });
+  await usersRepo(db).create({ username: 'bob', passwordHash: await hashPassword('bob12345'), roles: ['workflow_author'] });
   workflowId = workflowsRepo(db).create({ ownerId: owner.id, name: 'A', payload: PAYLOAD }).id;
   recorder = createRecorder(db);
   const runService = createRunService({ db, config: cfg, recorder, executor: async ({ onEngineRunId }) => onEngineRunId('eng-1') });

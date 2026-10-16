@@ -26,8 +26,8 @@ async function login(username: string, password: string): Promise<string> {
 beforeEach(async () => {
   db = new Database(':memory:');
   migrate(db);
-  await usersRepo(db).create({ username: 'admin', passwordHash: await hashPassword('admin123'), role: 'admin' });
-  await usersRepo(db).create({ username: 'alice', passwordHash: await hashPassword('alice123'), role: 'user' });
+  await usersRepo(db).create({ username: 'admin', passwordHash: await hashPassword('admin123'), roles: ['admin'] });
+  await usersRepo(db).create({ username: 'alice', passwordHash: await hashPassword('alice123'), roles: ['workflow_author'] });
   app = await buildServer({ db, config: cfg, logger: false });
   await app.ready();
   adminCookie = await login('admin', 'admin123');
@@ -51,16 +51,56 @@ describe('admin users routes', () => {
   it('创建用户：重名返回 409，成功返回 201', async () => {
     const dup = await app.inject({
       method: 'POST', url: '/api/admin/users', headers: { cookie: adminCookie },
-      payload: { username: 'alice', password: 'whatever1', role: 'user' },
+      payload: { username: 'alice', password: 'whatever1', roles: ['workflow_author'] },
     });
     expect(dup.statusCode).toBe(409);
     const ok = await app.inject({
       method: 'POST', url: '/api/admin/users', headers: { cookie: adminCookie },
-      payload: { username: 'bob', password: 'bob12345', role: 'user' },
+      payload: { username: 'bob', password: 'bob12345', roles: ['workflow_author'] },
     });
     expect(ok.statusCode).toBe(201);
     expect(ok.json().username).toBe('bob');
     expect(ok.json()).not.toHaveProperty('password_hash');
+  });
+
+  it('创建多角色用户：roles 原样返回', async () => {
+    const ok = await app.inject({
+      method: 'POST', url: '/api/admin/users', headers: { cookie: adminCookie },
+      payload: { username: 'carol', password: 'carol1234', roles: ['workflow_author', 'dashboard_viewer'] },
+    });
+    expect(ok.statusCode).toBe(201);
+    expect((ok.json().roles as string[]).slice().sort()).toEqual(['dashboard_viewer', 'workflow_author']);
+    expect(usersRepo(db).rolesOf(ok.json().id).slice().sort()).toEqual(['dashboard_viewer', 'workflow_author']);
+  });
+
+  it('非法 roles 返回 400（空数组 / 未知角色 / 非数组）', async () => {
+    const empty = await app.inject({
+      method: 'POST', url: '/api/admin/users', headers: { cookie: adminCookie },
+      payload: { username: 'dave', password: 'dave1234', roles: [] },
+    });
+    expect(empty.statusCode).toBe(400);
+    const bogus = await app.inject({
+      method: 'POST', url: '/api/admin/users', headers: { cookie: adminCookie },
+      payload: { username: 'eve', password: 'eve12345', roles: ['bogus'] },
+    });
+    expect(bogus.statusCode).toBe(400);
+    const notArray = await app.inject({
+      method: 'POST', url: '/api/admin/users', headers: { cookie: adminCookie },
+      payload: { username: 'fred', password: 'fred1234', roles: 'admin' },
+    });
+    expect(notArray.statusCode).toBe(400);
+  });
+
+  it('PUT 更新多角色', async () => {
+    await loginFree('bob', 'bob12345');
+    const bob = usersRepo(db).findByUsername('bob')!;
+    const res = await app.inject({
+      method: 'PUT', url: `/api/admin/users/${bob.id}`, headers: { cookie: adminCookie },
+      payload: { roles: ['dashboard_author'] },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().roles).toEqual(['dashboard_author']);
+    expect(usersRepo(db).rolesOf(bob.id)).toEqual(['dashboard_author']);
   });
 
   it('修改角色/状态后可生效，禁用用户的会话立即失效', async () => {
@@ -108,7 +148,7 @@ describe('admin users routes', () => {
 async function loginFree(username: string, password: string): Promise<string> {
   await app.inject({
     method: 'POST', url: '/api/admin/users', headers: { cookie: adminCookie },
-    payload: { username, password, role: 'user' },
+    payload: { username, password, roles: ['workflow_author'] },
   });
   return login(username, password);
 }

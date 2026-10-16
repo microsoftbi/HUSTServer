@@ -111,7 +111,7 @@ describe('端到端冒烟：建号 → 工作流 → 调度 → 运行 → 设�
       method: 'POST',
       url: '/api/admin/users',
       headers: { cookie: adminCookie },
-      payload: { username: 'alice', password: 'password1', role: 'user' },
+      payload: { username: 'alice', password: 'password1', roles: ['workflow_author'] },
     });
     expect(res.statusCode).toBe(201);
   });

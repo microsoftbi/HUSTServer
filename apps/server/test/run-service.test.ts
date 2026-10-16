@@ -26,7 +26,7 @@ let workflowId: string;
 beforeEach(() => {
   db = new Database(':memory:');
   migrate(db);
-  const owner = usersRepo(db).create({ username: 'alice', passwordHash: 'x', role: 'user' });
+  const owner = usersRepo(db).create({ username: 'alice', passwordHash: 'x', roles: ['workflow_author'] });
   workflowId = workflowsRepo(db).create({ ownerId: owner.id, name: 'A', payload: PAYLOAD }).id;
 });
 

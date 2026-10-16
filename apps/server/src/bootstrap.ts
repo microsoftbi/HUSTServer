@@ -19,7 +19,7 @@ export async function ensureBootstrapAdmin(
   const username = cfg.bootstrapAdminUser ?? 'admin';
   const generated = !cfg.bootstrapAdminPassword;
   const password = cfg.bootstrapAdminPassword ?? randomBytes(9).toString('base64url');
-  users.create({ username, passwordHash: await hashPassword(password), role: 'admin' });
+  users.create({ username, passwordHash: await hashPassword(password), roles: ['admin'] });
   if (generated) {
     log.warn(`已创建初始管理员「${username}」，随机密码：${password}（仅显示一次，请立即修改）`);
   } else {
