@@ -1013,7 +1013,7 @@ describe('PATCH /api/models/:name', () => {
     expect(ok.statusCode).toBe(200);
     expect(ok.json()).toEqual({ ok: true });
 
-    const list = await app.inject({ method: 'GET', url: '/api/models', headers: { cookie: wfCookie } });
+    const list = await app.inject({ method: 'GET', url: '/api/models', headers: { cookie: authorCookie } });
     expect(list.json().items.map((m: { name: string }) => m.name)).toEqual(['sales_model_v2']);
 
     const conflict = await app.inject({ method: 'PATCH', url: '/api/models/sales_model_v2', headers: { cookie: wfCookie }, payload: { newName: 'sales_model_v2' } });
@@ -1041,7 +1041,7 @@ describe('DELETE /api/models/:name', () => {
     expect(ok.statusCode).toBe(200);
     expect(ok.json()).toEqual({ ok: true });
 
-    const list = await app.inject({ method: 'GET', url: '/api/models', headers: { cookie: wfCookie } });
+    const list = await app.inject({ method: 'GET', url: '/api/models', headers: { cookie: authorCookie } });
     expect(list.json().items).toHaveLength(0);
   });
 });
