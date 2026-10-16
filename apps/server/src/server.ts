@@ -91,7 +91,7 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
   syncWorkflowScheduler();
 
   const jobService =
-    deps.overrides?.jobService ?? createJobService({ db: deps.db, config: deps.config, runService });
+    deps.overrides?.jobService ?? createJobService({ db: deps.db, config: deps.config, runService, modelStore });
   const jobs = jobsRepo(deps.db);
   const syncJobScheduler = (): void => {
     jobScheduler.sync(

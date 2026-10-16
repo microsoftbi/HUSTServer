@@ -1,9 +1,12 @@
+import fs from 'node:fs';
 import type { Database } from 'better-sqlite3';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { AppConfig } from '../../config.js';
 import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import { connectionsRepo } from '../connections/repo.js';
+import { MODEL_NAME_RE, type LoadModelConfig } from '../models/service.js';
+import { isAllowedResourceFile, resolveResourcePath } from '../resources/paths.js';
 import { CronFormatError, isFreqType, nextRunAt, presetToCron, validateCron, type FreqType } from '../schedules/cron.js';
 import type { UsersRepo } from '../users/repo.js';
 import { workflowsRepo } from '../workflows/repo.js';
@@ -29,6 +32,16 @@ interface StepBody {
   workflowId?: unknown;
   connectionId?: unknown;
   sql?: unknown;
+  modelName?: unknown;
+  source?: unknown;
+  resourcePath?: unknown;
+  format?: unknown;
+  delimiter?: unknown;
+  hasHeader?: unknown;
+  encoding?: unknown;
+  sheet?: unknown;
+  object?: unknown;
+  query?: unknown;
 }
 
 interface JobBody {
@@ -125,6 +138,71 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
           return null;
         }
         steps.push({ type: 'sql', name: stepName, config: JSON.stringify({ connectionId, sql: sqlText }), onFailure });
+      } else if (item.type === 'load_model') {
+        const modelName = asString(item.modelName);
+        if (!modelName || !MODEL_NAME_RE.test(modelName)) {
+          reply.code(400).send({ error: '模型名不合法' });
+          return null;
+        }
+        if (item.source === 'file') {
+          const resourcePath = asString(item.resourcePath);
+          if (!resourcePath) {
+            reply.code(400).send({ error: '资源文件不可用' });
+            return null;
+          }
+          let abs: string;
+          try {
+            abs = resolveResourcePath(deps.config.resourceDir, resourcePath);
+          } catch {
+            reply.code(400).send({ error: '资源文件不可用' });
+            return null;
+          }
+          if (!isAllowedResourceFile(abs) || !fs.existsSync(abs)) {
+            reply.code(400).send({ error: '资源文件不可用' });
+            return null;
+          }
+          const format =
+            item.format === 'csv' || item.format === 'excel' ? item.format : undefined;
+          steps.push({
+            type: 'load_model',
+            name: stepName,
+            config: JSON.stringify({
+              source: 'file',
+              modelName,
+              resourcePath,
+              ...(format ? { format } : {}),
+            } satisfies LoadModelConfig),
+            onFailure,
+          });
+        } else if (item.source === 'sqlserver') {
+          const connectionId = asString(item.connectionId);
+          const conn = connectionId ? connections.findById(connectionId) : null;
+          if (!connectionId || !conn || !(isAdmin || conn.shared === 1 || conn.owner_id === userId)) {
+            reply.code(400).send({ error: '连接不可用' });
+            return null;
+          }
+          const object = asString(item.object);
+          const query = asString(item.query);
+          if (!object && !query) {
+            reply.code(400).send({ error: '需要指定表或查询' });
+            return null;
+          }
+          steps.push({
+            type: 'load_model',
+            name: stepName,
+            config: JSON.stringify({
+              source: 'sqlserver',
+              modelName,
+              connectionId,
+              ...(object ? { object } : {}),
+              ...(query ? { query } : {}),
+            } satisfies LoadModelConfig),
+            onFailure,
+          });
+        } else {
+          reply.code(400).send({ error: '步骤来源无效' });
+          return null;
+        }
       } else {
         reply.code(400).send({ error: '步骤类型无效' });
         return null;

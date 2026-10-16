@@ -5,6 +5,7 @@ import { migrate } from '../src/db/migrate.js';
 import { encryptConfig } from '../src/modules/connections/crypto.js';
 import { jobRunsRepo, jobStepRunsRepo, jobsRepo, type JobStepInput } from '../src/modules/jobs/repo.js';
 import { createJobService } from '../src/modules/jobs/service.js';
+import type { LoadModelConfig, ModelStore } from '../src/modules/models/service.js';
 import { runsRepo } from '../src/modules/runs/repo.js';
 import type { RunStatus } from '../src/modules/runs/repo.js';
 import type { RunService } from '../src/modules/runs/service.js';
@@ -24,6 +25,14 @@ function wfStep(workflowId: string, onFailure: 'abort' | 'continue' = 'abort'): 
 }
 function sqlStep(onFailure: 'abort' | 'continue' = 'abort'): JobStepInput {
   return { type: 'sql', name: '跑SQL', config: JSON.stringify({ connectionId: 'c1', sql: 'SELECT 1' }), onFailure };
+}
+function loadModelStep(): JobStepInput {
+  return {
+    type: 'load_model',
+    name: '加载模型',
+    config: JSON.stringify({ source: 'file', modelName: 'sales_model', resourcePath: 'sales.csv' }),
+    onFailure: 'abort',
+  };
 }
 
 /** spec §5.2：sql 步骤需连接存在。仅「SQL 步骤成功」的用例seed 连接 c1；「连接不存在」用例故意不 seed。 */
@@ -128,6 +137,39 @@ describe('createJobService', () => {
     expect(steps[0].status).toBe('error');
     expect(steps[0].error).toBe('连接不存在');
     expect(jobRunsRepo(db).findById(jobRun.id)!.status).toBe('error');
+  });
+
+  it('load_model 步骤调用 modelStore.load，output 为模型名与行数，ownerId 取 Job 的 owner', async () => {
+    const load = vi.fn(async (_cfg: LoadModelConfig, _ownerId: string | null) => ({
+      rowCount: 7,
+      columns: [{ name: 'id', type: 'BIGINT' }],
+    }));
+    const modelStore = {
+      load, query: vi.fn(), rename: vi.fn(), remove: vi.fn(), close: vi.fn(),
+    } as unknown as ModelStore;
+    const service = createJobService({ db, config: cfg, runService: fakeRunService('success'), modelStore });
+    const job = jobsRepo(db).create({ ...BASE, ownerId, name: 'J', enabled: false, steps: [loadModelStep()] });
+    const jobRun = service.trigger(job.id);
+    await service.whenIdle();
+
+    expect(jobRunsRepo(db).findById(jobRun.id)!.status).toBe('success');
+    const steps = jobStepRunsRepo(db).listByJobRun(jobRun.id);
+    expect(steps.map((s) => s.status)).toEqual(['success']);
+    expect(JSON.parse(steps[0].output!)).toEqual({ modelName: 'sales_model', rowCount: 7 });
+    expect(load).toHaveBeenCalledWith(
+      { source: 'file', modelName: 'sales_model', resourcePath: 'sales.csv' },
+      ownerId,
+    );
+  });
+
+  it('未注入 modelStore 时 load_model 步骤失败', async () => {
+    const service = createJobService({ db, config: cfg, runService: fakeRunService('success') });
+    const job = jobsRepo(db).create({ ...BASE, ownerId, name: 'J', enabled: false, steps: [loadModelStep()] });
+    const jobRun = service.trigger(job.id);
+    await service.whenIdle();
+    const steps = jobStepRunsRepo(db).listByJobRun(jobRun.id);
+    expect(steps[0].status).toBe('error');
+    expect(steps[0].error).toBe('模型存储未配置');
   });
 
   it('Job 不存在或无步骤时抛错', () => {

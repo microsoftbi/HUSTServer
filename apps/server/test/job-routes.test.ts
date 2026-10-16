@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import type { FastifyInstance } from 'fastify';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -18,10 +18,13 @@ import { usersRepo } from '../src/modules/users/repo.js';
 import { buildServer } from '../src/server.js';
 
 const dataDir = mkdtempSync(join(tmpdir(), 'hs-job-routes-'));
+const resourceDir = mkdtempSync(join(tmpdir(), 'hs-job-routes-res-'));
+writeFileSync(join(resourceDir, 'sales.csv'), 'id,amount\n1,10\n2,20\n', 'utf-8');
 const cfg = loadConfig({
   SESSION_SECRET: 'x'.repeat(32),
   ENCRYPTION_KEY: 'a'.repeat(64),
   HUSTSERVER_DATA_DIR: dataDir,
+  HUSTSERVER_RESOURCE_DIR: resourceDir,
 });
 
 let app: FastifyInstance;
@@ -145,6 +148,57 @@ describe('job routes', () => {
     });
     expect(okSql.statusCode).toBe(201);
     expect(okSql.json().steps[0].onFailure).toBe('continue');
+  });
+
+  it('load_model 步骤：file 源校验与成功创建', async () => {
+    const badName = await app.inject({
+      method: 'POST', url: '/api/jobs', headers: { cookie: aliceCookie },
+      payload: { name: 'x', steps: [{ type: 'load_model', name: 's', source: 'file', modelName: '1bad', resourcePath: 'sales.csv', onFailure: 'abort' }] },
+    });
+    expect(badName.statusCode).toBe(400);
+    expect(badName.json().error).toBe('模型名不合法');
+
+    const missingFile = await app.inject({
+      method: 'POST', url: '/api/jobs', headers: { cookie: aliceCookie },
+      payload: { name: 'x', steps: [{ type: 'load_model', name: 's', source: 'file', modelName: 'sales_model', resourcePath: 'nope.csv', onFailure: 'abort' }] },
+    });
+    expect(missingFile.statusCode).toBe(400);
+    expect(missingFile.json().error).toBe('资源文件不可用');
+
+    const ok = await app.inject({
+      method: 'POST', url: '/api/jobs', headers: { cookie: aliceCookie },
+      payload: { name: '加载模型', steps: [{ type: 'load_model', name: '加载', source: 'file', modelName: 'sales_model', resourcePath: 'sales.csv', onFailure: 'continue' }] },
+    });
+    expect(ok.statusCode).toBe(201);
+    expect(ok.json().steps[0]).toMatchObject({
+      type: 'load_model', name: '加载', onFailure: 'continue',
+      config: { source: 'file', modelName: 'sales_model', resourcePath: 'sales.csv' },
+    });
+  });
+
+  it('load_model 步骤：sqlserver 源校验与成功创建', async () => {
+    const noTarget = await app.inject({
+      method: 'POST', url: '/api/jobs', headers: { cookie: aliceCookie },
+      payload: { name: 'x', steps: [{ type: 'load_model', name: 's', source: 'sqlserver', modelName: 'm', connectionId: sharedConnId, onFailure: 'abort' }] },
+    });
+    expect(noTarget.statusCode).toBe(400);
+    expect(noTarget.json().error).toBe('需要指定表或查询');
+
+    const badSource = await app.inject({
+      method: 'POST', url: '/api/jobs', headers: { cookie: aliceCookie },
+      payload: { name: 'x', steps: [{ type: 'load_model', name: 's', source: 'ftp', modelName: 'm', onFailure: 'abort' }] },
+    });
+    expect(badSource.statusCode).toBe(400);
+    expect(badSource.json().error).toBe('步骤来源无效');
+
+    const ok = await app.inject({
+      method: 'POST', url: '/api/jobs', headers: { cookie: bobCookie },
+      payload: { name: 'bob加载', steps: [{ type: 'load_model', name: 's', source: 'sqlserver', modelName: 'sales_model', connectionId: sharedConnId, object: 'dbo.sales', onFailure: 'abort' }] },
+    });
+    expect(ok.statusCode).toBe(201);
+    expect(ok.json().steps[0].config).toEqual({
+      source: 'sqlserver', modelName: 'sales_model', connectionId: sharedConnId, object: 'dbo.sales',
+    });
   });
 
   it('PUT 整体覆盖；DELETE 后列表为空', async () => {

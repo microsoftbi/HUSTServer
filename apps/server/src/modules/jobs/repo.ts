@@ -2,7 +2,7 @@ import type { Database } from 'better-sqlite3';
 import { nanoid } from 'nanoid';
 import type { FreqType } from '../schedules/cron.js';
 
-export type JobStepType = 'workflow' | 'sql';
+export type JobStepType = 'workflow' | 'sql' | 'load_model';
 export type JobOnFailure = 'abort' | 'continue';
 export type JobRunStatus = 'queued' | 'running' | 'success' | 'error';
 export type JobStepRunStatus = 'pending' | 'running' | 'success' | 'error' | 'skipped';

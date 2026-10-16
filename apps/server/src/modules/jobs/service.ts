@@ -3,6 +3,7 @@ import type { Database } from 'better-sqlite3';
 import type { AppConfig } from '../../config.js';
 import { decryptConfig } from '../connections/crypto.js';
 import { connectionsRepo } from '../connections/repo.js';
+import type { LoadModelConfig, ModelStore } from '../models/service.js';
 import { createSemaphore } from '../runs/queue.js';
 import { runsRepo } from '../runs/repo.js';
 import type { RunService } from '../runs/service.js';
@@ -14,6 +15,7 @@ export interface JobServiceDeps {
   config: AppConfig;
   runService: RunService;
   sqlExecutor?: SqlExecutor;
+  modelStore?: ModelStore;
 }
 
 export interface JobService {
@@ -29,6 +31,7 @@ export function createJobService(deps: JobServiceDeps): JobService {
   const connections = connectionsRepo(db);
   const runs = runsRepo(db);
   const runSql = deps.sqlExecutor ?? defaultSqlExecutor;
+  const modelStore = deps.modelStore;
   // Job 级独立信号量（并发 1）：绝不复用 run 的信号量，否则 workflow 步骤会死锁
   const sem = createSemaphore(1);
 
@@ -75,15 +78,26 @@ export function createJobService(deps: JobServiceDeps): JobService {
         }
         return done(true, null);
       }
-      const stepCfg = JSON.parse(step.config) as { connectionId?: string; sql?: string };
-      if (!stepCfg.connectionId) throw new Error('步骤缺少 connectionId');
-      if (!stepCfg.sql?.trim()) throw new Error('SQL 不能为空');
-      const conn = connections.findById(stepCfg.connectionId);
-      if (!conn) throw new Error('连接不存在');
-      const connConfig = decryptConfig(conn.config_encrypted, config.encryptionKey.toString('hex')) as unknown as SqlServerConnection;
-      const result = await runSql(connConfig, stepCfg.sql);
-      output = JSON.stringify(result);
-      return done(true, null);
+      if (step.type === 'sql') {
+        const stepCfg = JSON.parse(step.config) as { connectionId?: string; sql?: string };
+        if (!stepCfg.connectionId) throw new Error('步骤缺少 connectionId');
+        if (!stepCfg.sql?.trim()) throw new Error('SQL 不能为空');
+        const conn = connections.findById(stepCfg.connectionId);
+        if (!conn) throw new Error('连接不存在');
+        const connConfig = decryptConfig(conn.config_encrypted, config.encryptionKey.toString('hex')) as unknown as SqlServerConnection;
+        const result = await runSql(connConfig, stepCfg.sql);
+        output = JSON.stringify(result);
+        return done(true, null);
+      }
+      if (step.type === 'load_model') {
+        if (!modelStore) throw new Error('模型存储未配置');
+        const stepCfg = JSON.parse(step.config) as LoadModelConfig;
+        const job = jobs.findById(jobRun.job_id); // 模型归属 = Job 的 owner
+        const result = await modelStore.load(stepCfg, job?.owner_id ?? null);
+        output = JSON.stringify({ modelName: stepCfg.modelName, rowCount: result.rowCount });
+        return done(true, null);
+      }
+      throw new Error(`未知步骤类型：${step.type}`);
     } catch (err) {
       return done(false, err instanceof Error ? err.message : String(err));
     }
