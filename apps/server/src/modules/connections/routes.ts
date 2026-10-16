@@ -15,12 +15,31 @@ export interface ConnectionRouteDeps {
   sessions: SessionsRepo;
 }
 
-function toDto(row: ConnectionRow, cfg: AppConfig) {
-  return {
+const DECRYPT_ERROR = '连接配置无法解密';
+const DECRYPT_DETAIL = 'ENCRYPTION_KEY 可能已变更，或该连接的密文已损坏';
+
+type DecryptOutcome = { ok: true; config: Record<string, unknown> } | { ok: false; error: string };
+
+// 单条密文解密失败不应影响整页：调用方按「不可用」降级处理。
+function decryptRow(row: ConnectionRow, cfg: AppConfig): DecryptOutcome {
+  try {
+    return { ok: true, config: decryptConfig(row.config_encrypted, cfg.encryptionKey) };
+  } catch {
+    return { ok: false, error: DECRYPT_ERROR };
+  }
+}
+
+function toDto(row: ConnectionRow, cfg: AppConfig, onDecryptError?: (row: ConnectionRow) => void) {
+  const base = {
     id: row.id, name: row.name, type: row.type, shared: row.shared === 1,
     owner_id: row.owner_id, updated_at: row.updated_at,
-    config: maskConnection(decryptConfig(row.config_encrypted, cfg.encryptionKey)),
   };
+  const decrypted = decryptRow(row, cfg);
+  if (!decrypted.ok) {
+    onDecryptError?.(row);
+    return { ...base, config: {}, configError: true };
+  }
+  return { ...base, config: maskConnection(decrypted.config), configError: false };
 }
 
 export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps): void {
@@ -34,7 +53,11 @@ export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps
 
   app.get('/api/connections', { preHandler: [auth, requireCap('connection.use')] }, async (req) => {
     const rows = req.auth!.caps.has('admin') ? repo.listAll() : repo.listForOwner(req.auth!.userId);
-    return rows.map((r) => toDto(r, deps.config));
+    return rows.map((r) =>
+      toDto(r, deps.config, (bad) => {
+        req.log.warn({ connectionId: bad.id, name: bad.name }, '连接配置解密失败，ENCRYPTION_KEY 可能已变更');
+      }),
+    );
   });
 
   app.post('/api/connections', { preHandler: [auth, requireCap('connection.manage')] }, async (req, reply) => {
@@ -96,9 +119,10 @@ export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps
     const row = repo.findById(id);
     if (!row) return reply.code(404).send({ error: '连接不存在' });
     if (!canManage(req, row)) return reply.code(403).send({ error: '无权测试该连接' });
-    const cfg = decryptConfig(row.config_encrypted, deps.config.encryptionKey);
-    const server = String(cfg.server ?? '');
-    const port = Number(cfg.port ?? 1433);
+    const decrypted = decryptRow(row, deps.config);
+    if (!decrypted.ok) return reply.code(400).send({ error: decrypted.error, detail: DECRYPT_DETAIL });
+    const server = String(decrypted.config.server ?? '');
+    const port = Number(decrypted.config.port ?? 1433);
     if (!server) return reply.code(400).send({ error: '连接缺少 server' });
     return testTcp(server, port);
   });
@@ -109,15 +133,16 @@ export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps
     const row = repo.findById(id);
     if (!row) return reply.code(404).send({ error: '连接不存在' });
     if (!canUse(req, row)) return reply.code(403).send({ error: '无权使用该连接' });
-    const cfg = decryptConfig(row.config_encrypted, deps.config.encryptionKey);
-    const server = String(cfg.server ?? '');
+    const decrypted = decryptRow(row, deps.config);
+    if (!decrypted.ok) return reply.code(400).send({ error: decrypted.error, detail: DECRYPT_DETAIL });
+    const server = String(decrypted.config.server ?? '');
     if (!server) return reply.code(400).send({ error: '连接缺少 server' });
     const res = await listSqlServerObjects({
       server,
-      port: Number(cfg.port ?? 1433),
-      database: String(cfg.database ?? ''),
-      user: String(cfg.user ?? ''),
-      password: String(cfg.password ?? ''),
+      port: Number(decrypted.config.port ?? 1433),
+      database: String(decrypted.config.database ?? ''),
+      user: String(decrypted.config.user ?? ''),
+      password: String(decrypted.config.password ?? ''),
     });
     if (!res.ok) return reply.code(400).send({ error: '读取表列表失败', detail: res.error });
     return { objects: res.objects ?? [] };

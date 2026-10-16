@@ -7,6 +7,7 @@ import { buildServer } from '../src/server.js';
 import { hashPassword } from '../src/modules/auth/password.js';
 import { usersRepo } from '../src/modules/users/repo.js';
 import { encryptConfig, decryptConfig, maskConnection } from '../src/modules/connections/crypto.js';
+import { connectionsRepo } from '../src/modules/connections/repo.js';
 
 const KEY = 'b'.repeat(64);
 const cfg = loadConfig({ SESSION_SECRET: 'x'.repeat(32), ENCRYPTION_KEY: KEY, HUSTSERVER_DATA_DIR: '/tmp/hustserver-test' });
@@ -86,6 +87,40 @@ describe('connection routes', () => {
     const res = await app.inject({ method: 'POST', url: `/api/connections/${id}/test`, headers: { cookie: aliceCookie } });
     expect(res.statusCode).toBe(200);
     expect(res.json().ok).toBe(false);
+  });
+
+  it('存在无法解密的连接时列表仍返回 200，该行标记 configError', async () => {
+    // 用另一把密钥加密，模拟 ENCRYPTION_KEY 变更后残留的历史数据
+    const foreignCipher = encryptConfig(
+      { server: 'legacy', port: 1433, database: 'old', user: 'sa', password: 'p' },
+      'c'.repeat(64),
+    );
+    const ok = await app.inject({
+      method: 'POST', url: '/api/connections', headers: { cookie: aliceCookie },
+      payload: { name: '好的', config: { server: 'good', port: 1433, database: 'd', user: 'sa', password: 'p' } },
+    });
+    expect(ok.statusCode).toBe(201);
+    connectionsRepo(db).create({ ownerId: null, name: '坏的', type: 'sqlserver', configEncrypted: foreignCipher, shared: true });
+
+    const list = await app.inject({ method: 'GET', url: '/api/connections', headers: { cookie: adminCookie } });
+    expect(list.statusCode).toBe(200);
+    const rows = list.json() as Array<Record<string, unknown>>;
+    const bad = rows.find((r) => r.name === '坏的')!;
+    const good = rows.find((r) => r.name === '好的')!;
+    expect(bad.configError).toBe(true);
+    expect(bad.config).toEqual({});
+    expect(bad.server ?? null).toBeNull();
+    expect(good.configError).toBe(false);
+    expect((good.config as Record<string, unknown>).server).toBe('good');
+  });
+
+  it('对无法解密的连接测试连通性返回 400 而不是 500', async () => {
+    const foreignCipher = encryptConfig({ server: 'legacy', port: 1433 }, 'c'.repeat(64));
+    const row = connectionsRepo(db).create({ ownerId: null, name: '坏的', type: 'sqlserver', configEncrypted: foreignCipher, shared: true });
+    const res = await app.inject({ method: 'POST', url: `/api/connections/${row.id}/test`, headers: { cookie: adminCookie } });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('连接配置无法解密');
+    expect(res.json().detail).toContain('ENCRYPTION_KEY');
   });
 
   it('删除连接', async () => {

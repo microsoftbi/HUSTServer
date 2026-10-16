@@ -10,6 +10,8 @@ interface ConnectionDto {
   owner_id: string | null;
   updated_at: number;
   config: Record<string, unknown>;
+  /** 服务端解密失败（通常是 ENCRYPTION_KEY 已变更），此时 config 为空对象。 */
+  configError?: boolean;
 }
 
 interface ConnectionForm {
@@ -207,6 +209,8 @@ export function ConnectionsPage() {
     }
   }
 
+  const brokenCount = rows.filter((row) => row.configError).length;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -219,6 +223,11 @@ export function ConnectionsPage() {
         </button>
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
+      {brokenCount > 0 && (
+        <p className="text-sm text-amber-700">
+          有 {brokenCount} 个连接无法解密，请确认服务器的 ENCRYPTION_KEY 未变更；可编辑该连接并重新保存，以用当前密钥重新加密。
+        </p>
+      )}
 
       <table className="w-full border text-left text-sm">
         <thead className="bg-slate-100">
@@ -236,8 +245,8 @@ export function ConnectionsPage() {
             <tr key={row.id} className="border-t">
               <td className="p-2">{row.name}</td>
               <td className="p-2 text-slate-500">{row.type}</td>
-              <td className="p-2">{String(row.config.server ?? '')}</td>
-              <td className="p-2">{String(row.config.database ?? '')}</td>
+              <td className="p-2">{row.configError ? '（无法解密）' : String(row.config.server ?? '')}</td>
+              <td className="p-2">{row.configError ? '（无法解密）' : String(row.config.database ?? '')}</td>
               <td className="p-2">{row.shared ? '是' : '否'}</td>
               <td className="space-x-2 p-2">
                 <button className="text-blue-600 underline" onClick={() => void test(row)}>测试</button>
