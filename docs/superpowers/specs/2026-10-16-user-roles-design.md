@@ -228,7 +228,7 @@ export const requireAdmin = requireCap('admin');
 - [App.tsx](../../../apps/web/src/App.tsx)：新增 `RequireCap` 包装组件，为各路由加能力门禁，无权时渲染「无权访问」并**不发起**数据请求：
   - `/workflows*` → `workflow`；`/jobs*`、`/job-runs/:id`、`/runs/:id` → `job`
   - `/connections` → `connection.manage`；`/resources` → `resources`
-  - `/dashboards` → `dashboard.view`；`/dashboards/:id` → `dashboard.edit`
+  - `/dashboards` → `dashboard.view`；`/dashboards/:id` → `dashboard.view`（编辑器保存按钮另由 `dashboard.edit` 门禁）
   - `/users`、`/settings` → `admin`
 - [UsersPage.tsx](../../../apps/web/src/pages/UsersPage.tsx)：角色由下拉改为**多选**（复选框组），列表展示多角色标签；页面门槛改 `hasCap('admin')`。
 - [ConnectionsPage.tsx](../../../apps/web/src/pages/ConnectionsPage.tsx)：`isAdmin` 改为 `hasCap('connection.manage')`（共享勾选与页面门槛均用能力判断）。
