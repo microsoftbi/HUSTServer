@@ -120,6 +120,7 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
     let sourceKind: ModelSourceKind = 'csv';
     let sourceRef: Record<string, unknown> = {};
     let rowCount = 0;
+    let columns: ColumnInfo[] = [];
     try {
       if (cfg.source === 'file') {
         const abs = resolveResourcePath(config.resourceDir, cfg.resourcePath);
@@ -163,12 +164,12 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
           ...(cfg.query ? { query: cfg.query } : {}),
         };
       }
+      columns = await describeTable(connection, staging);
       await promoteStagingTable(connection, cfg.modelName, staging);
     } catch (err) {
       await dropTable(connection, staging).catch(() => undefined);
       throw err;
     }
-    const columns = await describeTable(connection, cfg.modelName);
     repo.upsert({
       name: cfg.modelName,
       sourceKind,
