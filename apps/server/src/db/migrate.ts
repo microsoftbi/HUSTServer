@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
   username      TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  role          TEXT NOT NULL DEFAULT 'user',
+  role          TEXT NOT NULL DEFAULT 'workflow_author',
   status        TEXT NOT NULL DEFAULT 'active',
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL
@@ -136,6 +136,13 @@ CREATE TABLE IF NOT EXISTS dashboards (
 );
 
 CREATE INDEX IF NOT EXISTS idx_dashboards_owner ON dashboards(owner_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS user_roles (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role    TEXT NOT NULL,
+  PRIMARY KEY (user_id, role)
+);
+CREATE INDEX IF NOT EXISTS idx_user_roles_role ON user_roles(role);
 `;
 
 const JOB_TABLES = `
@@ -203,10 +210,24 @@ CREATE INDEX IF NOT EXISTS idx_job_step_runs_run ON job_step_runs(job_run_id, se
 CREATE INDEX IF NOT EXISTS idx_runs_job_run      ON runs(job_run_id);
 `;
 
+export function backfillUserRoles(db: Database): void {
+  const { c } = db.prepare('SELECT COUNT(*) AS c FROM user_roles').get() as { c: number };
+  if (c > 0) return;
+  const rows = db.prepare('SELECT id, role FROM users').all() as { id: string; role: string }[];
+  const insert = db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)');
+  const tx = db.transaction(() => {
+    for (const row of rows) {
+      insert.run(row.id, row.role === 'admin' ? 'admin' : 'workflow_author');
+    }
+  });
+  tx();
+}
+
 export function migrate(db: Database): void {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA);
+  backfillUserRoles(db);
   db.exec(JOB_TABLES);
   const runCols = (db.pragma('table_info(runs)') as Array<{ name: string }>).map((c) => c.name);
   if (!runCols.includes('job_run_id')) {

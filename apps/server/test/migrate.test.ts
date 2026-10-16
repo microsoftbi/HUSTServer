@@ -13,7 +13,8 @@ describe('migrate', () => {
     migrate(db);
     const names = tableNames(db);
     for (const t of ['users', 'sessions', 'workflows', 'workflow_files', 'connections',
-      'path_mappings', 'schedules', 'runs', 'run_node_results', 'run_logs', 'settings', 'dashboards']) {
+      'path_mappings', 'schedules', 'runs', 'run_node_results', 'run_logs', 'settings', 'dashboards',
+      'user_roles']) {
       expect(names).toContain(t);
     }
   });
@@ -36,5 +37,12 @@ describe('migrate', () => {
     migrate(db);
     const idx = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='dashboards'").all() as Array<{ name: string }>;
     expect(idx.map((r) => r.name)).toContain('idx_dashboards_owner');
+  });
+
+  it('user_roles 具备 role 索引', () => {
+    const db = new Database(':memory:');
+    migrate(db);
+    const idx = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='user_roles'").all() as Array<{ name: string }>;
+    expect(idx.map((r) => r.name)).toContain('idx_user_roles_role');
   });
 });
