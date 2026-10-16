@@ -1,14 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Toaster, toast } from 'sonner';
+import { Database, LayoutDashboard } from 'lucide-react';
 import { api, ApiClientError } from '../../api.js';
 import { useAuth } from '../../auth.js';
 import { DashboardView } from './DashboardView';
-import { DataSourceDialog } from './DataSourceDialog';
+import { DataView } from './DataView';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './components/ui/tooltip';
+import { cn } from './lib/utils';
 import { hydrateDataset } from './services/dataSource';
 import { useDashboardStore } from './stores/dashboardStore';
 import { useDatasetStore } from './stores/datasetStore';
-import type { DashboardPayload, Dataset, SavedDataset } from './types';
+import type { DashboardPayload, SavedDataset } from './types';
+
+type ViewKey = 'dashboard' | 'data';
+
+const NAV_ITEMS: Array<{ key: ViewKey; label: string; Icon: typeof Database }> = [
+  { key: 'dashboard', label: '仪表板', Icon: LayoutDashboard },
+  { key: 'data', label: '数据', Icon: Database },
+];
 
 export function DashboardEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,7 +33,7 @@ export function DashboardEditorPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [view, setView] = useState<ViewKey>('dashboard');
   /** 服务端最近一次已知状态：保存时作为 datasets 合并的底（保留失败/未 hydrate 数据集的定义） */
   const loadedRef = useRef<DashboardPayload | null>(null);
 
@@ -159,18 +174,43 @@ export function DashboardEditorPage() {
           })}
         </div>
       )}
-      <div className="min-h-0 flex-1">
-        <DashboardView onAddDataset={() => setDialogOpen(true)} />
+      <div className="flex min-h-0 flex-1">
+        <TooltipProvider delayDuration={300}>
+          <nav className="flex w-16 shrink-0 flex-col items-center gap-1 border-r bg-muted/30 py-3">
+            {NAV_ITEMS.map((item) => {
+              const { Icon } = item;
+              return (
+                <Tooltip key={item.key}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={item.label}
+                      aria-pressed={view === item.key}
+                      onClick={() => setView(item.key)}
+                      className={cn(
+                        'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+                        view === item.key
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                      )}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">{item.label}</TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </nav>
+        </TooltipProvider>
+        <div className="min-h-0 flex-1">
+          {view === 'dashboard' ? (
+            <DashboardView onAddDataset={() => setView('data')} />
+          ) : (
+            <DataView />
+          )}
+        </div>
       </div>
-      <DataSourceDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSaved={(ds: Dataset) => {
-          useDatasetStore.getState().addDataset(ds);
-          setDialogOpen(false);
-          toast.success(`已添加数据集「${ds.name}」`);
-        }}
-      />
       <Toaster position="bottom-left" />
     </div>
   );

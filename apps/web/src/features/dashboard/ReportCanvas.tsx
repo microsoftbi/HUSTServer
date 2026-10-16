@@ -278,7 +278,7 @@ export function ReportCanvas({
           <LayoutDashboard className="h-10 w-10" />
           <p className="text-sm">
             {datasets.length === 0
-              ? "请先点击「数据」窗格的 ＋ 添加数据集，再新建图表"
+              ? "请先在左侧「数据」标签中添加数据集，再新建图表"
               : "点击「新建图表」，或从右侧数据窗格拖入字段"}
           </p>
         </div>

@@ -68,3 +68,31 @@ describe('POST /api/data/query', () => {
     expect(typeof res.json().detail).toBe('string');
   });
 });
+
+describe('POST /api/data/tables', () => {
+  it('未登录 401', async () => {
+    expect((await app.inject({ method: 'POST', url: '/api/data/tables', payload: {} })).statusCode).toBe(401);
+  });
+  it('缺少 connectionId 400', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/data/tables', headers: { cookie: aliceCookie }, payload: {} });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('缺少连接 ID');
+  });
+  it('连接不存在 404', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/data/tables', headers: { cookie: aliceCookie }, payload: { connectionId: 'nope' } });
+    expect(res.statusCode).toBe(404);
+  });
+  it('他人未共享连接 403', async () => {
+    const id = await createConnection(aliceCookie);
+    const res = await app.inject({ method: 'POST', url: '/api/data/tables', headers: { cookie: bobCookie }, payload: { connectionId: id } });
+    expect(res.statusCode).toBe(403);
+  });
+  it('共享连接：连不上 → 400 获取数据表失败', async () => {
+    const id = await createConnection(aliceCookie);
+    await app.inject({ method: 'PUT', url: `/api/connections/${id}`, headers: { cookie: adminCookie }, payload: { shared: true } });
+    const res = await app.inject({ method: 'POST', url: '/api/data/tables', headers: { cookie: bobCookie }, payload: { connectionId: id } });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('获取数据表失败');
+    expect(typeof res.json().detail).toBe('string');
+  });
+});

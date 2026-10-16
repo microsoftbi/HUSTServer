@@ -131,7 +131,7 @@ export function DashboardView({ onAddDataset }: { onAddDataset?: () => void } = 
 
   function handleCreate(type: ChartType = "bar") {
     if (!createWidget(type)) {
-      toast.error("请先点击「数据」窗格的 ＋ 添加数据集");
+      toast.error("请先在左侧「数据」标签中添加数据集");
       return;
     }
     toast.success("已新建图表，可在右侧拖入字段");

@@ -218,7 +218,7 @@ export function VisualizationsPane({
                   <p className="text-xs text-muted-foreground">
                     {canCreate
                       ? "选择一种图表类型以新建可视化，或点击画布中的图表进行编辑。"
-                      : "请先点击「数据」窗格的 ＋ 添加数据集。"}
+                      : "请先在左侧「数据」标签中添加数据集。"}
                   </p>
                 ) : (
                   <div className="space-y-2.5">

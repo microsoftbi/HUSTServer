@@ -14,6 +14,12 @@ export interface QueryResult {
   truncated: boolean;
 }
 
+export interface TableInfo {
+  schema: string;
+  name: string;
+  type: 'table' | 'view';
+}
+
 const DEFAULT_LIMIT = 1000;
 const MAX_LIMIT = 10000;
 
@@ -50,6 +56,25 @@ export async function runQuery(conn: SqlServerConnection, query: string, limit?:
       rows: recordset.slice(0, cap).map((r) => names.map((n) => toCell(r[n]))),
       truncated: recordset.length > cap,
     };
+  } finally {
+    await pool.close().catch(() => undefined);
+  }
+}
+
+/** 列出连接所在库中的表与视图（供仪表板选择数据表）。 */
+export async function listTables(conn: SqlServerConnection): Promise<TableInfo[]> {
+  const pool = new sql.ConnectionPool(buildMssqlConfig(conn));
+  try {
+    await pool.connect();
+    const result = await pool.request().query(
+      "SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE IN ('BASE TABLE', 'VIEW') ORDER BY TABLE_SCHEMA, TABLE_NAME",
+    );
+    const recordset = (result.recordset ?? []) as Array<Record<string, unknown>>;
+    return recordset.map((r) => ({
+      schema: String(r.TABLE_SCHEMA ?? ''),
+      name: String(r.TABLE_NAME ?? ''),
+      type: r.TABLE_TYPE === 'VIEW' ? 'view' : 'table',
+    }));
   } finally {
     await pool.close().catch(() => undefined);
   }

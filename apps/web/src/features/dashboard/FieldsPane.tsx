@@ -112,7 +112,7 @@ export function FieldsPane({
           </Select>
         ) : (
           <p className="text-xs text-muted-foreground">
-            尚无数据集，点击上方「＋ 添加数据集」导入。
+            尚无数据集，点击上方「＋」前往左侧「数据」标签添加。
           </p>
         )}
 
