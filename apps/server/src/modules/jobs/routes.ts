@@ -1,7 +1,7 @@
 import type { Database } from 'better-sqlite3';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { AppConfig } from '../../config.js';
-import { requireAuth } from '../../plugins/guards.js';
+import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import { connectionsRepo } from '../connections/repo.js';
 import { CronFormatError, isFreqType, nextRunAt, presetToCron, validateCron, type FreqType } from '../schedules/cron.js';
@@ -182,7 +182,7 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
     };
   }
 
-  app.get('/api/jobs', { preHandler: guard }, async (req) => {
+  app.get('/api/jobs', { preHandler: [guard, requireCap('job')] }, async (req) => {
     const { userId } = req.auth!;
     const rows = req.auth!.caps.has('admin') ? jobs.listAll() : jobs.listForOwner(userId);
     const items = rows.map((job) => {
@@ -197,7 +197,7 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
     return { items };
   });
 
-  app.post('/api/jobs', { preHandler: guard }, async (req, reply) => {
+  app.post('/api/jobs', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const parsed = parseBody((req.body ?? {}) as JobBody, req.auth!.caps.has('admin'), req.auth!.userId, reply);
     if (!parsed) return reply;
     const job = jobs.create({
@@ -209,14 +209,14 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
     return reply.code(201).send(toDetail(job));
   });
 
-  app.get('/api/jobs/:id', { preHandler: guard }, async (req, reply) => {
+  app.get('/api/jobs/:id', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const job = loadJob(id, req.auth!.caps.has('admin'), req.auth!.userId, reply);
     if (!job) return reply;
     return toDetail(job);
   });
 
-  app.put('/api/jobs/:id', { preHandler: guard }, async (req, reply) => {
+  app.put('/api/jobs/:id', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const job = loadJob(id, req.auth!.caps.has('admin'), req.auth!.userId, reply);
     if (!job) return reply;
@@ -231,7 +231,7 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
     return toDetail(updated);
   });
 
-  app.delete('/api/jobs/:id', { preHandler: guard }, async (req, reply) => {
+  app.delete('/api/jobs/:id', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const job = loadJob(id, req.auth!.caps.has('admin'), req.auth!.userId, reply);
     if (!job) return reply;
@@ -240,7 +240,7 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
     return { ok: true };
   });
 
-  app.post('/api/jobs/:id/runs', { preHandler: guard }, async (req, reply) => {
+  app.post('/api/jobs/:id/runs', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const job = loadJob(id, req.auth!.caps.has('admin'), req.auth!.userId, reply);
     if (!job) return reply;
@@ -252,7 +252,7 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
     }
   });
 
-  app.get('/api/jobs/:id/runs', { preHandler: guard }, async (req, reply) => {
+  app.get('/api/jobs/:id/runs', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const job = loadJob(id, req.auth!.caps.has('admin'), req.auth!.userId, reply);
     if (!job) return reply;
@@ -262,7 +262,7 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
     return { total: jobRuns.countByJob(id), items: jobRuns.listByJob(id, { limit, offset }) };
   });
 
-  app.get('/api/job-runs/:id', { preHandler: guard }, async (req, reply) => {
+  app.get('/api/job-runs/:id', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const jobRun = jobRuns.findById(id);
     if (!jobRun) return reply.code(404).send({ error: 'Job 运行不存在' });

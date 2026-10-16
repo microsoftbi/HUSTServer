@@ -1,7 +1,7 @@
 import type { Database } from 'better-sqlite3';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { AppConfig } from '../../config.js';
-import { requireAuth } from '../../plugins/guards.js';
+import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import type { UsersRepo } from '../users/repo.js';
 import { workflowsRepo } from '../workflows/repo.js';
@@ -54,7 +54,7 @@ export function scheduleRoutes(app: FastifyInstance, deps: ScheduleRoutesDeps): 
     return true;
   }
 
-  app.get('/api/workflows/:id/schedules', { preHandler: guard }, async (req, reply) => {
+  app.get('/api/workflows/:id/schedules', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     if (!loadWorkflow(id, req.auth!.caps.has('admin'), req.auth!.userId, reply)) return reply;
     const items = schedules.listByWorkflow(id).map((row) => ({
@@ -64,7 +64,7 @@ export function scheduleRoutes(app: FastifyInstance, deps: ScheduleRoutesDeps): 
     return { items };
   });
 
-  app.post('/api/workflows/:id/schedules', { preHandler: guard }, async (req, reply) => {
+  app.post('/api/workflows/:id/schedules', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     if (!loadWorkflow(id, req.auth!.caps.has('admin'), req.auth!.userId, reply)) return reply;
 
@@ -101,7 +101,7 @@ export function scheduleRoutes(app: FastifyInstance, deps: ScheduleRoutesDeps): 
     return reply.code(201).send({ ...row, nextRunAt: row.enabled ? runAt(row.cron_expr, row.timezone) : null });
   });
 
-  app.put('/api/schedules/:id', { preHandler: guard }, async (req, reply) => {
+  app.put('/api/schedules/:id', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const cur = schedules.findById(id);
     if (!cur) return reply.code(404).send({ error: '调度不存在' });
@@ -149,7 +149,7 @@ export function scheduleRoutes(app: FastifyInstance, deps: ScheduleRoutesDeps): 
     return { ...updated, nextRunAt: updated.enabled ? runAt(updated.cron_expr, updated.timezone) : null };
   });
 
-  app.delete('/api/schedules/:id', { preHandler: guard }, async (req, reply) => {
+  app.delete('/api/schedules/:id', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const cur = schedules.findById(id);
     if (!cur) return reply.code(404).send({ error: '调度不存在' });

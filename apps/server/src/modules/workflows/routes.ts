@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Database } from 'better-sqlite3';
-import { requireAuth } from '../../plugins/guards.js';
+import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { AppConfig } from '../../config.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import type { UsersRepo } from '../users/repo.js';
@@ -89,7 +89,7 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
     return wf;
   }
 
-  app.post('/api/workflows/upload', { preHandler: auth }, async (req, reply) => {
+  app.post('/api/workflows/upload', { preHandler: [auth, requireCap('workflow')] }, async (req, reply) => {
     const part = await req.file();
     if (!part) return reply.code(400).send({ error: '缺少上传文件' });
     const buf = await part.toBuffer();
@@ -109,7 +109,7 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
     }
   });
 
-  app.post('/api/workflows', { preHandler: auth }, async (req, reply) => {
+  app.post('/api/workflows', { preHandler: [auth, requireCap('workflow')] }, async (req, reply) => {
     const body = (req.body ?? {}) as { name?: string; workflow?: unknown; mappings?: Array<PathMappingInput> };
     let parsed;
     try {
@@ -135,12 +135,12 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
     return reply.code(201).send({ id: wf.id, name: wf.name });
   });
 
-  app.get('/api/workflows', { preHandler: auth }, async (req) => {
+  app.get('/api/workflows', { preHandler: [auth, requireCap('workflow')] }, async (req) => {
     const rows = req.auth!.caps.has('admin') ? workflows.listAll() : workflows.listForOwner(req.auth!.userId);
     return rows.map((w) => ({ id: w.id, name: w.name, owner_id: w.owner_id, updated_at: w.updated_at }));
   });
 
-  app.get('/api/workflows/:id', { preHandler: auth }, async (req, reply) => {
+  app.get('/api/workflows/:id', { preHandler: [auth, requireCap('workflow')] }, async (req, reply) => {
     const wf = await loadChecked(req, reply);
     if (!wf) return;
     return {
@@ -152,7 +152,7 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
     };
   });
 
-  app.put('/api/workflows/:id', { preHandler: auth }, async (req, reply) => {
+  app.put('/api/workflows/:id', { preHandler: [auth, requireCap('workflow')] }, async (req, reply) => {
     const wf = await loadChecked(req, reply);
     if (!wf) return;
     const body = (req.body ?? {}) as { name?: string; workflow?: unknown };
@@ -187,14 +187,14 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
     return { ok: true, id: updated!.id, name: updated!.name };
   });
 
-  app.delete('/api/workflows/:id', { preHandler: auth }, async (req, reply) => {
+  app.delete('/api/workflows/:id', { preHandler: [auth, requireCap('workflow')] }, async (req, reply) => {
     const wf = await loadChecked(req, reply);
     if (!wf) return;
     workflows.remove(wf.id);
     return { ok: true };
   });
 
-  app.put('/api/workflows/:id/mappings', { preHandler: auth }, async (req, reply) => {
+  app.put('/api/workflows/:id/mappings', { preHandler: [auth, requireCap('workflow')] }, async (req, reply) => {
     const wf = await loadChecked(req, reply);
     if (!wf) return;
     const { mappings: items } = (req.body ?? {}) as { mappings?: Array<PathMappingInput> };
@@ -204,7 +204,7 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
   });
 
   // 工作流数据连接：列出该工作流内的 SQL Server 节点及其连接配置（密码掩码）。
-  app.get('/api/workflows/:id/connections', { preHandler: auth }, async (req, reply) => {
+  app.get('/api/workflows/:id/connections', { preHandler: [auth, requireCap('workflow')] }, async (req, reply) => {
     const wf = await loadChecked(req, reply);
     if (!wf) return;
     const workflow = JSON.parse(wf.payload) as { nodes?: Array<Record<string, unknown>> };
@@ -224,7 +224,7 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
   });
 
   // 编辑某个 SQL Server 节点的连接配置。密码留空表示沿用原值。
-  app.put('/api/workflows/:id/connections/:nodeId', { preHandler: auth }, async (req, reply) => {
+  app.put('/api/workflows/:id/connections/:nodeId', { preHandler: [auth, requireCap('workflow')] }, async (req, reply) => {
     const wf = await loadChecked(req, reply);
     if (!wf) return;
     const { nodeId } = req.params as { id: string; nodeId: string };
@@ -244,7 +244,7 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
   });
 
   // 测试连接：用当前表单配置（密码留空则沿用原值）做一次 TCP 连通性探测。
-  app.post('/api/workflows/:id/connections/:nodeId/test', { preHandler: auth }, async (req, reply) => {
+  app.post('/api/workflows/:id/connections/:nodeId/test', { preHandler: [auth, requireCap('workflow')] }, async (req, reply) => {
     const wf = await loadChecked(req, reply);
     if (!wf) return;
     const { nodeId } = req.params as { id: string; nodeId: string };
@@ -262,7 +262,7 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
     return testTcp(server, Number(cfg.port ?? 1433));
   });
 
-  app.post('/api/workflows/:id/files', { preHandler: auth }, async (req, reply) => {
+  app.post('/api/workflows/:id/files', { preHandler: [auth, requireCap('workflow')] }, async (req, reply) => {
     const wf = await loadChecked(req, reply);
     if (!wf) return;
     const part = await req.file();
@@ -300,7 +300,7 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
     return reply.code(201).send({ id: row.id, stored_name: row.stored_name, size: row.size, original_ref: row.original_ref });
   });
 
-  app.get('/api/workflows/:id/files', { preHandler: auth }, async (req, reply) => {
+  app.get('/api/workflows/:id/files', { preHandler: [auth, requireCap('workflow')] }, async (req, reply) => {
     const wf = await loadChecked(req, reply);
     if (!wf) return;
     return files.listByWorkflow(wf.id);

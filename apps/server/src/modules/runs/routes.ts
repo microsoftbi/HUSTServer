@@ -14,7 +14,7 @@ import type { Database } from 'better-sqlite3';
 import type { FastifyInstance } from 'fastify';
 import { nanoid } from 'nanoid';
 import type { AppConfig } from '../../config.js';
-import { requireAuth } from '../../plugins/guards.js';
+import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import type { UsersRepo } from '../users/repo.js';
 import { workflowsRepo } from '../workflows/repo.js';
@@ -50,7 +50,7 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
     return { run, ok: !!wf && canAccess(wf.owner_id, isAdmin, userId) };
   }
 
-  app.post('/api/workflows/:id/runs', { preHandler: guard }, async (req, reply) => {
+  app.post('/api/workflows/:id/runs', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const wf = workflows.findById(id);
     if (!wf) return reply.code(404).send({ error: '工作流不存在' });
@@ -116,12 +116,12 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
   });
 
   // 取消缓存：关闭被钉住的会话并清理缓存状态。
-  app.delete('/api/runs/cache/:cacheToken', { preHandler: guard }, async (req) => {
+  app.delete('/api/runs/cache/:cacheToken', { preHandler: [guard, requireCap('job')] }, async (req) => {
     const { cacheToken } = req.params as { cacheToken: string };
     return { ok: unpinCache(cacheToken) };
   });
 
-  app.get('/api/workflows/:id/runs', { preHandler: guard }, async (req, reply) => {
+  app.get('/api/workflows/:id/runs', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const wf = workflows.findById(id);
     if (!wf) return reply.code(404).send({ error: '工作流不存在' });
@@ -137,7 +137,7 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
     };
   });
 
-  app.get('/api/runs/:runId', { preHandler: guard }, async (req, reply) => {
+  app.get('/api/runs/:runId', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { runId } = req.params as { runId: string };
     const authorized = authorizeRun(runId, req.auth!.caps.has('admin'), req.auth!.userId);
     if (!authorized.run) return reply.code(404).send({ error: '运行不存在' });
@@ -145,7 +145,7 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
     return { run: authorized.run, nodes: nodes.listByRun(runId) };
   });
 
-  app.get('/api/runs/:runId/logs', { preHandler: guard }, async (req, reply) => {
+  app.get('/api/runs/:runId/logs', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { runId } = req.params as { runId: string };
     const authorized = authorizeRun(runId, req.auth!.caps.has('admin'), req.auth!.userId);
     if (!authorized.run) return reply.code(404).send({ error: '运行不存在' });
@@ -156,7 +156,7 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
     return { items: logs.listByRun(runId, { after, limit }) };
   });
 
-  app.get('/api/runs/:runId/preview', { preHandler: guard }, async (req, reply) => {
+  app.get('/api/runs/:runId/preview', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { runId } = req.params as { runId: string };
     const authorized = authorizeRun(runId, req.auth!.caps.has('admin'), req.auth!.userId);
     if (!authorized.run) return reply.code(404).send({ error: '运行不存在' });
@@ -192,7 +192,7 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
     }
   });
 
-  app.get('/api/runs/:runId/events', { preHandler: guard }, async (req, reply) => {
+  app.get('/api/runs/:runId/events', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { runId } = req.params as { runId: string };
     const authorized = authorizeRun(runId, req.auth!.caps.has('admin'), req.auth!.userId);
     if (!authorized.run) return reply.code(404).send({ error: '运行不存在' });
