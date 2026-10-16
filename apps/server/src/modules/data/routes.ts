@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { Database } from 'better-sqlite3';
 import type { SqlServerConnection } from '@hustserver/engine';
-import { requireAuth } from '../../plugins/guards.js';
+import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { AppConfig } from '../../config.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import type { UsersRepo } from '../users/repo.js';
@@ -21,7 +21,7 @@ export function dataRoutes(app: FastifyInstance, deps: DataRouteDeps): void {
   const repo = connectionsRepo(deps.db);
 
   // 仪表板专用取数：可见即可用（admin / 共享 / 自有连接）；不做只读校验，仅做行数截断。
-  app.post('/api/data/query', { preHandler: auth }, async (req, reply) => {
+  app.post('/api/data/query', { preHandler: [auth, requireCap('connection.use')] }, async (req, reply) => {
     const body = (req.body ?? {}) as { connectionId?: string; query?: string; limit?: number };
     if (!body.connectionId) return reply.code(400).send({ error: '缺少连接 ID' });
     if (!body.query?.trim()) return reply.code(400).send({ error: '缺少 SQL 语句' });

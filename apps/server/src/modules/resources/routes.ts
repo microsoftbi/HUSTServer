@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { listExcelSheets } from '@hustserver/engine';
-import { requireAuth } from '../../plugins/guards.js';
+import { requireAnyCap, requireAuth, requireCap } from '../../plugins/guards.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import type { UsersRepo } from '../users/repo.js';
 import { isAllowedResourceFile, resolveResourcePath, toResourceRel } from './paths.js';
@@ -61,7 +61,7 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
   }
 
   // 列出某目录下的子文件夹与文件。
-  app.get('/api/resources', { preHandler: auth }, async (req, reply) => {
+  app.get('/api/resources', { preHandler: [auth, requireAnyCap('resources', 'dashboard.edit')] }, async (req, reply) => {
     const rel = String((req.query as { path?: string }).path ?? '');
     let abs: string;
     try {
@@ -78,7 +78,7 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
 
   // 递归列出全部资源文件（供工作流输入绑定选择）。
   // absPath 为文件绝对路径，可直接写入节点 config.path（引擎对绝对路径原样读取）。
-  app.get('/api/resources/tree', { preHandler: auth }, async () => {
+  app.get('/api/resources/tree', { preHandler: [auth, requireAnyCap('resources', 'dashboard.edit')] }, async () => {
     const files: Array<{ name: string; path: string; size: number; absPath: string }> = [];
     const walk = (abs: string, rel: string): void => {
       for (const d of fs.readdirSync(abs, { withFileTypes: true })) {
@@ -99,7 +99,7 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
   // 列出 Excel 文件的工作表名（供画布 Excel 输入节点选择工作表）。
   // path 语义与引擎 resolveInputPath 一致：绝对路径原样使用，相对路径落到上传目录；
   // 仅允许资源库与上传目录内的文件，防止任意路径读取。
-  app.get('/api/resources/sheets', { preHandler: auth }, async (req, reply) => {
+  app.get('/api/resources/sheets', { preHandler: [auth, requireAnyCap('resources', 'dashboard.edit')] }, async (req, reply) => {
     const raw = String((req.query as { path?: string }).path ?? '').trim();
     if (!raw) return reply.code(400).send({ error: '缺少 path 参数' });
     const uploadRoot = path.resolve(deps.uploadDir);
@@ -114,7 +114,7 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
   });
 
   // 递归列出全部文件夹（供资源管理器左侧目录树使用）。
-  app.get('/api/resources/folders/tree', { preHandler: auth }, async () => {
+  app.get('/api/resources/folders/tree', { preHandler: [auth, requireAnyCap('resources', 'dashboard.edit')] }, async () => {
     const walk = (abs: string, rel: string): Array<{ name: string; path: string; children: unknown[] }> => {
       const out: Array<{ name: string; path: string; children: unknown[] }> = [];
       for (const d of fs.readdirSync(abs, { withFileTypes: true })) {
@@ -129,7 +129,7 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
   });
 
   // 移动文件/文件夹到目标目录（to 为目标目录的相对路径，'' 表示根目录）。
-  app.post('/api/resources/move', { preHandler: auth }, async (req, reply) => {
+  app.post('/api/resources/move', { preHandler: [auth, requireCap('resources')] }, async (req, reply) => {
     const { from: fromRel = '', to: toRel = '' } = (req.body ?? {}) as { from?: string; to?: string };
     let fromAbs: string;
     let toAbs: string;
@@ -155,7 +155,7 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
   });
 
   // 新建文件夹（name 可含 `/` 以创建多级目录）。
-  app.post('/api/resources/folders', { preHandler: auth }, async (req, reply) => {
+  app.post('/api/resources/folders', { preHandler: [auth, requireCap('resources')] }, async (req, reply) => {
     const { path: rel = '', name = '' } = (req.body ?? {}) as { path?: string; name?: string };
     if (!name.trim()) return reply.code(400).send({ error: '文件夹名称不能为空' });
     let abs: string;
@@ -170,7 +170,7 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
   });
 
   // 重命名文件夹（保持在同一父目录下）。
-  app.patch('/api/resources/folders', { preHandler: auth }, async (req, reply) => {
+  app.patch('/api/resources/folders', { preHandler: [auth, requireCap('resources')] }, async (req, reply) => {
     const { path: rel = '', name = '' } = (req.body ?? {}) as { path?: string; name?: string };
     if (!name.trim()) return reply.code(400).send({ error: '文件夹名称不能为空' });
     const parentRel = rel.split('/').slice(0, -1).join('/');
@@ -190,7 +190,7 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
   });
 
   // 删除文件夹（递归）。
-  app.delete('/api/resources/folders', { preHandler: auth }, async (req, reply) => {
+  app.delete('/api/resources/folders', { preHandler: [auth, requireCap('resources')] }, async (req, reply) => {
     const rel = String((req.query as { path?: string }).path ?? '');
     let abs: string;
     try {
@@ -205,7 +205,7 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
   });
 
   // 上传 csv / xlsx / xls 文件到指定目录（path 字段须先于 file 字段提交）。
-  app.post('/api/resources/files', { preHandler: auth }, async (req, reply) => {
+  app.post('/api/resources/files', { preHandler: [auth, requireCap('resources')] }, async (req, reply) => {
     const part = await req.file();
     if (!part) return reply.code(400).send({ error: '缺少上传文件' });
     const relDir = String((part.fields.path as { value?: string } | undefined)?.value ?? '');
@@ -230,7 +230,7 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
   });
 
   // 重命名文件。
-  app.patch('/api/resources/files', { preHandler: auth }, async (req, reply) => {
+  app.patch('/api/resources/files', { preHandler: [auth, requireCap('resources')] }, async (req, reply) => {
     const { path: rel = '', name = '' } = (req.body ?? {}) as { path?: string; name?: string };
     const trimmed = name.trim();
     if (!trimmed) return reply.code(400).send({ error: '文件名不能为空' });
@@ -251,7 +251,7 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
   });
 
   // 删除文件。
-  app.delete('/api/resources/files', { preHandler: auth }, async (req, reply) => {
+  app.delete('/api/resources/files', { preHandler: [auth, requireCap('resources')] }, async (req, reply) => {
     const rel = String((req.query as { path?: string }).path ?? '');
     let abs: string;
     try {
@@ -265,7 +265,7 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
   });
 
   // 下载文件。
-  app.get('/api/resources/files/download', { preHandler: auth }, async (req, reply) => {
+  app.get('/api/resources/files/download', { preHandler: [auth, requireAnyCap('resources', 'dashboard.edit')] }, async (req, reply) => {
     const rel = String((req.query as { path?: string }).path ?? '');
     let abs: string;
     try {

@@ -7,7 +7,7 @@ import {
   probeSqlServerSchema,
   type SqlServerConnection,
 } from '@hustserver/engine';
-import { requireAuth } from '../../plugins/guards.js';
+import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { AppConfig } from '../../config.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import type { UsersRepo } from '../users/repo.js';
@@ -44,7 +44,7 @@ export function schemaRoutes(app: FastifyInstance, deps: SchemaRouteDeps): void 
     if (!allowed) throw new Error('路径不在允许的目录内');
   };
 
-  app.post('/api/schema/csv', { preHandler: auth }, async (req, reply) => {
+  app.post('/api/schema/csv', { preHandler: [auth, requireCap('resources')] }, async (req, reply) => {
     const cfg = (req.body ?? {}) as {
       path?: string;
       delimiter?: string;
@@ -60,7 +60,7 @@ export function schemaRoutes(app: FastifyInstance, deps: SchemaRouteDeps): void 
     }
   });
 
-  app.post('/api/schema/excel', { preHandler: auth }, async (req, reply) => {
+  app.post('/api/schema/excel', { preHandler: [auth, requireCap('resources')] }, async (req, reply) => {
     const cfg = (req.body ?? {}) as { path?: string; sheet?: string; hasHeader?: boolean };
     if (!cfg.path) return reply.code(400).send({ error: '缺少文件路径' });
     try {
@@ -74,7 +74,7 @@ export function schemaRoutes(app: FastifyInstance, deps: SchemaRouteDeps): void 
   // 探测 SQL 查询结果的列结构。连接来源二选一：
   //   connectionId → 引用「连接」模块中的连接（服务端解密解析）
   //   connection   → 内嵌连接信息（旧节点兼容）
-  app.post('/api/schema/sqlserver', { preHandler: auth }, async (req, reply) => {
+  app.post('/api/schema/sqlserver', { preHandler: [auth, requireCap('connection.use')] }, async (req, reply) => {
     const body = (req.body ?? {}) as {
       connectionId?: string;
       connection?: SqlServerConnection;
