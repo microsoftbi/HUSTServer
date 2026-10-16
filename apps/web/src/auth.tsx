@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { api, type SessionUser } from './api.js';
+import type { Capability, Role } from './roles.js';
 
 interface AuthContextValue {
   user: SessionUser | null;
@@ -8,6 +9,8 @@ interface AuthContextValue {
   login(username: string, password: string): Promise<void>;
   logout(): Promise<void>;
   refresh(): Promise<void>;
+  hasCap(cap: Capability): boolean;
+  hasRole(role: Role): boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -40,7 +43,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, loading, login, logout, refresh }),
+    () => ({
+      user,
+      loading,
+      login,
+      logout,
+      refresh,
+      hasCap: (cap) => !!user?.capabilities.includes(cap),
+      hasRole: (role) => !!user?.roles.includes(role),
+    }),
     [user, loading, login, logout, refresh],
   );
 
@@ -58,5 +69,12 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
   if (loading) return <div className="p-6 text-slate-500">加载中…</div>;
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  return <>{children}</>;
+}
+
+export function RequireCap({ cap, children }: { cap: Capability; children: ReactNode }) {
+  const { loading, hasCap } = useAuth();
+  if (loading) return <div className="p-6 text-slate-500">加载中…</div>;
+  if (!hasCap(cap)) return <div className="p-6 text-slate-500">无权访问。</div>;
   return <>{children}</>;
 }

@@ -10,7 +10,7 @@ interface AdminSettings {
 }
 
 export function SettingsPage() {
-  const { user } = useAuth();
+  const { hasCap } = useAuth();
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [sharedDirsText, setSharedDirsText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -29,10 +29,10 @@ export function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (user?.role === 'admin') void load();
-  }, [user, load]);
+    if (hasCap('admin')) void load();
+  }, [hasCap, load]);
 
-  if (user?.role !== 'admin') return <p className="text-sm text-slate-500">无权访问。</p>;
+  if (!hasCap('admin')) return <p className="text-sm text-slate-500">无权访问。</p>;
 
   async function submit(e: FormEvent) {
     e.preventDefault();

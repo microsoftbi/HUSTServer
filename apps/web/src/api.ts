@@ -1,7 +1,10 @@
+import type { Capability, Role } from './roles.js';
+
 export interface SessionUser {
   id: string;
   username: string;
-  role: 'admin' | 'user';
+  roles: Role[];
+  capabilities: Capability[];
 }
 
 export interface RequestOptions {

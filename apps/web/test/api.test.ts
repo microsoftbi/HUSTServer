@@ -10,10 +10,25 @@ function jsonResponse(status: number, body: unknown): Response {
 
 describe('createApiClient', () => {
   it('GET 返回解析后的 JSON', async () => {
-    const fetchImpl = vi.fn(async () => jsonResponse(200, { id: 'u1', role: 'admin' })) as unknown as typeof fetch;
+    const body = {
+      id: 'u1',
+      username: 'u1',
+      roles: ['admin'],
+      capabilities: [
+        'admin',
+        'workflow',
+        'job',
+        'resources',
+        'connection.manage',
+        'connection.use',
+        'dashboard.edit',
+        'dashboard.view',
+      ],
+    };
+    const fetchImpl = vi.fn(async () => jsonResponse(200, body)) as unknown as typeof fetch;
     const api = createApiClient({ baseUrl: 'http://x', fetchImpl });
 
-    await expect(api.get('/api/auth/me')).resolves.toEqual({ id: 'u1', role: 'admin' });
+    await expect(api.get('/api/auth/me')).resolves.toEqual(body);
     const [url, init] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
     expect(url).toBe('http://x/api/auth/me');
     expect(init.credentials).toBe('include');

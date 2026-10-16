@@ -19,7 +19,7 @@ function makeInitialPayload(): DashboardPayload {
 }
 
 export function DashboardListPage() {
-  const { user } = useAuth();
+  const { hasCap } = useAuth();
   const navigate = useNavigate();
   const [items, setItems] = useState<DashboardSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +117,7 @@ export function DashboardListPage() {
                 >
                   重命名
                 </button>
-                {user?.role === 'admin' && (
+                {hasCap('admin') && (
                   <button className="text-blue-600" onClick={() => void toggleShared(row)}>
                     {row.shared ? '取消共享' : '共享'}
                   </button>

@@ -25,8 +25,8 @@ interface ConnectionForm {
 const EMPTY: ConnectionForm = { name: '', server: '', port: '1433', user: '', password: '', database: '', shared: false };
 
 export function ConnectionsPage() {
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const { hasCap } = useAuth();
+  const isAdmin = hasCap('admin');
   const [rows, setRows] = useState<ConnectionDto[]>([]);
   const [form, setForm] = useState<ConnectionForm>(EMPTY);
   const [editId, setEditId] = useState<string | null>(null);

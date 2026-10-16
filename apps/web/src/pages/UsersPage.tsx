@@ -12,7 +12,7 @@ interface UserDto {
 }
 
 export function UsersPage() {
-  const { user } = useAuth();
+  const { hasCap } = useAuth();
   const [rows, setRows] = useState<UserDto[]>([]);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -30,10 +30,10 @@ export function UsersPage() {
   }, []);
 
   useEffect(() => {
-    if (user?.role === 'admin') void load();
-  }, [user, load]);
+    if (hasCap('admin')) void load();
+  }, [hasCap, load]);
 
-  if (user?.role !== 'admin') return <p className="text-sm text-slate-500">无权访问。</p>;
+  if (!hasCap('admin')) return <p className="text-sm text-slate-500">无权访问。</p>;
 
   async function create(e: FormEvent) {
     e.preventDefault();

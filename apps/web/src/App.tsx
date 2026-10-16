@@ -1,5 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { AuthProvider, RequireAuth } from './auth.js';
+import { AuthProvider, RequireAuth, RequireCap } from './auth.js';
 import { Layout } from './components/Layout.js';
 import { DashboardEditorPage } from './features/dashboard/DashboardEditorPage.js';
 import { DashboardListPage } from './features/dashboard/DashboardListPage.js';
@@ -29,7 +29,9 @@ export function App() {
             path="/workflows/:id/designer"
             element={
               <RequireAuth>
-                <WorkflowDesignerPage />
+                <RequireCap cap="workflow">
+                  <WorkflowDesignerPage />
+                </RequireCap>
               </RequireAuth>
             }
           />
@@ -37,7 +39,9 @@ export function App() {
             path="/dashboards/:id"
             element={
               <RequireAuth>
-                <DashboardEditorPage />
+                <RequireCap cap="dashboard.view">
+                  <DashboardEditorPage />
+                </RequireCap>
               </RequireAuth>
             }
           />
@@ -49,20 +53,118 @@ export function App() {
             }
           >
             <Route path="/" element={<HomePage />} />
-            <Route path="/workflows" element={<WorkflowListPage />} />
-            <Route path="/dashboards" element={<DashboardListPage />} />
-            <Route path="/workflows/new" element={<WorkflowUploadPage />} />
-            <Route path="/workflows/:id" element={<WorkflowDetailPage />} />
-            <Route path="/workflows/:id/connections" element={<WorkflowConnectionsPage />} />
-            <Route path="/runs/:id" element={<RunDetailPage />} />
-            <Route path="/jobs" element={<JobListPage />} />
-            <Route path="/jobs/new" element={<JobEditorPage />} />
-            <Route path="/jobs/:id" element={<JobEditorPage />} />
-            <Route path="/job-runs/:id" element={<JobRunDetailPage />} />
-            <Route path="/connections" element={<ConnectionsPage />} />
-            <Route path="/resources" element={<ResourcesPage />} />
-            <Route path="/users" element={<UsersPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route
+              path="/workflows"
+              element={
+                <RequireCap cap="workflow">
+                  <WorkflowListPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/dashboards"
+              element={
+                <RequireCap cap="dashboard.view">
+                  <DashboardListPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/workflows/new"
+              element={
+                <RequireCap cap="workflow">
+                  <WorkflowUploadPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/workflows/:id"
+              element={
+                <RequireCap cap="workflow">
+                  <WorkflowDetailPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/workflows/:id/connections"
+              element={
+                <RequireCap cap="workflow">
+                  <WorkflowConnectionsPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/runs/:id"
+              element={
+                <RequireCap cap="job">
+                  <RunDetailPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/jobs"
+              element={
+                <RequireCap cap="job">
+                  <JobListPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/jobs/new"
+              element={
+                <RequireCap cap="job">
+                  <JobEditorPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/jobs/:id"
+              element={
+                <RequireCap cap="job">
+                  <JobEditorPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/job-runs/:id"
+              element={
+                <RequireCap cap="job">
+                  <JobRunDetailPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/connections"
+              element={
+                <RequireCap cap="connection.manage">
+                  <ConnectionsPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/resources"
+              element={
+                <RequireCap cap="resources">
+                  <ResourcesPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/users"
+              element={
+                <RequireCap cap="admin">
+                  <UsersPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <RequireCap cap="admin">
+                  <SettingsPage />
+                </RequireCap>
+              }
+            />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
