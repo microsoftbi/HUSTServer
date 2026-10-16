@@ -14,7 +14,7 @@ describe('migrate', () => {
     const names = tableNames(db);
     for (const t of ['users', 'sessions', 'workflows', 'workflow_files', 'connections',
       'path_mappings', 'schedules', 'runs', 'run_node_results', 'run_logs', 'settings', 'dashboards',
-      'user_roles']) {
+      'user_roles', 'data_models']) {
       expect(names).toContain(t);
     }
   });
@@ -44,5 +44,12 @@ describe('migrate', () => {
     migrate(db);
     const idx = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='user_roles'").all() as Array<{ name: string }>;
     expect(idx.map((r) => r.name)).toContain('idx_user_roles_role');
+  });
+
+  it('data_models 具备 loaded_at 索引', () => {
+    const db = new Database(':memory:');
+    migrate(db);
+    const idx = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='data_models'").all() as Array<{ name: string }>;
+    expect(idx.map((r) => r.name)).toContain('idx_data_models_loaded');
   });
 });

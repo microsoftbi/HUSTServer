@@ -13,6 +13,7 @@ describe('loadConfig', () => {
     expect(cfg.host).toBe('127.0.0.1');
     expect(cfg.port).toBe(8787);
     expect(cfg.dbFile).toBe('/tmp/hustserver-test/metadata.sqlite');
+    expect(cfg.modelDbFile).toBe('/tmp/hustserver-test/models.duckdb');
     expect(cfg.uploadDir).toBe('/tmp/hustserver-test/uploads');
     expect(cfg.encryptionKey.length).toBe(32);
     expect(cfg.tz).toBe('Asia/Shanghai');

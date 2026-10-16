@@ -8,6 +8,8 @@ export interface AppConfig {
   port: number;
   dataDir: string;
   dbFile: string;
+  /** 持久化数据模型库（DuckDB 单文件）。 */
+  modelDbFile: string;
   uploadDir: string;
   outputDir: string;
   spillDir: string;
@@ -42,6 +44,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     port: Number(env.HUSTSERVER_PORT || 8787),
     dataDir,
     dbFile: path.join(dataDir, 'metadata.sqlite'),
+    modelDbFile: path.join(dataDir, 'models.duckdb'),
     uploadDir: path.join(dataDir, 'uploads'),
     outputDir: path.join(dataDir, 'outputs'),
     spillDir: path.join(dataDir, 'spill'),

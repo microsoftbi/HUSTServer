@@ -210,6 +210,21 @@ CREATE INDEX IF NOT EXISTS idx_job_step_runs_run ON job_step_runs(job_run_id, se
 CREATE INDEX IF NOT EXISTS idx_runs_job_run      ON runs(job_run_id);
 `;
 
+const MODEL_TABLES = `
+CREATE TABLE IF NOT EXISTS data_models (
+  name        TEXT PRIMARY KEY,
+  source_kind TEXT NOT NULL,
+  source_ref  TEXT NOT NULL,
+  owner_id    TEXT REFERENCES users(id) ON DELETE SET NULL,
+  loaded_at   INTEGER NOT NULL,
+  row_count   INTEGER NOT NULL,
+  columns     TEXT NOT NULL,
+  created_at  INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_data_models_loaded ON data_models(loaded_at DESC);
+`;
+
 export function backfillUserRoles(db: Database): void {
   const { c } = db.prepare('SELECT COUNT(*) AS c FROM user_roles').get() as { c: number };
   if (c > 0) return;
@@ -229,6 +244,7 @@ export function migrate(db: Database): void {
   db.exec(SCHEMA);
   backfillUserRoles(db);
   db.exec(JOB_TABLES);
+  db.exec(MODEL_TABLES);
   const runCols = (db.pragma('table_info(runs)') as Array<{ name: string }>).map((c) => c.name);
   if (!runCols.includes('job_run_id')) {
     db.exec('ALTER TABLE runs ADD COLUMN job_run_id TEXT REFERENCES job_runs(id) ON DELETE SET NULL');
