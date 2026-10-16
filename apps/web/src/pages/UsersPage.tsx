@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api.js';
 import { useAuth } from '../auth.js';
+import { ROLE_LABELS, ROLES, type Role } from '../roles.js';
 
 interface UserDto {
   id: string;
   username: string;
-  role: 'admin' | 'user';
+  roles: Role[];
   status: 'active' | 'disabled';
   created_at: number;
   updated_at: number;
@@ -16,7 +17,7 @@ export function UsersPage() {
   const [rows, setRows] = useState<UserDto[]>([]);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'admin' | 'user'>('user');
+  const [roles, setRoles] = useState<Role[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -37,12 +38,16 @@ export function UsersPage() {
 
   async function create(e: FormEvent) {
     e.preventDefault();
+    if (roles.length === 0) {
+      setError('至少选择一个角色');
+      return;
+    }
     setBusy(true);
     try {
-      await api.post('/api/admin/users', { body: { username, password, role } });
+      await api.post('/api/admin/users', { body: { username, password, roles } });
       setUsername('');
       setPassword('');
-      setRole('user');
+      setRoles([]);
       await load();
     } catch (err) {
       setError((err as Error).message);
@@ -101,7 +106,7 @@ export function UsersPage() {
           {rows.map((row) => (
             <tr key={row.id} className="border-t">
               <td className="p-2">{row.username}</td>
-              <td className="p-2">{row.role === 'admin' ? '管理员' : '普通用户'}</td>
+              <td className="p-2">{row.roles.map((r) => ROLE_LABELS[r]).join('、')}</td>
               <td className="p-2">{row.status === 'active' ? '正常' : '已禁用'}</td>
               <td className="space-x-2 p-2">
                 <button className="text-blue-600 underline" onClick={() => void toggleStatus(row)}>
@@ -140,17 +145,23 @@ export function UsersPage() {
             required
           />
         </label>
-        <label className="block">
+        <div className="block">
           角色
-          <select
-            className="mt-1 block rounded border px-2 py-1"
-            value={role}
-            onChange={(e) => setRole(e.target.value as 'admin' | 'user')}
-          >
-            <option value="user">普通用户</option>
-            <option value="admin">管理员</option>
-          </select>
-        </label>
+          <div className="mt-1 flex flex-wrap gap-3">
+            {ROLES.map((r) => (
+              <label key={r} className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={roles.includes(r)}
+                  onChange={(e) =>
+                    setRoles((prev) => (e.target.checked ? [...prev, r] : prev.filter((x) => x !== r)))
+                  }
+                />
+                {ROLE_LABELS[r]}
+              </label>
+            ))}
+          </div>
+        </div>
         <button
           type="submit"
           disabled={busy}

@@ -26,7 +26,7 @@ const EMPTY: ConnectionForm = { name: '', server: '', port: '1433', user: '', pa
 
 export function ConnectionsPage() {
   const { hasCap } = useAuth();
-  const isAdmin = hasCap('admin');
+  const canManage = hasCap('connection.manage');
   const [rows, setRows] = useState<ConnectionDto[]>([]);
   const [form, setForm] = useState<ConnectionForm>(EMPTY);
   const [editId, setEditId] = useState<string | null>(null);
@@ -339,7 +339,7 @@ export function ConnectionsPage() {
                 )}
               </select>
             </label>
-            {isAdmin && (
+            {canManage && (
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"

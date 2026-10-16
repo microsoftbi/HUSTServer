@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Toaster, toast } from 'sonner';
 import { api, ApiClientError } from '../../api.js';
+import { useAuth } from '../../auth.js';
 import { DashboardView } from './DashboardView';
 import { DataSourceDialog } from './DataSourceDialog';
 import { hydrateDataset } from './services/dataSource';
@@ -11,6 +12,8 @@ import type { DashboardPayload, Dataset, SavedDataset } from './types';
 
 export function DashboardEditorPage() {
   const { id } = useParams<{ id: string }>();
+  const { hasCap } = useAuth();
+  const canEdit = hasCap('dashboard.edit');
   const [rowName, setRowName] = useState('');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -129,13 +132,15 @@ export function DashboardEditorPage() {
         </Link>
         <span className="font-medium">{rowName || '仪表板'}</span>
         {savedAt && <span className="text-xs text-slate-500">已保存于 {savedAt}</span>}
-        <button
-          className="ml-auto rounded bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
-          disabled={saving}
-          onClick={() => void save()}
-        >
-          {saving ? '保存中…' : '保存'}
-        </button>
+        {canEdit && (
+          <button
+            className="ml-auto rounded bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+            disabled={saving || !canEdit}
+            onClick={() => void save()}
+          >
+            {saving ? '保存中…' : '保存'}
+          </button>
+        )}
       </header>
       {errorEntries.length > 0 && (
         <div className="shrink-0 space-y-1 bg-red-50 px-4 py-2 text-sm text-red-700">
