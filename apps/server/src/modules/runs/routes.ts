@@ -16,7 +16,7 @@ import { nanoid } from 'nanoid';
 import type { AppConfig } from '../../config.js';
 import { requireAuth } from '../../plugins/guards.js';
 import type { SessionsRepo } from '../auth/sessions.js';
-import type { Role, UsersRepo } from '../users/repo.js';
+import type { UsersRepo } from '../users/repo.js';
 import { workflowsRepo } from '../workflows/repo.js';
 import type { Recorder } from './recorder.js';
 import { runLogsRepo, runNodeResultsRepo, runsRepo } from './repo.js';
@@ -39,22 +39,22 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
   const workflows = workflowsRepo(deps.db);
   const guard = requireAuth({ users: deps.users, sessions: deps.sessions });
 
-  const canAccess = (ownerId: string, role: Role, userId: string): boolean =>
-    role === 'admin' || ownerId === userId;
+  const canAccess = (ownerId: string, isAdmin: boolean, userId: string): boolean =>
+    isAdmin || ownerId === userId;
 
   /** 校验 run 归属，返回 run 及其工作流；不通过时已发送错误响应。 */
-  function authorizeRun(runId: string, role: Role, userId: string): { run: ReturnType<typeof runs.findById>; ok: boolean } {
+  function authorizeRun(runId: string, isAdmin: boolean, userId: string): { run: ReturnType<typeof runs.findById>; ok: boolean } {
     const run = runs.findById(runId);
     if (!run) return { run: null, ok: false };
     const wf = workflows.findById(run.workflow_id);
-    return { run, ok: !!wf && canAccess(wf.owner_id, role, userId) };
+    return { run, ok: !!wf && canAccess(wf.owner_id, isAdmin, userId) };
   }
 
   app.post('/api/workflows/:id/runs', { preHandler: guard }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const wf = workflows.findById(id);
     if (!wf) return reply.code(404).send({ error: '工作流不存在' });
-    if (!canAccess(wf.owner_id, req.auth!.role, req.auth!.userId)) {
+    if (!canAccess(wf.owner_id, req.auth!.caps.has('admin'), req.auth!.userId)) {
       return reply.code(403).send({ error: '无权访问' });
     }
 
@@ -125,7 +125,7 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
     const { id } = req.params as { id: string };
     const wf = workflows.findById(id);
     if (!wf) return reply.code(404).send({ error: '工作流不存在' });
-    if (!canAccess(wf.owner_id, req.auth!.role, req.auth!.userId)) {
+    if (!canAccess(wf.owner_id, req.auth!.caps.has('admin'), req.auth!.userId)) {
       return reply.code(403).send({ error: '无权访问' });
     }
     const q = req.query as { limit?: string; offset?: string };
@@ -139,7 +139,7 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
 
   app.get('/api/runs/:runId', { preHandler: guard }, async (req, reply) => {
     const { runId } = req.params as { runId: string };
-    const authorized = authorizeRun(runId, req.auth!.role, req.auth!.userId);
+    const authorized = authorizeRun(runId, req.auth!.caps.has('admin'), req.auth!.userId);
     if (!authorized.run) return reply.code(404).send({ error: '运行不存在' });
     if (!authorized.ok) return reply.code(403).send({ error: '无权访问' });
     return { run: authorized.run, nodes: nodes.listByRun(runId) };
@@ -147,7 +147,7 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
 
   app.get('/api/runs/:runId/logs', { preHandler: guard }, async (req, reply) => {
     const { runId } = req.params as { runId: string };
-    const authorized = authorizeRun(runId, req.auth!.role, req.auth!.userId);
+    const authorized = authorizeRun(runId, req.auth!.caps.has('admin'), req.auth!.userId);
     if (!authorized.run) return reply.code(404).send({ error: '运行不存在' });
     if (!authorized.ok) return reply.code(403).send({ error: '无权访问' });
     const q = req.query as { after?: string; limit?: string };
@@ -158,7 +158,7 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
 
   app.get('/api/runs/:runId/preview', { preHandler: guard }, async (req, reply) => {
     const { runId } = req.params as { runId: string };
-    const authorized = authorizeRun(runId, req.auth!.role, req.auth!.userId);
+    const authorized = authorizeRun(runId, req.auth!.caps.has('admin'), req.auth!.userId);
     if (!authorized.run) return reply.code(404).send({ error: '运行不存在' });
     if (!authorized.ok) return reply.code(403).send({ error: '无权访问' });
 
@@ -194,7 +194,7 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
 
   app.get('/api/runs/:runId/events', { preHandler: guard }, async (req, reply) => {
     const { runId } = req.params as { runId: string };
-    const authorized = authorizeRun(runId, req.auth!.role, req.auth!.userId);
+    const authorized = authorizeRun(runId, req.auth!.caps.has('admin'), req.auth!.userId);
     if (!authorized.run) return reply.code(404).send({ error: '运行不存在' });
     if (!authorized.ok) return reply.code(403).send({ error: '无权访问' });
 

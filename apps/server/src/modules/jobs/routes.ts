@@ -5,7 +5,7 @@ import { requireAuth } from '../../plugins/guards.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import { connectionsRepo } from '../connections/repo.js';
 import { CronFormatError, isFreqType, nextRunAt, presetToCron, validateCron, type FreqType } from '../schedules/cron.js';
-import type { Role, UsersRepo } from '../users/repo.js';
+import type { UsersRepo } from '../users/repo.js';
 import { workflowsRepo } from '../workflows/repo.js';
 import {
   jobRunsRepo, jobStepRunsRepo, jobsRepo,
@@ -62,8 +62,8 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
   const guard = requireAuth({ users: deps.users, sessions: deps.sessions });
   const defaultTimezone = deps.config.tz;
 
-  const canAccess = (ownerId: string, role: Role, userId: string): boolean =>
-    role === 'admin' || ownerId === userId;
+  const canAccess = (ownerId: string, isAdmin: boolean, userId: string): boolean =>
+    isAdmin || ownerId === userId;
   const asString = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
   const asNumber = (v: unknown): number | undefined => (typeof v === 'number' ? v : undefined);
 
@@ -71,13 +71,13 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
     job.enabled && job.cron_expr ? nextRunAt(job.cron_expr, job.timezone) : null;
 
   /** 按归属校验 Job；不通过时已发送响应并返回 null。 */
-  function loadJob(id: string, role: Role, userId: string, reply: FastifyReply): JobRow | null {
+  function loadJob(id: string, isAdmin: boolean, userId: string, reply: FastifyReply): JobRow | null {
     const job = jobs.findById(id);
     if (!job) {
       reply.code(404).send({ error: 'Job 不存在' });
       return null;
     }
-    if (!canAccess(job.owner_id, role, userId)) {
+    if (!canAccess(job.owner_id, isAdmin, userId)) {
       reply.code(403).send({ error: '无权访问' });
       return null;
     }
@@ -87,7 +87,7 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
   /** 解析并校验请求体；失败时已发送响应并返回 null。 */
   function parseBody(
     raw: JobBody,
-    role: Role,
+    isAdmin: boolean,
     userId: string,
     reply: FastifyReply,
   ): { name: string; description: string | null; steps: JobStepInput[]; schedule: ParsedSchedule } | null {
@@ -107,7 +107,7 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
       if (item.type === 'workflow') {
         const workflowId = asString(item.workflowId);
         const wf = workflowId ? workflows.findById(workflowId) : null;
-        if (!wf || !canAccess(wf.owner_id, role, userId)) {
+        if (!wf || !canAccess(wf.owner_id, isAdmin, userId)) {
           reply.code(400).send({ error: '工作流不可用' });
           return null;
         }
@@ -116,7 +116,7 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
         const connectionId = asString(item.connectionId);
         const sqlText = asString(item.sql);
         const conn = connectionId ? connections.findById(connectionId) : null;
-        if (!conn || !(role === 'admin' || conn.shared === 1 || conn.owner_id === userId)) {
+        if (!conn || !(isAdmin || conn.shared === 1 || conn.owner_id === userId)) {
           reply.code(400).send({ error: '连接不可用' });
           return null;
         }
@@ -183,8 +183,8 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
   }
 
   app.get('/api/jobs', { preHandler: guard }, async (req) => {
-    const { role, userId } = req.auth!;
-    const rows = role === 'admin' ? jobs.listAll() : jobs.listForOwner(userId);
+    const { userId } = req.auth!;
+    const rows = req.auth!.caps.has('admin') ? jobs.listAll() : jobs.listForOwner(userId);
     const items = rows.map((job) => {
       const lastRun = jobRuns.listByJob(job.id, { limit: 1, offset: 0 })[0] ?? null;
       return {
@@ -198,7 +198,7 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
   });
 
   app.post('/api/jobs', { preHandler: guard }, async (req, reply) => {
-    const parsed = parseBody((req.body ?? {}) as JobBody, req.auth!.role, req.auth!.userId, reply);
+    const parsed = parseBody((req.body ?? {}) as JobBody, req.auth!.caps.has('admin'), req.auth!.userId, reply);
     if (!parsed) return reply;
     const job = jobs.create({
       ownerId: req.auth!.userId, name: parsed.name, description: parsed.description,
@@ -211,16 +211,16 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
 
   app.get('/api/jobs/:id', { preHandler: guard }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const job = loadJob(id, req.auth!.role, req.auth!.userId, reply);
+    const job = loadJob(id, req.auth!.caps.has('admin'), req.auth!.userId, reply);
     if (!job) return reply;
     return toDetail(job);
   });
 
   app.put('/api/jobs/:id', { preHandler: guard }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const job = loadJob(id, req.auth!.role, req.auth!.userId, reply);
+    const job = loadJob(id, req.auth!.caps.has('admin'), req.auth!.userId, reply);
     if (!job) return reply;
-    const parsed = parseBody((req.body ?? {}) as JobBody, req.auth!.role, req.auth!.userId, reply);
+    const parsed = parseBody((req.body ?? {}) as JobBody, req.auth!.caps.has('admin'), req.auth!.userId, reply);
     if (!parsed) return reply;
     const updated = jobs.update(id, {
       name: parsed.name, description: parsed.description,
@@ -233,7 +233,7 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
 
   app.delete('/api/jobs/:id', { preHandler: guard }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const job = loadJob(id, req.auth!.role, req.auth!.userId, reply);
+    const job = loadJob(id, req.auth!.caps.has('admin'), req.auth!.userId, reply);
     if (!job) return reply;
     jobs.remove(id);
     deps.resync();
@@ -242,7 +242,7 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
 
   app.post('/api/jobs/:id/runs', { preHandler: guard }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const job = loadJob(id, req.auth!.role, req.auth!.userId, reply);
+    const job = loadJob(id, req.auth!.caps.has('admin'), req.auth!.userId, reply);
     if (!job) return reply;
     try {
       const jobRun = deps.jobService.trigger(id, { triggerType: 'manual', triggeredBy: req.auth!.userId });
@@ -254,7 +254,7 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
 
   app.get('/api/jobs/:id/runs', { preHandler: guard }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const job = loadJob(id, req.auth!.role, req.auth!.userId, reply);
+    const job = loadJob(id, req.auth!.caps.has('admin'), req.auth!.userId, reply);
     if (!job) return reply;
     const q = req.query as { limit?: string; offset?: string };
     const limit = Math.min(Math.max(Number(q.limit ?? 20) || 20, 1), 100);
@@ -267,7 +267,7 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
     const jobRun = jobRuns.findById(id);
     if (!jobRun) return reply.code(404).send({ error: 'Job 运行不存在' });
     const job = jobs.findById(jobRun.job_id);
-    if (!job || !canAccess(job.owner_id, req.auth!.role, req.auth!.userId)) {
+    if (!job || !canAccess(job.owner_id, req.auth!.caps.has('admin'), req.auth!.userId)) {
       return reply.code(403).send({ error: '无权访问' });
     }
     return { jobRun, steps: stepRuns.listByJobRun(id) };

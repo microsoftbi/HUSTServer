@@ -73,7 +73,7 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
   const wfConnections = workflowConnectionsRepo(deps.db);
 
   const canAccess = (req: FastifyRequest, wf: WorkflowRow): boolean =>
-    req.auth!.role === 'admin' || wf.owner_id === req.auth!.userId;
+    req.auth!.caps.has('admin') || wf.owner_id === req.auth!.userId;
 
   async function loadChecked(req: FastifyRequest, reply: FastifyReply): Promise<WorkflowRow | null> {
     const { id } = req.params as { id: string };
@@ -136,7 +136,7 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
   });
 
   app.get('/api/workflows', { preHandler: auth }, async (req) => {
-    const rows = req.auth!.role === 'admin' ? workflows.listAll() : workflows.listForOwner(req.auth!.userId);
+    const rows = req.auth!.caps.has('admin') ? workflows.listAll() : workflows.listForOwner(req.auth!.userId);
     return rows.map((w) => ({ id: w.id, name: w.name, owner_id: w.owner_id, updated_at: w.updated_at }));
   });
 

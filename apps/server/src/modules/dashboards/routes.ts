@@ -37,12 +37,12 @@ export function dashboardRoutes(app: FastifyInstance, deps: DashboardRouteDeps):
   const auth = requireAuth({ users: deps.users, sessions: deps.sessions });
   const repo = dashboardsRepo(deps.db);
   const canManage = (req: Parameters<typeof auth>[0], row: DashboardRow) =>
-    req.auth!.role === 'admin' || row.owner_id === req.auth!.userId;
+    req.auth!.caps.has('admin') || row.owner_id === req.auth!.userId;
   const canView = (req: Parameters<typeof auth>[0], row: DashboardRow) =>
-    req.auth!.role === 'admin' || row.shared === 1 || row.owner_id === req.auth!.userId;
+    req.auth!.caps.has('admin') || row.shared === 1 || row.owner_id === req.auth!.userId;
 
   app.get('/api/dashboards', { preHandler: auth }, async (req) => {
-    const rows = req.auth!.role === 'admin' ? repo.listAll() : repo.listForOwner(req.auth!.userId);
+    const rows = req.auth!.caps.has('admin') ? repo.listAll() : repo.listForOwner(req.auth!.userId);
     return rows.map((r) => toDto(r, false));
   });
 
@@ -55,7 +55,7 @@ export function dashboardRoutes(app: FastifyInstance, deps: DashboardRouteDeps):
       ownerId: req.auth!.userId,
       name: body.name.trim(),
       payload: JSON.stringify(body.payload),
-      shared: body.shared === true && req.auth!.role === 'admin',
+      shared: body.shared === true && req.auth!.caps.has('admin'),
     });
     return reply.code(201).send(toDto(row, true));
   });
@@ -83,7 +83,7 @@ export function dashboardRoutes(app: FastifyInstance, deps: DashboardRouteDeps):
     const updated = repo.update(id, {
       name: body.name?.trim(),
       payload: payloadText,
-      shared: req.auth!.role === 'admin' ? body.shared : undefined,
+      shared: req.auth!.caps.has('admin') ? body.shared : undefined,
     });
     return toDto(updated!, true);
   });

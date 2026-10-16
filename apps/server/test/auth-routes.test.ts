@@ -29,7 +29,7 @@ describe('auth routes', () => {
   it('正确凭据可登录并拿到 Cookie', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { username: 'alice', password: 'alice123' } });
     expect(res.statusCode).toBe(200);
-    expect(res.json().role).toBe('workflow_author');
+    expect(res.json().roles).toEqual(['workflow_author']);
     expect(res.headers['set-cookie']).toContain('hs_session=');
   });
 

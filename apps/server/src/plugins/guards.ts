@@ -1,11 +1,13 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { SessionsRepo } from '../modules/auth/sessions.js';
-import type { Role, UsersRepo } from '../modules/users/repo.js';
+import type { UsersRepo } from '../modules/users/repo.js';
+import { capabilitiesOf, CAP_LABELS, type Capability, type Role } from '../modules/users/roles.js';
 
 export interface AuthContext {
   userId: string;
-  role: Role;
   username: string;
+  roles: Role[];
+  caps: Set<Capability>;
 }
 
 declare module 'fastify' {
@@ -33,12 +35,27 @@ export function requireAuth(deps: { users: UsersRepo; sessions: SessionsRepo }) 
       await reply.code(401).send({ error: '账号不可用' });
       return;
     }
-    req.auth = { userId: user.id, role: user.role, username: user.username };
+    const roles = deps.users.rolesOf(user.id);
+    req.auth = { userId: user.id, username: user.username, roles, caps: capabilitiesOf(roles) };
   };
 }
 
-export async function requireAdmin(req: FastifyRequest, reply: FastifyReply): Promise<void> {
-  if (req.auth?.role !== 'admin') {
-    await reply.code(403).send({ error: '需要管理员权限' });
-  }
+export function requireCap(cap: Capability) {
+  return async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    if (!req.auth?.caps.has(cap)) {
+      await reply.code(403).send({ error: `需要「${CAP_LABELS[cap]}」权限` });
+    }
+  };
 }
+
+export function requireAnyCap(...caps: Capability[]) {
+  return async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    if (!caps.some((cap) => req.auth?.caps.has(cap))) {
+      await reply
+        .code(403)
+        .send({ error: `需要「${caps.map((c) => CAP_LABELS[c]).join('」或「')}」权限` });
+    }
+  };
+}
+
+export const requireAdmin = requireCap('admin');

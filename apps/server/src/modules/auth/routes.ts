@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { verifyPassword } from './password.js';
 import type { SessionsRepo } from './sessions.js';
 import { requireAuth, SESSION_COOKIE } from '../../plugins/guards.js';
+import { capabilitiesOf } from '../users/roles.js';
 import type { UsersRepo } from '../users/repo.js';
 
 export interface AuthRouteDeps {
@@ -27,7 +28,8 @@ export function authRoutes(app: FastifyInstance, deps: AuthRouteDeps): void {
       path: '/',
       maxAge: Math.floor(deps.sessionTtlMs / 1000),
     });
-    return { id: user.id, username: user.username, role: user.role };
+    const roles = deps.users.rolesOf(user.id);
+    return { id: user.id, username: user.username, roles, capabilities: [...capabilitiesOf(roles)] };
   });
 
   app.post('/api/auth/logout', async (req, reply) => {
@@ -40,6 +42,7 @@ export function authRoutes(app: FastifyInstance, deps: AuthRouteDeps): void {
   app.get('/api/auth/me', { preHandler: guard }, async (req) => ({
     id: req.auth!.userId,
     username: req.auth!.username,
-    role: req.auth!.role,
+    roles: req.auth!.roles,
+    capabilities: [...req.auth!.caps],
   }));
 }

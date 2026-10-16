@@ -27,13 +27,13 @@ export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps
   const auth = requireAuth({ users: deps.users, sessions: deps.sessions });
   const repo = connectionsRepo(deps.db);
   const canManage = (req: Parameters<typeof auth>[0], row: ConnectionRow) =>
-    req.auth!.role === 'admin' || row.owner_id === req.auth!.userId;
+    req.auth!.caps.has('admin') || row.owner_id === req.auth!.userId;
   // 「可见即可用」：管理员、共享连接、或自有连接都可在工作流中引用。
   const canUse = (req: Parameters<typeof auth>[0], row: ConnectionRow) =>
-    req.auth!.role === 'admin' || row.shared === 1 || row.owner_id === req.auth!.userId;
+    req.auth!.caps.has('admin') || row.shared === 1 || row.owner_id === req.auth!.userId;
 
   app.get('/api/connections', { preHandler: auth }, async (req) => {
-    const rows = req.auth!.role === 'admin' ? repo.listAll() : repo.listForOwner(req.auth!.userId);
+    const rows = req.auth!.caps.has('admin') ? repo.listAll() : repo.listForOwner(req.auth!.userId);
     return rows.map((r) => toDto(r, deps.config));
   });
 
@@ -41,7 +41,7 @@ export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps
     const body = (req.body ?? {}) as { name?: string; type?: string; config?: Record<string, unknown>; shared?: boolean };
     if (!body.name?.trim()) return reply.code(400).send({ error: '缺少连接名称' });
     if (!body.config || typeof body.config !== 'object') return reply.code(400).send({ error: '缺少连接配置' });
-    const shared = body.shared === true && req.auth!.role === 'admin';
+    const shared = body.shared === true && req.auth!.caps.has('admin');
     const row = repo.create({
       ownerId: shared ? null : req.auth!.userId,
       name: body.name.trim(),
@@ -61,7 +61,7 @@ export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps
     const updated = repo.update(id, {
       name: body.name?.trim(),
       configEncrypted: body.config ? encryptConfig(body.config, deps.config.encryptionKey) : undefined,
-      shared: req.auth!.role === 'admin' ? body.shared : undefined,
+      shared: req.auth!.caps.has('admin') ? body.shared : undefined,
     });
     return toDto(updated!, deps.config);
   });

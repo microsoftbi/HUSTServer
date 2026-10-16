@@ -86,7 +86,7 @@ export function schemaRoutes(app: FastifyInstance, deps: SchemaRouteDeps): void 
       const row = repo.findById(body.connectionId);
       if (!row) return reply.code(404).send({ error: '连接不存在' });
       const canUse =
-        req.auth!.role === 'admin' || row.shared === 1 || row.owner_id === req.auth!.userId;
+        req.auth!.caps.has('admin') || row.shared === 1 || row.owner_id === req.auth!.userId;
       if (!canUse) return reply.code(403).send({ error: '无权使用该连接' });
       const cfg = decryptConfig(row.config_encrypted, deps.config.encryptionKey);
       conn = {

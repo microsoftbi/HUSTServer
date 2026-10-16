@@ -27,7 +27,7 @@ export function dataRoutes(app: FastifyInstance, deps: DataRouteDeps): void {
     if (!body.query?.trim()) return reply.code(400).send({ error: '缺少 SQL 语句' });
     const row = repo.findById(body.connectionId);
     if (!row) return reply.code(404).send({ error: '连接不存在' });
-    const canUse = req.auth!.role === 'admin' || row.shared === 1 || row.owner_id === req.auth!.userId;
+    const canUse = req.auth!.caps.has('admin') || row.shared === 1 || row.owner_id === req.auth!.userId;
     if (!canUse) return reply.code(403).send({ error: '无权使用该连接' });
     const conn = decryptConfig(row.config_encrypted, deps.config.encryptionKey) as unknown as SqlServerConnection;
     try {
