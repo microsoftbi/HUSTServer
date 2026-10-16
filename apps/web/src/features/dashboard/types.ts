@@ -78,11 +78,12 @@ export interface QueryResult {
   truncated: boolean;
 }
 
-export type DatasetSource = 'csv' | 'excel' | 'sql';
+export type DatasetSource = 'csv' | 'excel' | 'sql' | 'model';
 
 export type DatasetDef =
   | { kind: 'sql'; connectionId: string; query: string }
-  | { kind: 'file'; resourcePath: string; format: 'csv' | 'excel' };
+  | { kind: 'file'; resourcePath: string; format: 'csv' | 'excel' }
+  | { kind: 'model'; modelName: string };
 
 /** 落库的最小单元：只有定义，没有行数据。 */
 export interface SavedDataset {

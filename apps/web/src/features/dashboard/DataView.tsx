@@ -29,7 +29,7 @@ import {
 } from '@bi/components/ui/select';
 import { api, ApiClientError } from '../../api.js';
 import { cn } from '@bi/lib/utils';
-import { loadFileDataset, querySqlDataset } from '@bi/services/dataSource';
+import { loadFileDataset, loadModelDataset, querySqlDataset } from '@bi/services/dataSource';
 import { useDatasetStore } from '@bi/stores/datasetStore';
 import type { Dataset, DatasetSource } from '@bi/types';
 
@@ -37,6 +37,7 @@ const SOURCE_LABEL: Record<DatasetSource, string> = {
   csv: 'CSV',
   excel: 'Excel',
   sql: 'SQL',
+  model: '模型',
 };
 
 interface ResourceFile {
@@ -51,7 +52,13 @@ interface TableInfo {
   type: 'table' | 'view';
 }
 
-type AddMode = 'file' | 'table';
+type AddMode = 'file' | 'table' | 'model';
+
+interface ModelOption {
+  name: string;
+  rowCount: number;
+  columns: unknown[];
+}
 
 function tableKey(t: TableInfo): string {
   return `${t.schema}.${t.name}`;
@@ -107,6 +114,10 @@ export function DataView() {
                 <Table2 className="h-4 w-4" />
                 从连接的数据库表
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setAddMode('model')}>
+                <Database className="h-4 w-4" />
+                从数据模型（DuckDB）
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -116,7 +127,7 @@ export function DataView() {
           <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4 text-center">
             <FileSpreadsheet className="h-8 w-8 text-muted-foreground/40" />
             <p className="text-xs text-muted-foreground">
-              还没有数据集，从资源库文件或数据库表添加。
+              还没有数据集，从资源库文件、数据库表或数据模型添加。
             </p>
             <Button size="sm" onClick={() => setAddMode('file')}>
               添加数据集
@@ -222,6 +233,8 @@ function AddDatasetDialog({ mode, onClose, onAdded }: AddDatasetDialogProps) {
   const [tables, setTables] = useState<TableInfo[]>([]);
   const [tablesLoading, setTablesLoading] = useState(false);
   const [tableKeyValue, setTableKeyValue] = useState('');
+  const [models, setModels] = useState<ModelOption[]>([]);
+  const [modelNameValue, setModelNameValue] = useState('');
   const [preview, setPreview] = useState<Dataset | null>(null);
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState('');
@@ -235,6 +248,7 @@ function AddDatasetDialog({ mode, onClose, onAdded }: AddDatasetDialogProps) {
     setError(null);
     setTableKeyValue('');
     setTables([]);
+    setModelNameValue('');
     if (mode === 'file') {
       void (async () => {
         try {
@@ -242,6 +256,16 @@ function AddDatasetDialog({ mode, onClose, onAdded }: AddDatasetDialogProps) {
           setFiles(tree.files.filter((f) => /\.(csv|xlsx|xls)$/i.test(f.name)));
         } catch {
           setFiles([]);
+        }
+      })();
+    } else if (mode === 'model') {
+      void (async () => {
+        try {
+          const res = await api.get<{ items: ModelOption[] }>('/api/models');
+          setModels(res.items);
+          setModelNameValue((cur) => cur || res.items[0]?.name || '');
+        } catch {
+          setModels([]);
         }
       })();
     } else {
@@ -294,6 +318,13 @@ function AddDatasetDialog({ mode, onClose, onAdded }: AddDatasetDialogProps) {
         setName((cur) => cur || (f?.name ?? ''));
         return;
       }
+      if (mode === 'model') {
+        if (!modelNameValue) return;
+        const ds = await loadModelDataset(modelNameValue, modelNameValue);
+        setPreview(ds);
+        setName((cur) => cur || modelNameValue);
+        return;
+      }
       const t = tables.find((x) => tableKey(x) === tableKeyValue);
       if (!connectionId || !t) return;
       const ds = await querySqlDataset(t.name, connectionId, tableQuery(t));
@@ -318,7 +349,12 @@ function AddDatasetDialog({ mode, onClose, onAdded }: AddDatasetDialogProps) {
     onClose();
   }
 
-  const canLoad = mode === 'file' ? Boolean(selectedPath) : Boolean(tableKeyValue);
+  const canLoad =
+    mode === 'file'
+      ? Boolean(selectedPath)
+      : mode === 'model'
+        ? Boolean(modelNameValue)
+        : Boolean(tableKeyValue);
 
   return (
     <Dialog
@@ -330,7 +366,11 @@ function AddDatasetDialog({ mode, onClose, onAdded }: AddDatasetDialogProps) {
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>
-            {mode === 'table' ? '从数据库表添加数据集' : '从资源库文件添加数据集'}
+            {mode === 'table'
+              ? '从数据库表添加数据集'
+              : mode === 'model'
+                ? '从数据模型添加数据集'
+                : '从资源库文件添加数据集'}
           </DialogTitle>
         </DialogHeader>
 
@@ -379,6 +419,32 @@ function AddDatasetDialog({ mode, onClose, onAdded }: AddDatasetDialogProps) {
                     <SelectItem key={tableKey(t)} value={tableKey(t)}>
                       {t.schema}.{t.name}
                       {t.type === 'view' ? '（视图）' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        ) : mode === 'model' ? (
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>数据模型</Label>
+              <Select
+                value={modelNameValue}
+                onValueChange={(v) => {
+                  setModelNameValue(v);
+                  setPreview(null);
+                }}
+              >
+                <SelectTrigger className="w-72">
+                  <SelectValue
+                    placeholder={models.length === 0 ? '暂无数据模型' : '选择模型'}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {models.map((m) => (
+                    <SelectItem key={m.name} value={m.name}>
+                      {m.name}（{m.rowCount} 行 · {m.columns.length} 列）
                     </SelectItem>
                   ))}
                 </SelectContent>

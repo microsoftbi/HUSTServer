@@ -35,6 +35,23 @@ export async function querySqlDataset(name: string, connectionId: string, query:
   return datasetFromQueryResult(name, connectionId, query, result);
 }
 
+/** 从已加载的数据模型取数；模型数据已物化在平台内，仅返回列与行。 */
+export async function loadModelDataset(name: string, modelName: string): Promise<Dataset> {
+  const result = await api.post<QueryResult>('/api/models/query', { body: { name: modelName } });
+  const headers = dedupeHeaders(result.columns.map((c) => c.name));
+  const columns = buildColumns(headers, result.rows);
+  const rows = coerceRows(result.rows, columns);
+  return {
+    id: uid('ds'),
+    name,
+    source: 'model',
+    columns,
+    rows,
+    createdAt: new Date().toISOString(),
+    def: { kind: 'model', modelName },
+  };
+}
+
 export async function loadFileDataset(name: string, resourcePath: string): Promise<Dataset> {
   const res = await fetch(`/api/resources/files/download?path=${encodeURIComponent(resourcePath)}`, {
     credentials: 'include',
@@ -58,6 +75,8 @@ export async function hydrateDataset(saved: SavedDataset): Promise<Dataset> {
   const ds =
     saved.def.kind === 'sql'
       ? await querySqlDataset(saved.name, saved.def.connectionId, saved.def.query)
-      : await loadFileDataset(saved.name, saved.def.resourcePath);
+      : saved.def.kind === 'model'
+        ? await loadModelDataset(saved.name, saved.def.modelName)
+        : await loadFileDataset(saved.name, saved.def.resourcePath);
   return { ...ds, id: saved.id };
 }
