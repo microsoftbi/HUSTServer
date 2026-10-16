@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
-import type { JobOnFailure, JobRunSummary, JobStepType, WorkflowSummary } from '../types.js';
+import type { JobOnFailure, JobRunSummary, JobStepType, LoadModelSource, WorkflowSummary } from '../types.js';
 
 interface ConnectionOption {
   id: string;
@@ -17,6 +17,10 @@ interface EditorStep {
   workflowId: string;
   connectionId: string;
   sql: string;
+  modelName: string;
+  source: LoadModelSource;
+  resourcePath: string;
+  object: string;
   onFailure: JobOnFailure;
 }
 
@@ -43,7 +47,15 @@ interface JobDetailLike {
   steps: Array<{
     type: JobStepType;
     name: string;
-    config: { workflowId?: string; connectionId?: string; sql?: string };
+    config: {
+      workflowId?: string;
+      connectionId?: string;
+      sql?: string;
+      modelName?: string;
+      source?: LoadModelSource;
+      resourcePath?: string;
+      object?: string;
+    };
     onFailure: JobOnFailure;
   }>;
   schedule: {
@@ -78,11 +90,17 @@ function nextStepKey(): number {
 }
 
 function defaultStepName(type: JobStepType): string {
-  return type === 'workflow' ? '运行工作流' : '运行 SQL';
+  if (type === 'workflow') return '运行工作流';
+  if (type === 'sql') return '运行 SQL';
+  return '加载成模型';
 }
 
 /** 自动生成的默认名称集合；名称仍为其中之一时，切换类型会同步更新。 */
-const DEFAULT_STEP_NAMES: readonly string[] = [defaultStepName('sql'), defaultStepName('workflow')];
+const DEFAULT_STEP_NAMES: readonly string[] = [
+  defaultStepName('sql'),
+  defaultStepName('workflow'),
+  defaultStepName('load_model'),
+];
 
 function newStep(type: JobStepType): EditorStep {
   return {
@@ -92,6 +110,10 @@ function newStep(type: JobStepType): EditorStep {
     workflowId: '',
     connectionId: '',
     sql: '',
+    modelName: '',
+    source: 'file',
+    resourcePath: '',
+    object: '',
     onFailure: 'abort',
   };
 }
@@ -126,6 +148,8 @@ export function JobEditorPage() {
   const [schedule, setSchedule] = useState<ScheduleForm>(DEFAULT_SCHEDULE);
   const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
   const [connections, setConnections] = useState<ConnectionOption[]>([]);
+  const [resourceFiles, setResourceFiles] = useState<Array<{ name: string; path: string }>>([]);
+  const [tables, setTables] = useState<Array<{ schema: string; name: string }>>([]);
   const [history, setHistory] = useState<JobRunSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -135,6 +159,10 @@ export function JobEditorPage() {
     void api
       .get<ConnectionOption[]>('/api/connections')
       .then((list) => setConnections(list.filter((c) => c.type === 'sqlserver')))
+      .catch(() => {});
+    void api
+      .get<{ files: Array<{ name: string; path: string }> }>('/api/resources/tree')
+      .then((tree) => setResourceFiles(tree.files.filter((f) => /\.(csv|xlsx|xls)$/i.test(f.name))))
       .catch(() => {});
   }, []);
 
@@ -152,6 +180,10 @@ export function JobEditorPage() {
           workflowId: s.config.workflowId ?? '',
           connectionId: s.config.connectionId ?? '',
           sql: s.config.sql ?? '',
+          modelName: s.config.modelName ?? '',
+          source: s.config.source ?? 'file',
+          resourcePath: s.config.resourcePath ?? '',
+          object: s.config.object ?? '',
           onFailure: s.onFailure,
         })));
         setSchedule(cronToForm(job.schedule.freqType, job.schedule.cronExpr, job.schedule.timezone, job.schedule.enabled));
@@ -168,6 +200,29 @@ export function JobEditorPage() {
       .then((res) => setHistory(res.items))
       .catch(() => {});
   }, [id, isNew]);
+
+  const draftSource = modal?.step.type === 'load_model' ? modal.step.source : null;
+  const draftConnId = modal?.step.type === 'load_model' ? modal.step.connectionId : '';
+  useEffect(() => {
+    if (draftSource !== 'sqlserver' || !draftConnId) {
+      setTables([]);
+      return;
+    }
+    let cancelled = false;
+    void api
+      .post<{ tables: Array<{ schema: string; name: string }> }>('/api/data/tables', {
+        body: { connectionId: draftConnId },
+      })
+      .then((res) => {
+        if (!cancelled) setTables(res.tables.map((t) => ({ schema: t.schema, name: t.name })));
+      })
+      .catch(() => {
+        if (!cancelled) setTables([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [draftSource, draftConnId]);
 
   const openAdd = (): void => {
     setModalError(null);
@@ -202,9 +257,17 @@ export function JobEditorPage() {
     const draft = modal.step;
     if (draft.type === 'workflow') {
       if (!draft.workflowId) return setModalError('请选择工作流');
-    } else {
+    } else if (draft.type === 'sql') {
       if (!draft.connectionId) return setModalError('请选择连接');
       if (!draft.sql.trim()) return setModalError('请填写 SQL');
+    } else {
+      if (!draft.modelName.trim()) return setModalError('请填写模型名');
+      if (draft.source === 'file') {
+        if (!draft.resourcePath) return setModalError('请选择资源文件');
+      } else {
+        if (!draft.connectionId) return setModalError('请选择连接');
+        if (!draft.object) return setModalError('请选择数据表');
+      }
     }
     const next: EditorStep = { ...draft, name: draft.name.trim() || defaultStepName(draft.type) };
     setSteps((prev) =>
@@ -244,6 +307,15 @@ export function JobEditorPage() {
         if (!s.connectionId) return `步骤 ${i + 1}：请选择连接`;
         if (!s.sql.trim()) return `步骤 ${i + 1}：请填写 SQL`;
       }
+      if (s.type === 'load_model') {
+        if (!s.modelName.trim()) return `步骤 ${i + 1}：请填写模型名`;
+        if (s.source === 'file') {
+          if (!s.resourcePath) return `步骤 ${i + 1}：请选择资源文件`;
+        } else {
+          if (!s.connectionId) return `步骤 ${i + 1}：请选择连接`;
+          if (!s.object) return `步骤 ${i + 1}：请选择数据表`;
+        }
+      }
     }
     if (schedule.enabled && schedule.freqType === 'cron' && !schedule.cronExpr.trim()) return '请填写 cron 表达式';
     return null;
@@ -260,11 +332,23 @@ export function JobEditorPage() {
       const body = {
         name: name.trim(),
         description: description.trim() || null,
-        steps: steps.map((s) =>
-          s.type === 'workflow'
-            ? { type: s.type, name: s.name, workflowId: s.workflowId, onFailure: s.onFailure }
-            : { type: s.type, name: s.name, connectionId: s.connectionId, sql: s.sql, onFailure: s.onFailure },
-        ),
+        steps: steps.map((s) => {
+          if (s.type === 'workflow') {
+            return { type: s.type, name: s.name, workflowId: s.workflowId, onFailure: s.onFailure };
+          }
+          if (s.type === 'sql') {
+            return { type: s.type, name: s.name, connectionId: s.connectionId, sql: s.sql, onFailure: s.onFailure };
+          }
+          return s.source === 'file'
+            ? {
+                type: s.type, name: s.name, onFailure: s.onFailure,
+                source: 'file', modelName: s.modelName, resourcePath: s.resourcePath,
+              }
+            : {
+                type: s.type, name: s.name, onFailure: s.onFailure,
+                source: 'sqlserver', modelName: s.modelName, connectionId: s.connectionId, object: s.object,
+              };
+        }),
         schedule: schedule.enabled
           ? {
               enabled: true,
@@ -338,7 +422,9 @@ export function JobEditorPage() {
               <div key={s.key} className="space-y-1 rounded border p-3 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{i + 1}.</span>
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">{s.type === 'workflow' ? '工作流' : 'SQL'}</span>
+                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
+                    {s.type === 'workflow' ? '工作流' : s.type === 'sql' ? 'SQL' : '模型'}
+                  </span>
                   <span className="font-medium">{s.name}</span>
                   <div className="ml-auto flex gap-1">
                     <button className="rounded border px-2" disabled={i === 0} onClick={() => moveStep(i, -1)}>上移</button>
@@ -348,7 +434,15 @@ export function JobEditorPage() {
                   </div>
                 </div>
                 <p className="text-slate-600">
-                  {s.type === 'workflow' ? `工作流：${workflowName}` : `连接：${connectionName} · SQL：${sqlLine}`}
+                  {s.type === 'workflow'
+                    ? `工作流：${workflowName}`
+                    : s.type === 'sql'
+                      ? `连接：${connectionName} · SQL：${sqlLine}`
+                      : `模型：${s.modelName || '（未命名）'} · 来源：${
+                          s.source === 'file'
+                            ? s.resourcePath || '（未选择）'
+                            : s.object || '（未选择）'
+                        }`}
                 </p>
                 <p className="text-slate-500">失败策略：{s.onFailure === 'abort' ? '中止' : '继续'}</p>
               </div>
@@ -464,16 +558,22 @@ export function JobEditorPage() {
             <h2 className="font-medium">{modal.editingKey == null ? '添加步骤' : '编辑步骤'}</h2>
             <div className="flex gap-1 rounded bg-slate-100 p-1 text-sm">
               <button
+                className={`flex-1 rounded px-3 py-1 ${modal.step.type === 'workflow' ? 'bg-white shadow' : ''}`}
+                onClick={() => switchDraftType('workflow')}
+              >
+                运行工作流
+              </button>
+              <button
                 className={`flex-1 rounded px-3 py-1 ${modal.step.type === 'sql' ? 'bg-white shadow' : ''}`}
                 onClick={() => switchDraftType('sql')}
               >
                 运行 SQL
               </button>
               <button
-                className={`flex-1 rounded px-3 py-1 ${modal.step.type === 'workflow' ? 'bg-white shadow' : ''}`}
-                onClick={() => switchDraftType('workflow')}
+                className={`flex-1 rounded px-3 py-1 ${modal.step.type === 'load_model' ? 'bg-white shadow' : ''}`}
+                onClick={() => switchDraftType('load_model')}
               >
-                运行工作流
+                加载成模型
               </button>
             </div>
             {modalError && <p className="text-sm text-red-600">{modalError}</p>}
@@ -481,7 +581,75 @@ export function JobEditorPage() {
               步骤名称
               <input className={inputClass} value={modal.step.name} onChange={(e) => patchDraft({ name: e.target.value })} />
             </label>
-            {modal.step.type === 'workflow' ? (
+            {modal.step.type === 'load_model' ? (
+              <>
+                <label className="block text-sm">
+                  数据来源
+                  <select
+                    className={inputClass}
+                    value={modal.step.source}
+                    onChange={(e) => patchDraft({ source: e.target.value as LoadModelSource })}
+                  >
+                    <option value="file">资源库文件（CSV/Excel）</option>
+                    <option value="sqlserver">SQL Server 表</option>
+                  </select>
+                </label>
+                {modal.step.source === 'file' ? (
+                  <label className="block text-sm">
+                    资源文件
+                    <select
+                      className={inputClass}
+                      value={modal.step.resourcePath}
+                      onChange={(e) => patchDraft({ resourcePath: e.target.value })}
+                    >
+                      <option value="">请选择…</option>
+                      {resourceFiles.map((f) => (
+                        <option key={f.path} value={f.path}>{f.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <>
+                    <label className="block text-sm">
+                      连接（SQL Server）
+                      <select
+                        className={inputClass}
+                        value={modal.step.connectionId}
+                        onChange={(e) => patchDraft({ connectionId: e.target.value, object: '' })}
+                      >
+                        <option value="">请选择…</option>
+                        {connections.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-sm">
+                      数据表
+                      <select
+                        className={inputClass}
+                        value={modal.step.object}
+                        onChange={(e) => patchDraft({ object: e.target.value })}
+                      >
+                        <option value="">请选择…</option>
+                        {tables.map((t) => (
+                          <option key={`${t.schema}.${t.name}`} value={`${t.schema}.${t.name}`}>
+                            {t.schema}.{t.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
+                )}
+                <label className="block text-sm">
+                  模型名（字母或下划线开头，仅含字母数字下划线，最长 64）
+                  <input
+                    className={`${inputClass} font-mono`}
+                    value={modal.step.modelName}
+                    onChange={(e) => patchDraft({ modelName: e.target.value })}
+                  />
+                </label>
+              </>
+            ) : modal.step.type === 'workflow' ? (
               <label className="block text-sm">
                 工作流
                 <select className={inputClass} value={modal.step.workflowId} onChange={(e) => patchDraft({ workflowId: e.target.value })}>

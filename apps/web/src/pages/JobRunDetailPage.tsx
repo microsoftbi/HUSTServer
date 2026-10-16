@@ -104,7 +104,7 @@ export function JobRunDetailPage() {
             <tr key={s.id} className="border-t">
               <td className="p-2">{s.seq + 1}</td>
               <td className="p-2">{s.name}</td>
-              <td className="p-2">{s.type === 'workflow' ? '工作流' : 'SQL'}</td>
+              <td className="p-2">{s.type === 'workflow' ? '工作流' : s.type === 'sql' ? 'SQL' : '加载成模型'}</td>
               <td className={`p-2 ${s.status === 'error' ? 'text-red-600' : s.status === 'skipped' ? 'text-slate-400' : ''}`}>
                 {STATUS_LABEL[s.status] ?? s.status}
               </td>

@@ -76,10 +76,15 @@ export interface RunSummary {
 }
 
 /** Job 编排相关类型（与 jobs/repo.ts、jobs/routes.ts 对齐）。 */
-export type JobStepType = 'workflow' | 'sql';
+export type JobStepType = 'workflow' | 'sql' | 'load_model';
 export type JobOnFailure = 'abort' | 'continue';
+export type LoadModelSource = 'file' | 'sqlserver';
 
-export type JobStepConfig = { workflowId: string } | { connectionId: string; sql: string };
+export type JobStepConfig =
+  | { workflowId: string }
+  | { connectionId: string; sql: string }
+  | { source: 'file'; modelName: string; resourcePath: string; format?: 'csv' | 'excel' }
+  | { source: 'sqlserver'; modelName: string; connectionId: string; object?: string; query?: string };
 
 export interface JobStep {
   id: string;
