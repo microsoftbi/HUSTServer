@@ -487,6 +487,9 @@ import { createModelStore, type ModelStore } from '../src/modules/models/service
 
 let db: Database.Database;
 let store: ModelStore;
+/** data_models.owner_id 有 REFERENCES users(id) 外键且 migrate 打开了 foreign_keys，
+ *  故必须插入真实用户行，不能使用任意字符串。 */
+let ownerId: string;
 
 beforeEach(() => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hs-models-svc-data-'));
@@ -496,6 +499,10 @@ beforeEach(() => {
 
   db = new Database(':memory:');
   migrate(db);
+  ownerId = 'u1';
+  db.prepare(
+    'INSERT INTO users (id, username, password_hash, role, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?)',
+  ).run(ownerId, 'u1', 'x', 'workflow_author', 'active', Date.now(), Date.now());
   const cfg = loadConfig({
     SESSION_SECRET: 'x'.repeat(32),
     ENCRYPTION_KEY: 'a'.repeat(64),
@@ -514,7 +521,7 @@ describe('createModelStore', () => {
   it('load 从资源库 CSV 建模型并 upsert 元数据', async () => {
     const res = await store.load(
       { source: 'file', modelName: 'sales_model', resourcePath: 'sales.csv' },
-      'u1',
+      ownerId,
     );
     expect(res.rowCount).toBe(3);
     expect(res.columns.map((c) => c.name)).toEqual(['id', 'amount']);
@@ -522,7 +529,7 @@ describe('createModelStore', () => {
     const row = dataModelsRepo(db).findByName('sales_model')!;
     expect(row.source_kind).toBe('csv');
     expect(row.row_count).toBe(3);
-    expect(row.owner_id).toBe('u1');
+    expect(row.owner_id).toBe(ownerId);
     expect(JSON.parse(row.source_ref)).toEqual({ resourcePath: 'sales.csv', format: 'csv' });
     expect((JSON.parse(row.columns) as Array<{ name: string }>).map((c) => c.name)).toEqual(['id', 'amount']);
   });
