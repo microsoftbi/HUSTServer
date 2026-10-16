@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { Database } from 'better-sqlite3';
-import { requireAuth } from '../../plugins/guards.js';
+import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { AppConfig } from '../../config.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import type { UsersRepo } from '../users/repo.js';
@@ -32,12 +32,12 @@ export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps
   const canUse = (req: Parameters<typeof auth>[0], row: ConnectionRow) =>
     req.auth!.caps.has('admin') || row.shared === 1 || row.owner_id === req.auth!.userId;
 
-  app.get('/api/connections', { preHandler: auth }, async (req) => {
+  app.get('/api/connections', { preHandler: [auth, requireCap('connection.use')] }, async (req) => {
     const rows = req.auth!.caps.has('admin') ? repo.listAll() : repo.listForOwner(req.auth!.userId);
     return rows.map((r) => toDto(r, deps.config));
   });
 
-  app.post('/api/connections', { preHandler: auth }, async (req, reply) => {
+  app.post('/api/connections', { preHandler: [auth, requireCap('connection.manage')] }, async (req, reply) => {
     const body = (req.body ?? {}) as { name?: string; type?: string; config?: Record<string, unknown>; shared?: boolean };
     if (!body.name?.trim()) return reply.code(400).send({ error: '缺少连接名称' });
     if (!body.config || typeof body.config !== 'object') return reply.code(400).send({ error: '缺少连接配置' });
@@ -52,7 +52,7 @@ export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps
     return reply.code(201).send(toDto(row, deps.config));
   });
 
-  app.put('/api/connections/:id', { preHandler: auth }, async (req, reply) => {
+  app.put('/api/connections/:id', { preHandler: [auth, requireCap('connection.manage')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = repo.findById(id);
     if (!row) return reply.code(404).send({ error: '连接不存在' });
@@ -66,7 +66,7 @@ export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps
     return toDto(updated!, deps.config);
   });
 
-  app.delete('/api/connections/:id', { preHandler: auth }, async (req, reply) => {
+  app.delete('/api/connections/:id', { preHandler: [auth, requireCap('connection.manage')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = repo.findById(id);
     if (!row) return reply.code(404).send({ error: '连接不存在' });
@@ -76,7 +76,7 @@ export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps
   });
 
   // 对请求体中的配置发起真实 mssql 连接，成功后返回可用数据库列表（用于弹窗中测试尚未保存的连接）
-  app.post('/api/connections/test', { preHandler: auth }, async (req, reply) => {
+  app.post('/api/connections/test', { preHandler: [auth, requireCap('connection.manage')] }, async (req, reply) => {
     const body = (req.body ?? {}) as { config?: Record<string, unknown> };
     if (!body.config || typeof body.config !== 'object') return reply.code(400).send({ error: '缺少连接配置' });
     const cfg = body.config;
@@ -91,7 +91,7 @@ export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps
     });
   });
 
-  app.post('/api/connections/:id/test', { preHandler: auth }, async (req, reply) => {
+  app.post('/api/connections/:id/test', { preHandler: [auth, requireCap('connection.manage')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = repo.findById(id);
     if (!row) return reply.code(404).send({ error: '连接不存在' });
@@ -104,7 +104,7 @@ export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps
   });
 
   // 列出指定连接自身数据库下的表/视图（供画布中选择表；可见即可用）。
-  app.get('/api/connections/:id/objects', { preHandler: auth }, async (req, reply) => {
+  app.get('/api/connections/:id/objects', { preHandler: [auth, requireCap('connection.use')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = repo.findById(id);
     if (!row) return reply.code(404).send({ error: '连接不存在' });
