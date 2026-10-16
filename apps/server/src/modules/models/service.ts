@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { DuckDBConnection } from '@duckdb/node-api';
 import type { Database } from 'better-sqlite3';
 import {
   closeSession,
@@ -25,6 +24,9 @@ import type { QueryCell, QueryColumn, QueryResult } from '../data/query.js';
 import { resolveResourcePath } from '../resources/paths.js';
 import { createSemaphore } from '../runs/queue.js';
 import { dataModelsRepo, type ModelSourceKind } from './repo.js';
+
+/** DuckDB 连接类型从 engine 公开面推导，避免 server 直接依赖 @duckdb/node-api。 */
+type DuckConnection = DuckSession['connection'];
 
 /** 模型名即 DuckDB 表名：字母/下划线开头，仅含字母数字下划线，最长 64。 */
 export const MODEL_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
@@ -107,7 +109,7 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
   const sem = createSemaphore(1);
 
   let session: DuckSession | null = null;
-  async function conn(): Promise<DuckDBConnection> {
+  async function conn(): Promise<DuckConnection> {
     if (!session) session = await openModelDb(config.modelDbFile);
     return session.connection;
   }
