@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { Database } from 'better-sqlite3';
-import { requireAuth } from '../../plugins/guards.js';
+import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { AppConfig } from '../../config.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import type { UsersRepo } from '../users/repo.js';
@@ -36,17 +36,14 @@ function toDto(row: DashboardRow, withPayload: boolean) {
 export function dashboardRoutes(app: FastifyInstance, deps: DashboardRouteDeps): void {
   const auth = requireAuth({ users: deps.users, sessions: deps.sessions });
   const repo = dashboardsRepo(deps.db);
-  const canManage = (req: Parameters<typeof auth>[0], row: DashboardRow) =>
-    req.auth!.caps.has('admin') || row.owner_id === req.auth!.userId;
-  const canView = (req: Parameters<typeof auth>[0], row: DashboardRow) =>
-    req.auth!.caps.has('admin') || row.shared === 1 || row.owner_id === req.auth!.userId;
+  const canEdit = (req: Parameters<typeof auth>[0], row: DashboardRow) =>
+    req.auth!.caps.has('admin') || row.owner_id === req.auth!.userId || row.shared === 1;
 
-  app.get('/api/dashboards', { preHandler: auth }, async (req) => {
-    const rows = req.auth!.caps.has('admin') ? repo.listAll() : repo.listForOwner(req.auth!.userId);
-    return rows.map((r) => toDto(r, false));
+  app.get('/api/dashboards', { preHandler: [auth, requireCap('dashboard.view')] }, async () => {
+    return repo.listAll().map((r) => toDto(r, false));
   });
 
-  app.post('/api/dashboards', { preHandler: auth }, async (req, reply) => {
+  app.post('/api/dashboards', { preHandler: [auth, requireCap('dashboard.edit')] }, async (req, reply) => {
     const body = (req.body ?? {}) as { name?: string; payload?: unknown; shared?: boolean };
     if (!body.name?.trim()) return reply.code(400).send({ error: '缺少仪表板名称' });
     const payloadErr = validatePayload(body.payload);
@@ -60,19 +57,18 @@ export function dashboardRoutes(app: FastifyInstance, deps: DashboardRouteDeps):
     return reply.code(201).send(toDto(row, true));
   });
 
-  app.get('/api/dashboards/:id', { preHandler: auth }, async (req, reply) => {
+  app.get('/api/dashboards/:id', { preHandler: [auth, requireCap('dashboard.view')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = repo.findById(id);
     if (!row) return reply.code(404).send({ error: '仪表板不存在' });
-    if (!canView(req, row)) return reply.code(403).send({ error: '无权查看该仪表板' });
     return toDto(row, true);
   });
 
-  app.put('/api/dashboards/:id', { preHandler: auth }, async (req, reply) => {
+  app.put('/api/dashboards/:id', { preHandler: [auth, requireCap('dashboard.edit')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = repo.findById(id);
     if (!row) return reply.code(404).send({ error: '仪表板不存在' });
-    if (!canManage(req, row)) return reply.code(403).send({ error: '无权修改该仪表板' });
+    if (!canEdit(req, row)) return reply.code(403).send({ error: '无权编辑该仪表板' });
     const body = (req.body ?? {}) as { name?: string; payload?: unknown; shared?: boolean };
     let payloadText: string | undefined;
     if (body.payload !== undefined) {
@@ -88,11 +84,11 @@ export function dashboardRoutes(app: FastifyInstance, deps: DashboardRouteDeps):
     return toDto(updated!, true);
   });
 
-  app.delete('/api/dashboards/:id', { preHandler: auth }, async (req, reply) => {
+  app.delete('/api/dashboards/:id', { preHandler: [auth, requireCap('dashboard.edit')] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = repo.findById(id);
     if (!row) return reply.code(404).send({ error: '仪表板不存在' });
-    if (!canManage(req, row)) return reply.code(403).send({ error: '无权删除该仪表板' });
+    if (!canEdit(req, row)) return reply.code(403).send({ error: '无权编辑该仪表板' });
     repo.remove(id);
     return { ok: true };
   });
