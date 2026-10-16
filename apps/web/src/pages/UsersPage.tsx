@@ -12,7 +12,7 @@ interface UserDto {
   updated_at: number;
 }
 
-const EMPTY_FORM = { username: '', password: '', roles: [] as Role[] };
+const EMPTY_FORM = { username: '', password: '', confirmPassword: '', roles: [] as Role[] };
 
 export function UsersPage() {
   const { hasCap } = useAuth();
@@ -62,6 +62,10 @@ export function UsersPage() {
   async function create(e: FormEvent) {
     e.preventDefault();
     setFormError(null);
+    if (form.password !== form.confirmPassword) {
+      setFormError('两次输入的密码不一致');
+      return;
+    }
     if (form.roles.length === 0) {
       setFormError('至少选择一个角色');
       return;
@@ -179,6 +183,16 @@ export function UsersPage() {
                 className="mt-1 w-full rounded border px-2 py-1"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
+                required
+              />
+            </label>
+            <label className="block">
+              确认密码
+              <input
+                type="password"
+                className="mt-1 w-full rounded border px-2 py-1"
+                value={form.confirmPassword}
+                onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
                 required
               />
             </label>
