@@ -17,6 +17,7 @@ export function Layout() {
         <nav className="flex items-center gap-1 text-sm">
           {hasCap('workflow') && <NavLink to="/workflows" className={linkClass}>工作流</NavLink>}
           {hasCap('dashboard.view') && <NavLink to="/dashboards" className={linkClass}>仪表板</NavLink>}
+          {hasCap('dashboard.view') && <NavLink to="/models" className={linkClass}>数据模型</NavLink>}
           {hasCap('resources') && <NavLink to="/resources" className={linkClass}>资源管理</NavLink>}
           {hasCap('connection.manage') && <NavLink to="/connections" className={linkClass}>连接</NavLink>}
           {hasCap('job') && <NavLink to="/jobs" className={linkClass}>Job编排</NavLink>}

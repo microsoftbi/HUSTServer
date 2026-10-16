@@ -9,6 +9,7 @@ import { JobEditorPage } from './pages/JobEditorPage.js';
 import { JobListPage } from './pages/JobListPage.js';
 import { JobRunDetailPage } from './pages/JobRunDetailPage.js';
 import { LoginPage } from './pages/LoginPage.js';
+import { ModelsPage } from './pages/ModelsPage.js';
 import { ResourcesPage } from './pages/ResourcesPage.js';
 import { RunDetailPage } from './pages/RunDetailPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
@@ -146,6 +147,14 @@ export function App() {
               element={
                 <RequireCap cap="resources">
                   <ResourcesPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/models"
+              element={
+                <RequireCap cap="dashboard.view">
+                  <ModelsPage />
                 </RequireCap>
               }
             />
