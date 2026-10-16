@@ -40,5 +40,14 @@ export {
   countRows,
   runSql,
 } from './engine/duckdb.js';
-export type { DuckSession } from './engine/duckdb.js';
+export type { DuckSession, ColumnInfo } from './engine/duckdb.js';
+export {
+  openModelDb,
+  dropTable,
+  promoteStagingTable,
+  loadCsvInto,
+  loadExcelInto,
+  loadSqlServerInto,
+} from './engine/model.js';
+export type { ModelCsvConfig, ModelExcelConfig, ModelSqlServerConfig } from './engine/model.js';
 export type { NodeContext, NodeResult, NodeExecutor } from './nodes/context.js';
