@@ -65,6 +65,12 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
 
   const modelStore =
     deps.overrides?.modelStore ?? createModelStore({ db: deps.db, config: deps.config });
+  if (!deps.overrides?.modelStore) {
+    // 优雅退出时关闭由 buildServer 自行创建的 DuckDB 模型库连接（注入的实例由调用方负责）
+    app.addHook('onClose', async () => {
+      modelStore.close();
+    });
+  }
 
   const scheduler =
     deps.overrides?.scheduler ??
