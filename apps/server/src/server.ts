@@ -11,6 +11,8 @@ import { dashboardRoutes } from './modules/dashboards/routes.js';
 import { jobsRepo } from './modules/jobs/repo.js';
 import { jobRoutes } from './modules/jobs/routes.js';
 import { createJobService, type JobService } from './modules/jobs/service.js';
+import { modelRoutes } from './modules/models/routes.js';
+import { createModelStore, type ModelStore } from './modules/models/service.js';
 import { createRecorder, type Recorder } from './modules/runs/recorder.js';
 import { runRoutes } from './modules/runs/routes.js';
 import { createRunService, type RunService } from './modules/runs/service.js';
@@ -38,6 +40,7 @@ export interface AppOverrides {
   scheduler?: Scheduler;
   jobService?: JobService;
   jobScheduler?: Scheduler;
+  modelStore?: ModelStore;
 }
 
 export interface AppDeps {
@@ -59,6 +62,9 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
   const recorder = deps.overrides?.recorder ?? createRecorder(deps.db);
   const runService =
     deps.overrides?.runService ?? createRunService({ db: deps.db, config: deps.config, recorder });
+
+  const modelStore =
+    deps.overrides?.modelStore ?? createModelStore({ db: deps.db, config: deps.config });
 
   const scheduler =
     deps.overrides?.scheduler ??
@@ -103,6 +109,7 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
   connectionRoutes(app, { db: deps.db, config: deps.config, users, sessions });
   dashboardRoutes(app, { db: deps.db, config: deps.config, users, sessions });
   dataRoutes(app, { db: deps.db, config: deps.config, users, sessions });
+  modelRoutes(app, { db: deps.db, config: deps.config, users, sessions, modelStore });
   resourceRoutes(app, {
     resourceDir: deps.config.resourceDir,
     uploadDir: deps.config.uploadDir,
