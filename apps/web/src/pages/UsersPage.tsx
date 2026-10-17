@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { KeyRound, Power, Trash2, Users } from 'lucide-react';
 import { api } from '../api.js';
 import { useAuth } from '../auth.js';
 import { ROLE_LABELS, ROLES, type Role } from '../roles.js';
+import { Badge } from '../components/ui/badge.js';
+import { Button } from '../components/ui/button.js';
+import { Card } from '../components/ui/card.js';
+import { Checkbox, Field, Input } from '../components/ui/input.js';
+import { EmptyState } from '../components/ui/empty-state.js';
+import { ErrorNote } from '../components/ui/error-note.js';
+import { Modal } from '../components/ui/modal.js';
+import { PageHeader } from '../components/ui/page-header.js';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table.js';
 
 interface UserDto {
   id: string;
@@ -45,7 +55,7 @@ export function UsersPage() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [modalOpen]);
 
-  if (!hasCap('admin')) return <p className="text-sm text-slate-500">无权访问。</p>;
+  if (!hasCap('admin')) return <p className="text-sm text-muted-foreground">无权访问。</p>;
 
   function openCreate() {
     setForm(EMPTY_FORM);
@@ -117,120 +127,138 @@ export function UsersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">用户管理</h1>
-        <button className="rounded bg-blue-600 px-4 py-1.5 text-white" onClick={openCreate}>
-          创建用户
-        </button>
-      </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+    <div className="space-y-4">
+      <PageHeader title="用户管理" description="创建账号、分配角色并维护启用状态。">
+        <Button onClick={openCreate}>新建用户</Button>
+      </PageHeader>
 
-      <table className="w-full border text-left text-sm">
-        <thead className="bg-slate-100">
-          <tr>
-            <th className="p-2">用户名</th>
-            <th className="p-2">角色</th>
-            <th className="p-2">状态</th>
-            <th className="p-2">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} className="border-t">
-              <td className="p-2">{row.username}</td>
-              <td className="p-2">{row.roles.map((r) => ROLE_LABELS[r]).join('、')}</td>
-              <td className="p-2">{row.status === 'active' ? '正常' : '已禁用'}</td>
-              <td className="space-x-2 p-2">
-                <button className="text-blue-600 underline" onClick={() => void toggleStatus(row)}>
-                  {row.status === 'active' ? '禁用' : '启用'}
-                </button>
-                <button className="text-blue-600 underline" onClick={() => void resetPassword(row)}>重置密码</button>
-                <button className="text-red-600 underline" onClick={() => void remove(row)}>删除</button>
-              </td>
-            </tr>
-          ))}
-          {rows.length === 0 && (
-            <tr>
-              <td className="p-2 text-slate-500" colSpan={4}>暂无用户。</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      {error && <ErrorNote>{error}</ErrorNote>}
 
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeModal}>
-          <form
-            onSubmit={create}
-            className="w-full max-w-md space-y-3 rounded bg-white p-4 text-sm shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="font-medium">创建用户</h2>
-            {formError && <p className="text-sm text-red-600">{formError}</p>}
-            <label className="block">
-              用户名
-              <input
-                className="mt-1 w-full rounded border px-2 py-1"
-                value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value })}
-                required
-              />
-            </label>
-            <label className="block">
-              初始密码
-              <input
-                type="password"
-                className="mt-1 w-full rounded border px-2 py-1"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                required
-              />
-            </label>
-            <label className="block">
-              确认密码
-              <input
-                type="password"
-                className="mt-1 w-full rounded border px-2 py-1"
-                value={form.confirmPassword}
-                onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
-                required
-              />
-            </label>
-            <div className="block">
-              角色
-              <div className="mt-1 flex flex-wrap gap-3">
-                {ROLES.map((r) => (
-                  <label key={r} className="flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={form.roles.includes(r)}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          roles: e.target.checked ? [...f.roles, r] : f.roles.filter((x) => x !== r),
-                        }))
-                      }
-                    />
-                    {ROLE_LABELS[r]}
-                  </label>
-                ))}
-              </div>
+      <Card className="overflow-hidden">
+        {rows.length === 0 ? (
+          <EmptyState icon={Users} title="暂无用户" description="点击右上角「新建用户」创建第一个账号。" />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>用户名</TableHead>
+                <TableHead>角色</TableHead>
+                <TableHead className="w-24">状态</TableHead>
+                <TableHead className="w-52 text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell className="font-medium">{row.username}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {row.roles.map((r) => (
+                        <Badge key={r} tone="neutral">
+                          {ROLE_LABELS[r]}
+                        </Badge>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {row.status === 'active' ? (
+                      <Badge dot tone="success">
+                        正常
+                      </Badge>
+                    ) : (
+                      <Badge dot tone="neutral">
+                        已禁用
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => void toggleStatus(row)}>
+                        <Power />
+                        {row.status === 'active' ? '禁用' : '启用'}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => void resetPassword(row)}>
+                        <KeyRound />
+                        重置密码
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => void remove(row)}
+                      >
+                        <Trash2 />
+                        删除
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+
+      <Modal
+        open={modalOpen}
+        onClose={closeModal}
+        title="创建用户"
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={closeModal}>
+              取消
+            </Button>
+            <Button type="submit" form="create-user-form" disabled={busy}>
+              {busy ? '创建中…' : '创建用户'}
+            </Button>
+          </>
+        }
+      >
+        <form id="create-user-form" className="space-y-3" onSubmit={create}>
+          {formError && <ErrorNote>{formError}</ErrorNote>}
+          <Field label="用户名">
+            <Input
+              value={form.username}
+              onChange={(e) => setForm({ ...form, username: e.target.value })}
+              required
+            />
+          </Field>
+          <Field label="初始密码">
+            <Input
+              type="password"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              required
+            />
+          </Field>
+          <Field label="确认密码">
+            <Input
+              type="password"
+              value={form.confirmPassword}
+              onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+              required
+            />
+          </Field>
+          <Field label="角色">
+            <div className="flex flex-wrap gap-3">
+              {ROLES.map((r) => (
+                <label key={r} className="flex items-center gap-1.5">
+                  <Checkbox
+                    checked={form.roles.includes(r)}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        roles: e.target.checked ? [...f.roles, r] : f.roles.filter((x) => x !== r),
+                      }))
+                    }
+                  />
+                  {ROLE_LABELS[r]}
+                </label>
+              ))}
             </div>
-            <div className="flex items-center justify-end gap-2">
-              <button type="button" className="rounded border px-4 py-1.5" onClick={closeModal}>
-                取消
-              </button>
-              <button
-                type="submit"
-                disabled={busy}
-                className="rounded bg-blue-600 px-4 py-1.5 text-white disabled:opacity-50"
-              >
-                {busy ? '创建中…' : '创建用户'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+          </Field>
+        </form>
+      </Modal>
     </div>
   );
 }

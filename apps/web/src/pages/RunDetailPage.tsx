@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, ListTree, Terminal } from 'lucide-react';
 import { api } from '../api.js';
+import { Badge } from '../components/ui/badge.js';
+import { Button } from '../components/ui/button.js';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card.js';
+import { EmptyState } from '../components/ui/empty-state.js';
+import { ErrorNote } from '../components/ui/error-note.js';
+import { PageHeader } from '../components/ui/page-header.js';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table.js';
 import type { RunSummary } from '../types.js';
 
 interface RunNodeResult {
@@ -33,6 +41,19 @@ const STATUS_LABEL: Record<string, string> = {
   failed: '失败',
   canceled: '已取消',
   skipped: '已跳过',
+};
+
+type BadgeTone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger';
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  pending: 'neutral',
+  queued: 'neutral',
+  running: 'primary',
+  success: 'success',
+  error: 'danger',
+  failed: 'danger',
+  canceled: 'warning',
+  skipped: 'neutral',
 };
 
 /** 处于这些状态的运行需要主动轮询刷新；到达终态后停止。 */
@@ -131,67 +152,91 @@ export function RunDetailPage() {
   }, [id, loadSnapshot, refreshDetail]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <h1 className="text-xl font-semibold">运行详情</h1>
-        <span className="text-sm text-slate-500">
-          {run ? STATUS_LABEL[run.status] ?? run.status : '加载中…'}
-        </span>
-        {live && <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-700">实时</span>}
-        <Link className="ml-auto text-sm text-blue-600 underline" to={`/workflows/${run?.workflow_id ?? ''}`}>
-          返回工作流
-        </Link>
-      </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {run?.error && <p className="text-sm text-red-600">错误：{run.error}</p>}
+    <div className="space-y-4">
+      <PageHeader title="运行详情" description={`运行 ID：${id}`}>
+        {live && (
+          <Badge dot tone="primary">
+            实时
+          </Badge>
+        )}
+        <Button asChild variant="outline">
+          <Link to={`/workflows/${run?.workflow_id ?? ''}`}>
+            <ArrowLeft />
+            返回工作流
+          </Link>
+        </Button>
+      </PageHeader>
 
-      <section className="space-y-2">
-        <h2 className="font-medium">节点结果</h2>
-        <table className="w-full border text-left text-sm">
-          <thead className="bg-slate-100">
-            <tr>
-              <th className="p-2">节点</th>
-              <th className="p-2">类型</th>
-              <th className="p-2">状态</th>
-              <th className="p-2">行数</th>
-              <th className="p-2">耗时</th>
-              <th className="p-2">错误</th>
-            </tr>
-          </thead>
-          <tbody>
-            {nodes.map((n) => (
-              <tr key={n.node_id} className="border-t">
-                <td className="p-2">{n.name ?? n.node_id}</td>
-                <td className="p-2 text-slate-500">{n.kind ?? '-'}</td>
-                <td className="p-2">{STATUS_LABEL[n.status] ?? n.status}</td>
-                <td className="p-2">{n.row_count ?? '-'}</td>
-                <td className="p-2">{n.duration_ms != null ? `${n.duration_ms} ms` : '-'}</td>
-                <td className="p-2 text-red-600">{n.error ?? ''}</td>
-              </tr>
+      {error && <ErrorNote>{error}</ErrorNote>}
+      {run?.error && <ErrorNote>错误：{run.error}</ErrorNote>}
+
+      <Card className="overflow-hidden">
+        <CardHeader>
+          <div className="space-y-1">
+            <CardTitle>节点结果</CardTitle>
+            <CardDescription>按节点展示执行状态、行数与耗时。</CardDescription>
+          </div>
+          {run && (
+            <Badge dot tone={STATUS_TONE[run.status] ?? 'neutral'}>
+              {STATUS_LABEL[run.status] ?? run.status}
+            </Badge>
+          )}
+        </CardHeader>
+        {nodes.length === 0 ? (
+          <EmptyState icon={ListTree} title="暂无节点结果" description="节点开始执行后会在这里实时刷新。" />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>节点</TableHead>
+                <TableHead className="w-28">类型</TableHead>
+                <TableHead className="w-32">状态</TableHead>
+                <TableHead className="w-24 text-right">行数</TableHead>
+                <TableHead className="w-28 text-right">耗时</TableHead>
+                <TableHead>错误</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {nodes.map((n) => (
+                <TableRow key={n.node_id}>
+                  <TableCell className="font-medium">{n.name ?? n.node_id}</TableCell>
+                  <TableCell className="text-muted-foreground">{n.kind ?? '-'}</TableCell>
+                  <TableCell>
+                    <Badge dot tone={STATUS_TONE[n.status] ?? 'neutral'}>
+                      {STATUS_LABEL[n.status] ?? n.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right text-muted-foreground">{n.row_count ?? '-'}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    {n.duration_ms != null ? `${n.duration_ms} ms` : '-'}
+                  </TableCell>
+                  <TableCell className="text-destructive">{n.error ?? ''}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>执行日志</CardTitle>
+          <Badge tone="neutral">{logs.length} 条</Badge>
+        </CardHeader>
+        <CardContent>
+          <div className="max-h-96 overflow-auto rounded-md border border-border bg-muted/40 p-3 font-mono text-xs">
+            {logs.map((l) => (
+              <div key={l.id}>
+                <span className="text-muted-foreground">[{new Date(l.ts).toLocaleTimeString()}]</span>{' '}
+                <span className={l.level === 'error' ? 'text-destructive' : 'text-muted-foreground'}>{l.level}</span>{' '}
+                {l.node_id && <span className="text-primary">{l.node_id} </span>}
+                <span>{l.message}</span>
+              </div>
             ))}
-            {nodes.length === 0 && (
-              <tr>
-                <td className="p-2 text-slate-500" colSpan={6}>暂无节点结果。</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </section>
-
-      <section className="space-y-2">
-        <h2 className="font-medium">日志</h2>
-        <div className="max-h-96 overflow-auto rounded border bg-slate-900 p-3 font-mono text-xs text-slate-100">
-          {logs.map((l) => (
-            <div key={l.id}>
-              <span className="text-slate-400">[{new Date(l.ts).toLocaleTimeString()}]</span>{' '}
-              <span className={l.level === 'error' ? 'text-red-400' : 'text-slate-300'}>{l.level}</span>{' '}
-              {l.node_id && <span className="text-blue-300">{l.node_id} </span>}
-              <span>{l.message}</span>
-            </div>
-          ))}
-          {logs.length === 0 && <div className="text-slate-500">暂无日志。</div>}
-        </div>
-      </section>
+            {logs.length === 0 && <div className="text-muted-foreground">暂无日志。</div>}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

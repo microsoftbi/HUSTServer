@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Eye, ListTree, Pencil, Play, Upload } from 'lucide-react';
 import { api } from '../api.js';
+import { Badge } from '../components/ui/badge.js';
+import { Button } from '../components/ui/button.js';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card.js';
+import { EmptyState } from '../components/ui/empty-state.js';
+import { ErrorNote } from '../components/ui/error-note.js';
+import { PageHeader } from '../components/ui/page-header.js';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table.js';
 import type { MappingTargetType, RunSummary, WorkflowDetail } from '../types.js';
 
 const TARGET_LABEL: Record<MappingTargetType, string> = {
@@ -20,6 +28,25 @@ const STATUS_LABEL: Record<string, string> = {
   failed: '失败',
   canceled: '已取消',
   skipped: '已跳过',
+};
+
+type BadgeTone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger';
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  pending: 'neutral',
+  queued: 'neutral',
+  running: 'primary',
+  success: 'success',
+  error: 'danger',
+  failed: 'danger',
+  canceled: 'warning',
+  skipped: 'neutral',
+};
+
+const TRIGGER_LABEL: Record<string, string> = {
+  manual: '手动',
+  schedule: '调度',
+  job: 'Job',
 };
 
 export function WorkflowDetailPage() {
@@ -72,118 +99,151 @@ export function WorkflowDetailPage() {
     }
   }
 
-  if (error && !detail) return <p className="text-sm text-red-600">{error}</p>;
-  if (!detail) return <p className="text-sm text-slate-500">加载中…</p>;
+  if (error && !detail) return <ErrorNote>{error}</ErrorNote>;
+  if (!detail) return <p className="text-sm text-muted-foreground">加载中…</p>;
+
+  const inputs = detail.mappings.filter((m) => m.direction === 'input');
+  const outputs = detail.mappings.filter((m) => m.direction === 'output');
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{detail.name}</h1>
-        <div className="flex gap-2">
-          <Link className="rounded bg-green-600 px-4 py-1.5 text-white" to={`/workflows/${id}/designer`}>
+    <div className="space-y-4">
+      <PageHeader title={detail.name} description={`工作流 ID：${id}`}>
+        <Button asChild variant="outline">
+          <Link to="/workflows">
+            <ArrowLeft />
+            返回列表
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link to={`/workflows/${id}/designer`}>
+            <Pencil />
             编辑画布
           </Link>
-          <button
-            className="rounded bg-green-600 px-4 py-1.5 text-white disabled:opacity-50"
-            disabled={busy}
-            onClick={() => void runNow()}
-          >
-            {busy ? '提交中…' : '立即运行'}
-          </button>
-        </div>
-      </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+        </Button>
+        <Button disabled={busy} onClick={() => void runNow()}>
+          <Play />
+          {busy ? '提交中…' : '立即运行'}
+        </Button>
+      </PageHeader>
 
-      <section className="space-y-2">
-        <h2 className="font-medium">输入绑定</h2>
-        {detail.mappings.filter((m) => m.direction === 'input').length === 0 && (
-          <p className="text-sm text-slate-500">无输入绑定。</p>
-        )}
-        {detail.mappings
-          .filter((m) => m.direction === 'input')
-          .map((m) => {
-            const file = detail.files.find((f) => f.node_id === m.node_id);
-            return (
-              <div key={m.node_id} className="space-y-1 rounded border p-3 text-sm">
-                <div>
-                  <span className="text-slate-500">{m.original_ref}</span>
-                  <span className="mx-2">→</span>
-                  <span className="font-medium">{TARGET_LABEL[m.target_type]}</span>
-                  {m.target_type === 'uploaded_file' && file && (
-                    <span className="ml-2 text-slate-500">
-                      {file.stored_name}（{file.size} 字节）
-                    </span>
-                  )}
-                  {m.target_type !== 'uploaded_file' && m.target_ref && (
-                    <span className="ml-2 text-slate-500">{m.target_ref}</span>
-                  )}
+      {error && <ErrorNote>{error}</ErrorNote>}
+
+      <Card>
+        <CardHeader>
+          <div className="space-y-1">
+            <CardTitle>输入绑定</CardTitle>
+            <CardDescription>作者本机路径在服务端重新落地；可重新上传数据文件。</CardDescription>
+          </div>
+          <Badge tone="neutral">{inputs.length} 个输入</Badge>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {inputs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">无输入绑定。</p>
+          ) : (
+            inputs.map((m) => {
+              const file = detail.files.find((f) => f.node_id === m.node_id);
+              return (
+                <div key={m.node_id} className="space-y-2 rounded-md border border-border bg-muted/30 p-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-muted-foreground">{m.original_ref}</span>
+                    <span className="text-muted-foreground">→</span>
+                    <Badge tone="primary">{TARGET_LABEL[m.target_type]}</Badge>
+                    {m.target_type === 'uploaded_file' && file && (
+                      <span className="text-xs text-muted-foreground">
+                        {file.stored_name}（{file.size} 字节）
+                      </span>
+                    )}
+                    {m.target_type !== 'uploaded_file' && m.target_ref && (
+                      <span className="text-xs text-muted-foreground">{m.target_ref}</span>
+                    )}
+                  </div>
+                  <label className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <Upload className="h-3.5 w-3.5" />
+                    重新上传数据文件：
+                    <input
+                      className="text-xs file:mr-2 file:cursor-pointer file:rounded file:border-0 file:bg-secondary file:px-2 file:py-1 file:text-secondary-foreground"
+                      type="file"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void uploadData(m.node_id, f);
+                      }}
+                    />
+                  </label>
                 </div>
-                <label className="block text-slate-600">
-                  重新上传数据文件：
-                  <input
-                    className="ml-2"
-                    type="file"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void uploadData(m.node_id, f);
-                    }}
-                  />
-                </label>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>输出</CardTitle>
+          <Badge tone="neutral">{outputs.length} 个输出</Badge>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {outputs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">无输出绑定。</p>
+          ) : (
+            outputs.map((m) => (
+              <div key={m.node_id} className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-muted-foreground">{m.original_ref}</span>
+                <span className="text-muted-foreground">→</span>
+                <Badge tone="primary">{TARGET_LABEL[m.target_type]}</Badge>
+                {m.target_ref ? <span className="text-xs text-muted-foreground">{m.target_ref}</span> : null}
               </div>
-            );
-          })}
-      </section>
+            ))
+          )}
+        </CardContent>
+      </Card>
 
-      <section className="space-y-2">
-        <h2 className="font-medium">输出</h2>
-        {detail.mappings.filter((m) => m.direction === 'output').length === 0 && (
-          <p className="text-sm text-slate-500">无输出绑定。</p>
+      <Card className="overflow-hidden">
+        <CardHeader>
+          <div className="space-y-1">
+            <CardTitle>运行历史</CardTitle>
+            <CardDescription>最近 20 次运行；点击「查看日志」进入节点级详情。</CardDescription>
+          </div>
+          <ListTree className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        {runs.length === 0 ? (
+          <EmptyState icon={Eye} title="暂无运行记录" description="点击右上角「立即运行」手动触发一次。" />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>时间</TableHead>
+                <TableHead className="w-28">触发</TableHead>
+                <TableHead className="w-32">状态</TableHead>
+                <TableHead className="w-28">耗时</TableHead>
+                <TableHead className="w-28 text-right">详情</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {runs.map((run) => (
+                <TableRow key={run.id}>
+                  <TableCell className="text-muted-foreground">
+                    {new Date(run.created_at).toLocaleString()}
+                  </TableCell>
+                  <TableCell>{TRIGGER_LABEL[run.trigger_type] ?? run.trigger_type}</TableCell>
+                  <TableCell>
+                    <Badge dot tone={STATUS_TONE[run.status] ?? 'neutral'}>
+                      {STATUS_LABEL[run.status] ?? run.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {run.duration_ms != null ? `${run.duration_ms} ms` : '-'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button asChild variant="ghost" size="sm">
+                      <Link to={`/runs/${run.id}`}>查看日志</Link>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
-        {detail.mappings
-          .filter((m) => m.direction === 'output')
-          .map((m) => (
-            <p key={m.node_id} className="text-sm text-slate-600">
-              {m.original_ref} → {TARGET_LABEL[m.target_type]}
-            </p>
-          ))}
-      </section>
-
-      <section className="space-y-2">
-        <h2 className="font-medium">运行历史</h2>
-        <table className="w-full border text-left text-sm">
-          <thead className="bg-slate-100">
-            <tr>
-              <th className="p-2">时间</th>
-              <th className="p-2">触发</th>
-              <th className="p-2">状态</th>
-              <th className="p-2">耗时</th>
-              <th className="p-2">详情</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((run) => (
-              <tr key={run.id} className="border-t">
-                <td className="p-2">{new Date(run.created_at).toLocaleString()}</td>
-                <td className="p-2">{run.trigger_type}</td>
-                <td className="p-2">{STATUS_LABEL[run.status] ?? run.status}</td>
-                <td className="p-2">{run.duration_ms != null ? `${run.duration_ms} ms` : '-'}</td>
-                <td className="p-2">
-                  <Link className="text-blue-600 underline" to={`/runs/${run.id}`}>
-                    查看日志
-                  </Link>
-                </td>
-              </tr>
-            ))}
-            {runs.length === 0 && (
-              <tr>
-                <td className="p-2 text-slate-500" colSpan={5}>
-                  暂无运行记录。
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </section>
+      </Card>
     </div>
   );
 }

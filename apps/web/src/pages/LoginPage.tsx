@@ -1,6 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth.js';
+import { Button } from '../components/ui/button.js';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card.js';
+import { ErrorNote } from '../components/ui/error-note.js';
+import { Field, Input } from '../components/ui/input.js';
 
 export function LoginPage() {
   const { user, login } = useAuth();
@@ -27,39 +31,40 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <form onSubmit={onSubmit} className="w-80 space-y-4 rounded-lg border bg-white p-6 shadow-sm">
-        <h1 className="text-lg font-semibold">登录 HUSTServer</h1>
-        <label className="block text-sm">
-          用户名
-          <input
-            className="mt-1 w-full rounded border px-3 py-2"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoComplete="username"
-            required
-          />
-        </label>
-        <label className="block text-sm">
-          密码
-          <input
-            type="password"
-            className="mt-1 w-full rounded border px-3 py-2"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </label>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded bg-slate-900 px-3 py-2 text-white disabled:opacity-60"
-        >
-          {submitting ? '登录中…' : '登录'}
-        </button>
-      </form>
+    <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <div className="space-y-1">
+            <CardTitle>HUSTServer</CardTitle>
+            <CardDescription>登录以管理工作流、运行记录与系统设置。</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <Field label="用户名">
+              <Input
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                required
+              />
+            </Field>
+            <Field label="密码">
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </Field>
+            {error && <ErrorNote>{error}</ErrorNote>}
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? '登录中…' : '登录'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

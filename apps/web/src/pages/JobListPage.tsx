@@ -1,9 +1,31 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { ListChecks, Pencil, Play, Trash2 } from 'lucide-react';
 import { api } from '../api.js';
+import { Badge } from '../components/ui/badge.js';
+import { Button } from '../components/ui/button.js';
+import { Card } from '../components/ui/card.js';
+import { EmptyState } from '../components/ui/empty-state.js';
+import { ErrorNote } from '../components/ui/error-note.js';
+import { PageHeader } from '../components/ui/page-header.js';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table.js';
 import type { JobSummary } from '../types.js';
 
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+type BadgeTone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger';
+
+/** 最近运行状态的徽标色调映射 */
+const RUN_STATUS_TONE: Record<string, BadgeTone> = {
+  pending: 'neutral',
+  queued: 'neutral',
+  running: 'primary',
+  success: 'success',
+  error: 'danger',
+  failed: 'danger',
+  canceled: 'warning',
+  skipped: 'neutral',
+};
 
 /** 把 5 段 cron 翻译成人话；复杂表达式原样展示。 */
 function describeCron(expr: string): string {
@@ -59,62 +81,89 @@ export function JobListPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Job 编排</h1>
-        <Link className="rounded bg-blue-600 px-3 py-1.5 text-white" to="/jobs/new">
-          新建 Job
-        </Link>
-      </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <table className="w-full border text-left text-sm">
-        <thead className="bg-slate-100">
-          <tr>
-            <th className="p-2">名称</th>
-            <th className="p-2">步骤数</th>
-            <th className="p-2">调度</th>
-            <th className="p-2">最近运行</th>
-            <th className="p-2">更新时间</th>
-            <th className="p-2">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((job) => (
-            <tr key={job.id} className="border-t">
-              <td className="p-2">
-                <Link className="text-blue-600 underline" to={`/jobs/${job.id}`}>{job.name}</Link>
-                {job.description && <div className="text-xs text-slate-500">{job.description}</div>}
-              </td>
-              <td className="p-2">{job.stepCount}</td>
-              <td className="p-2">{describeSchedule(job)}</td>
-              <td className="p-2">
-                {job.lastRun ? (
-                  <Link
-                    className={job.lastRun.status === 'error' ? 'text-red-600 underline' : 'text-slate-700 underline'}
-                    to={`/job-runs/${job.lastRun.id}`}
-                  >
-                    {job.lastRun.status}
-                  </Link>
-                ) : (
-                  <span className="text-slate-400">从未运行</span>
-                )}
-              </td>
-              <td className="p-2">{new Date(job.updated_at).toLocaleString()}</td>
-              <td className="space-x-2 p-2">
-                <button className="text-blue-600" onClick={() => void run(job)}>运行</button>
-                <Link className="text-blue-600 underline" to={`/jobs/${job.id}`}>编辑</Link>
-                <button className="text-red-600" onClick={() => void remove(job)}>删除</button>
-              </td>
-            </tr>
-          ))}
-          {items.length === 0 && (
-            <tr>
-              <td className="p-2 text-slate-500" colSpan={6}>
-                暂无 Job，点击右上角「新建 Job」。
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      <PageHeader title="Job 编排" description="把工作流、SQL 与加载模型串成可定时运行的流水线。">
+        <Button asChild>
+          <Link to="/jobs/new">新建 Job</Link>
+        </Button>
+      </PageHeader>
+
+      {error && <ErrorNote>{error}</ErrorNote>}
+
+      <Card className="overflow-hidden">
+        {items.length === 0 ? (
+          <EmptyState
+            icon={ListChecks}
+            title="暂无 Job"
+            description="点击右上角「新建 Job」，把工作流、SQL 与加载模型串成流水线。"
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>名称</TableHead>
+                <TableHead className="w-24">步骤数</TableHead>
+                <TableHead className="w-64">调度</TableHead>
+                <TableHead className="w-28">最近运行</TableHead>
+                <TableHead className="w-48">更新时间</TableHead>
+                <TableHead className="w-40 text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((job) => (
+                <TableRow key={job.id}>
+                  <TableCell>
+                    <Link className="font-medium hover:text-primary hover:underline" to={`/jobs/${job.id}`}>
+                      {job.name}
+                    </Link>
+                    {job.description && <div className="text-xs text-muted-foreground">{job.description}</div>}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{job.stepCount}</TableCell>
+                  <TableCell className="text-muted-foreground">{describeSchedule(job)}</TableCell>
+                  <TableCell>
+                    {job.lastRun ? (
+                      <Link to={`/job-runs/${job.lastRun.id}`}>
+                        <Badge dot tone={RUN_STATUS_TONE[job.lastRun.status] ?? 'neutral'}>
+                          {job.lastRun.status}
+                        </Badge>
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">从未运行</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {new Date(job.updated_at).toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => void run(job)}>
+                        <Play />
+                        运行
+                      </Button>
+                      <Button asChild variant="ghost" size="sm">
+                        <Link to={`/jobs/${job.id}`}>
+                          <Pencil />
+                          编辑
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => void remove(job)}
+                      >
+                        <Trash2 />
+                        删除
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+
+      {items.length > 0 && <p className="px-1 text-xs text-muted-foreground">共 {items.length} 个 Job</p>}
     </div>
   );
 }

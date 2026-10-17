@@ -67,14 +67,14 @@ export function useAuth(): AuthContextValue {
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const location = useLocation();
-  if (loading) return <div className="p-6 text-slate-500">加载中…</div>;
+  if (loading) return <div className="p-6 text-sm text-muted-foreground">加载中…</div>;
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   return <>{children}</>;
 }
 
 export function RequireCap({ cap, children }: { cap: Capability; children: ReactNode }) {
   const { loading, hasCap } = useAuth();
-  if (loading) return <div className="p-6 text-slate-500">加载中…</div>;
-  if (!hasCap(cap)) return <div className="p-6 text-slate-500">无权访问。</div>;
+  if (loading) return <div className="p-6 text-sm text-muted-foreground">加载中…</div>;
+  if (!hasCap(cap)) return <div className="p-6 text-sm text-muted-foreground">无权访问。</div>;
   return <>{children}</>;
 }

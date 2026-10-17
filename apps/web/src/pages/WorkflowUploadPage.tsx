@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, FileOutput, Inbox, Upload } from 'lucide-react';
 import { api } from '../api.js';
+import { Badge } from '../components/ui/badge.js';
+import { Button } from '../components/ui/button.js';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card.js';
+import { EmptyState } from '../components/ui/empty-state.js';
+import { ErrorNote } from '../components/ui/error-note.js';
+import { Input, Select } from '../components/ui/input.js';
+import { PageHeader } from '../components/ui/page-header.js';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table.js';
 import type { InputRef, OutputRef } from '../types.js';
 import { buildMappingInputs, type InputBinding } from '../workflowMappings.js';
 
@@ -21,6 +30,14 @@ interface ResourceFile {
   path: string;
   size: number;
 }
+
+/** 输入绑定的目标类型与中文标签（与后端 mapping target_type 对齐）。 */
+const TARGET_OPTIONS: { value: InputBinding['targetType']; label: string }[] = [
+  { value: 'uploaded_file', label: '上传的数据文件' },
+  { value: 'server_path', label: '服务端路径' },
+  { value: 'connection', label: '连接' },
+  { value: 'resource', label: '资源库文件' },
+];
 
 export function WorkflowUploadPage() {
   const navigate = useNavigate();
@@ -69,6 +86,19 @@ export function WorkflowUploadPage() {
     setBindings((prev) => ({ ...prev, [nodeId]: { ...prev[nodeId], ...patch } }));
   }
 
+  /** 切换目标类型，并带入该类型的默认目标引用（保留原单选逻辑）。 */
+  function chooseTarget(input: InputRef, type: InputBinding['targetType']) {
+    if (type === 'server_path') {
+      setBinding(input.nodeId, { targetType: type, targetRef: input.originalRef });
+    } else if (type === 'connection') {
+      setBinding(input.nodeId, { targetType: type, targetRef: connections[0]?.id ?? '' });
+    } else if (type === 'resource') {
+      setBinding(input.nodeId, { targetType: type, targetRef: resources[0]?.path ?? '' });
+    } else {
+      setBinding(input.nodeId, { targetType: type, targetRef: '' });
+    }
+  }
+
   async function submit() {
     if (!parsed) return;
     for (const input of parsed.inputs) {
@@ -111,147 +141,202 @@ export function WorkflowUploadPage() {
 
   if (!parsed) {
     return (
-      <div className="space-y-3">
-        <h1 className="text-xl font-semibold">上传工作流</h1>
-        <p className="text-sm text-slate-600">选择 HUSTERYX 导出的工作流文件（.htyx / .json）。</p>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <input
-          type="file"
-          accept="application/json,.json,.htyx"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void parseJson(file);
-          }}
-        />
+      <div className="space-y-4">
+        <PageHeader
+          title="上传工作流"
+          description="选择 HUSTERYX 导出的 .htyx 工作流文件，并为输入节点绑定数据文件。"
+        >
+          <Button asChild variant="outline">
+            <Link to="/workflows">
+              <ArrowLeft />
+              返回列表
+            </Link>
+          </Button>
+        </PageHeader>
+
+        {error && <ErrorNote>{error}</ErrorNote>}
+
+        <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <Upload className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">选择 HUSTERYX 导出的工作流文件</p>
+              <p className="text-xs text-muted-foreground">支持 .htyx / .json 格式。</p>
+            </div>
+            <Input
+              type="file"
+              accept="application/json,.json,.htyx"
+              className="h-auto py-1.5 file:mr-2 file:cursor-pointer file:rounded file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-sm file:text-secondary-foreground"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void parseJson(file);
+              }}
+            />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">配置输入绑定</h1>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <label className="block space-y-1">
-        <span className="text-sm text-slate-600">工作流名称</span>
-        <input className="w-full border px-2 py-1" value={name} onChange={(e) => setName(e.target.value)} />
-      </label>
+      <PageHeader title="配置输入绑定" description="确认名称与输入绑定后创建工作流。">
+        <Button asChild variant="outline">
+          <Link to="/workflows">
+            <ArrowLeft />
+            返回列表
+          </Link>
+        </Button>
+        <Button disabled={busy} onClick={() => void submit()}>
+          {busy ? '提交中…' : '创建工作流'}
+        </Button>
+      </PageHeader>
 
-      <section className="space-y-2">
-        <h2 className="font-medium">输入</h2>
-        {parsed.inputs.length === 0 && <p className="text-sm text-slate-500">该工作流无输入节点。</p>}
-        {parsed.inputs.map((input) => {
-          const binding = bindings[input.nodeId];
-          return (
-            <div key={input.nodeId} className="space-y-2 rounded border p-3">
-              <div className="text-sm">
-                <span className="font-medium">{input.name}</span>
-                <span className="ml-2 text-slate-500">{input.originalRef}</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <label className="flex items-center gap-1">
-                  <input
-                    type="radio"
-                    checked={binding?.targetType === 'uploaded_file'}
-                    onChange={() => setBinding(input.nodeId, { targetType: 'uploaded_file', targetRef: '' })}
-                  />
-                  上传数据文件
-                </label>
-                <label className="flex items-center gap-1">
-                  <input
-                    type="radio"
-                    checked={binding?.targetType === 'server_path'}
-                    onChange={() => setBinding(input.nodeId, { targetType: 'server_path', targetRef: input.originalRef })}
-                  />
-                  服务端路径
-                </label>
-                <label className="flex items-center gap-1">
-                  <input
-                    type="radio"
-                    checked={binding?.targetType === 'connection'}
-                    onChange={() => setBinding(input.nodeId, { targetType: 'connection', targetRef: connections[0]?.id ?? '' })}
-                  />
-                  连接
-                </label>
-                <label className="flex items-center gap-1">
-                  <input
-                    type="radio"
-                    checked={binding?.targetType === 'resource'}
-                    onChange={() => setBinding(input.nodeId, { targetType: 'resource', targetRef: resources[0]?.path ?? '' })}
-                  />
-                  资源库文件
-                </label>
-              </div>
+      {error && <ErrorNote>{error}</ErrorNote>}
 
-              {binding?.targetType === 'server_path' && (
-                <input
-                  className="w-full border px-2 py-1 text-sm"
-                  placeholder="/absolute/path/data.csv"
-                  value={binding.targetRef}
-                  onChange={(e) => setBinding(input.nodeId, { targetRef: e.target.value })}
-                />
-              )}
+      <Card>
+        <CardHeader>
+          <div className="space-y-1">
+            <CardTitle>工作流名称</CardTitle>
+            <CardDescription>默认取自已导入的文件，可在此调整。</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Input value={name} onChange={(e) => setName(e.target.value)} />
+        </CardContent>
+      </Card>
 
-              {binding?.targetType === 'connection' && (
-                <select
-                  className="w-full border px-2 py-1 text-sm"
-                  value={binding.targetRef}
-                  onChange={(e) => setBinding(input.nodeId, { targetRef: e.target.value })}
-                >
-                  <option value="">请选择连接…</option>
-                  {connections.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              )}
+      <Card className="overflow-hidden">
+        <CardHeader>
+          <div className="space-y-1">
+            <CardTitle>输入绑定</CardTitle>
+            <CardDescription>为每个输入节点选择数据来源。</CardDescription>
+          </div>
+          <Badge tone="neutral">{parsed.inputs.length} 个输入</Badge>
+        </CardHeader>
+        {parsed.inputs.length === 0 ? (
+          <EmptyState icon={Inbox} title="无输入节点" description="该工作流无需绑定输入数据文件。" />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>输入组件</TableHead>
+                <TableHead>原始路径</TableHead>
+                <TableHead className="w-72">目标类型</TableHead>
+                <TableHead className="w-80">目标</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {parsed.inputs.map((input) => {
+                const binding = bindings[input.nodeId];
+                return (
+                  <TableRow key={input.nodeId}>
+                    <TableCell className="font-medium">{input.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{input.originalRef}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {TARGET_OPTIONS.map((opt) => (
+                          <button key={opt.value} type="button" onClick={() => chooseTarget(input, opt.value)}>
+                            <Badge tone={binding?.targetType === opt.value ? 'primary' : 'neutral'}>
+                              {opt.label}
+                            </Badge>
+                          </button>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {binding?.targetType === 'server_path' && (
+                        <Input
+                          placeholder="/absolute/path/data.csv"
+                          value={binding.targetRef}
+                          onChange={(e) => setBinding(input.nodeId, { targetRef: e.target.value })}
+                        />
+                      )}
+                      {binding?.targetType === 'connection' && (
+                        <Select
+                          value={binding.targetRef}
+                          onChange={(e) => setBinding(input.nodeId, { targetRef: e.target.value })}
+                        >
+                          <option value="">请选择连接…</option>
+                          {connections.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
+                      {binding?.targetType === 'resource' && (
+                        <Select
+                          value={binding.targetRef}
+                          onChange={(e) => setBinding(input.nodeId, { targetRef: e.target.value })}
+                        >
+                          <option value="">请选择资源库文件…</option>
+                          {resources.map((r) => (
+                            <option key={r.path} value={r.path}>
+                              {r.path}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
+                      {binding?.targetType === 'uploaded_file' && (
+                        <Input
+                          type="file"
+                          className="h-auto py-1.5 file:mr-2 file:cursor-pointer file:rounded file:border-0 file:bg-secondary file:px-2 file:py-1 file:text-xs file:text-secondary-foreground"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) setDataFiles((prev) => ({ ...prev, [input.nodeId]: file }));
+                          }}
+                        />
+                      )}
+                      {!binding && <span className="text-xs text-muted-foreground">-</span>}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
 
-              {binding?.targetType === 'resource' && (
-                <select
-                  className="w-full border px-2 py-1 text-sm"
-                  value={binding.targetRef}
-                  onChange={(e) => setBinding(input.nodeId, { targetRef: e.target.value })}
-                >
-                  <option value="">请选择资源库文件…</option>
-                  {resources.map((r) => (
-                    <option key={r.path} value={r.path}>
-                      {r.path}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {binding?.targetType === 'uploaded_file' && (
-                <input
-                  type="file"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) setDataFiles((prev) => ({ ...prev, [input.nodeId]: file }));
-                  }}
-                />
-              )}
-            </div>
-          );
-        })}
-      </section>
-
-      <section className="space-y-1">
-        <h2 className="font-medium">输出</h2>
-        {parsed.outputs.length === 0 && <p className="text-sm text-slate-500">该工作流无输出节点。</p>}
-        {parsed.outputs.map((output) => (
-          <p key={output.nodeId} className="text-sm text-slate-600">
-            {output.name} → 运行结果写入服务端输出目录（{output.originalRef} 的文件名）
-          </p>
-        ))}
-      </section>
-
-      <button
-        className="rounded bg-blue-600 px-4 py-1.5 text-white disabled:opacity-50"
-        disabled={busy}
-        onClick={() => void submit()}
-      >
-        {busy ? '提交中…' : '创建工作流'}
-      </button>
+      <Card className="overflow-hidden">
+        <CardHeader>
+          <div className="space-y-1">
+            <CardTitle>输出</CardTitle>
+            <CardDescription>运行结果统一写入服务端输出目录。</CardDescription>
+          </div>
+          <Badge tone="neutral">{parsed.outputs.length} 个输出</Badge>
+        </CardHeader>
+        {parsed.outputs.length === 0 ? (
+          <EmptyState icon={FileOutput} title="无输出节点" description="该工作流未包含输出节点。" />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>输出组件</TableHead>
+                <TableHead>原始路径</TableHead>
+                <TableHead className="w-40">目标类型</TableHead>
+                <TableHead>目标</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {parsed.outputs.map((output) => (
+                <TableRow key={output.nodeId}>
+                  <TableCell className="font-medium">{output.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{output.originalRef}</TableCell>
+                  <TableCell>
+                    <Badge tone="neutral">服务端输出目录</Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    运行结果写入服务端输出目录（{output.originalRef} 的文件名）
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
     </div>
   );
 }

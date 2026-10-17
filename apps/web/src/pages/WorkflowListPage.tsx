@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Pencil, Plug, Trash2, Workflow } from 'lucide-react';
 import { api } from '../api.js';
+import { Button } from '../components/ui/button.js';
+import { Card } from '../components/ui/card.js';
+import { EmptyState } from '../components/ui/empty-state.js';
+import { ErrorNote } from '../components/ui/error-note.js';
+import { PageHeader } from '../components/ui/page-header.js';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table.js';
 import type { WorkflowSummary } from '../types.js';
 
 export function WorkflowListPage() {
@@ -28,57 +35,79 @@ export function WorkflowListPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">工作流</h1>
-        <div className="flex gap-2">
-          <Link className="rounded bg-blue-600 px-3 py-1.5 text-white" to="/workflows/new">
-            上传工作流
-          </Link>
-          <Link className="rounded bg-blue-600 px-3 py-1.5 text-white" to="/workflows/new/designer">
-            新建画布
-          </Link>
-        </div>
-      </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <table className="w-full border text-left text-sm">
-        <thead className="bg-slate-100">
-          <tr>
-            <th className="p-2">名称</th>
-            <th className="p-2">更新时间</th>
-            <th className="p-2">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((w) => (
-            <tr key={w.id} className="border-t">
-              <td className="p-2">
-                <Link className="text-blue-600 underline" to={`/workflows/${w.id}`}>
-                  {w.name}
-                </Link>
-              </td>
-              <td className="p-2">{new Date(w.updated_at).toLocaleString()}</td>
-              <td className="space-x-2 p-2">
-                <Link className="text-blue-600 underline" to={`/workflows/${w.id}/connections`}>
-                  数据连接
-                </Link>
-                <Link className="text-blue-600 underline" to={`/workflows/${w.id}/designer`}>
-                  编辑画布
-                </Link>
-                <button className="text-red-600" onClick={() => void remove(w.id, w.name)}>
-                  删除
-                </button>
-              </td>
-            </tr>
-          ))}
-          {items.length === 0 && (
-            <tr>
-              <td className="p-2 text-slate-500" colSpan={3}>
-                暂无工作流，点击右上角「上传工作流」。
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      <PageHeader title="工作流" description="托管 HUSTERYX 工作流，或直接在浏览器里拖拽搭建。">
+        <Button asChild variant="outline">
+          <Link to="/workflows/new">上传工作流</Link>
+        </Button>
+        <Button asChild>
+          <Link to="/workflows/new/designer">新建画布</Link>
+        </Button>
+      </PageHeader>
+
+      {error && <ErrorNote>{error}</ErrorNote>}
+
+      <Card className="overflow-hidden">
+        {items.length === 0 ? (
+          <EmptyState
+            icon={Workflow}
+            title="暂无工作流"
+            description="点击右上角「上传工作流」导入 .htyx 文件，或「新建画布」从零搭建。"
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>名称</TableHead>
+                <TableHead className="w-64">更新时间</TableHead>
+                <TableHead className="w-56 text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((w) => (
+                <TableRow key={w.id}>
+                  <TableCell>
+                    <Link className="font-medium hover:text-primary hover:underline" to={`/workflows/${w.id}`}>
+                      {w.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {new Date(w.updated_at).toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button asChild variant="ghost" size="sm">
+                        <Link to={`/workflows/${w.id}/connections`}>
+                          <Plug />
+                          数据连接
+                        </Link>
+                      </Button>
+                      <Button asChild variant="ghost" size="sm">
+                        <Link to={`/workflows/${w.id}/designer`}>
+                          <Pencil />
+                          编辑画布
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => void remove(w.id, w.name)}
+                      >
+                        <Trash2 />
+                        删除
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+
+      {items.length > 0 && (
+        <p className="px-1 text-xs text-muted-foreground">共 {items.length} 个工作流</p>
+      )}
     </div>
   );
 }
