@@ -88,6 +88,16 @@ describe('POST /api/models/query', () => {
     });
   });
 
+  it('limit 生效：取 1 行时 rows 长度为 1 且 truncated=true', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/models/query', headers: { cookie: viewerCookie },
+      payload: { name: 'sales_model', limit: 1 },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().rows).toEqual([[1, 10]]);
+    expect(res.json().truncated).toBe(true);
+  });
+
   it('缺 name 400 / 模型不存在 404 / 无 dashboard.view 403', async () => {
     const noName = await app.inject({ method: 'POST', url: '/api/models/query', headers: { cookie: authorCookie }, payload: {} });
     expect(noName.statusCode).toBe(400);
