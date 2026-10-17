@@ -7,6 +7,7 @@ import { ConnectionsPage } from './pages/ConnectionsPage.js';
 import { HomePage } from './pages/HomePage.js';
 import { JobEditorPage } from './pages/JobEditorPage.js';
 import { JobListPage } from './pages/JobListPage.js';
+import { JobLogPage } from './pages/JobLogPage.js';
 import { JobRunDetailPage } from './pages/JobRunDetailPage.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { ModelsPage } from './pages/ModelsPage.js';
@@ -63,7 +64,14 @@ export function App() {
               </RequireAuth>
             }
           >
-            <Route path="/" element={<HomePage />} />
+            <Route
+              path="/"
+              element={
+                <RequireCap cap="admin">
+                  <HomePage />
+                </RequireCap>
+              }
+            />
             <Route
               path="/workflows"
               element={
@@ -117,6 +125,14 @@ export function App() {
               element={
                 <RequireCap cap="job">
                   <JobListPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/job-logs"
+              element={
+                <RequireCap cap="job">
+                  <JobLogPage />
                 </RequireCap>
               }
             />

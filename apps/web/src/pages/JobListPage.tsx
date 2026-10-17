@@ -9,41 +9,8 @@ import { EmptyState } from '../components/ui/empty-state.js';
 import { ErrorNote } from '../components/ui/error-note.js';
 import { PageHeader } from '../components/ui/page-header.js';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table.js';
+import { RUN_STATUS_TONE, describeSchedule } from '../jobDisplay.js';
 import type { JobSummary } from '../types.js';
-
-const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-
-type BadgeTone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger';
-
-/** 最近运行状态的徽标色调映射 */
-const RUN_STATUS_TONE: Record<string, BadgeTone> = {
-  pending: 'neutral',
-  queued: 'neutral',
-  running: 'primary',
-  success: 'success',
-  error: 'danger',
-  failed: 'danger',
-  canceled: 'warning',
-  skipped: 'neutral',
-};
-
-/** 把 5 段 cron 翻译成人话；复杂表达式原样展示。 */
-function describeCron(expr: string): string {
-  const parts = expr.trim().split(/\s+/);
-  if (parts.length !== 5) return expr;
-  const [min, hour, dom, , dow] = parts;
-  const time = `${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
-  if (dom !== '*' && dow !== '*') return expr;
-  if (dom !== '*') return `每月 ${dom} 日 ${time}`;
-  if (dow === '*') return `每天 ${time}`;
-  const days = dow.split(',').map((d) => WEEKDAYS[Number(d)] ?? d);
-  return `每${days.join('、')} ${time}`;
-}
-
-function describeSchedule(job: JobSummary): string {
-  if (!job.enabled || !job.cron_expr) return '未启用';
-  return `${describeCron(job.cron_expr)}（${job.timezone}）`;
-}
 
 export function JobListPage() {
   const [items, setItems] = useState<JobSummary[]>([]);

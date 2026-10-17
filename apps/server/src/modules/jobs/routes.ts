@@ -269,7 +269,15 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
         ...job,
         stepCount: jobs.listSteps(job.id).length,
         nextRunAt: nextRun(job),
-        lastRun: lastRun ? { id: lastRun.id, status: lastRun.status, created_at: lastRun.created_at } : null,
+        lastRun: lastRun
+          ? {
+              id: lastRun.id,
+              status: lastRun.status,
+              created_at: lastRun.created_at,
+              trigger_type: lastRun.trigger_type,
+              duration_ms: lastRun.duration_ms,
+            }
+          : null,
       };
     });
     return { items };

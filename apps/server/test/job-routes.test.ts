@@ -98,6 +98,32 @@ describe('job routes', () => {
     expect(item.lastRun).toBeNull();
   });
 
+  it('GET 列表的 lastRun 带触发方式与耗时（Job 日志页用）', async () => {
+    const created = await app.inject({
+      method: 'POST', url: '/api/jobs', headers: { cookie: aliceCookie },
+      payload: {
+        name: '带日志',
+        steps: [{ type: 'workflow', name: 's1', workflowId, onFailure: 'abort' }],
+        schedule: { enabled: false },
+      },
+    });
+    const jobId = created.json().id as string;
+    db.prepare(
+      `INSERT INTO job_runs (id, job_id, trigger_type, triggered_by, status, started_at, finished_at, duration_ms, error, created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    ).run('jr-1', jobId, 'schedule', null, 'success', 1000, 4200, 3200, null, 5000);
+
+    const list = await app.inject({ method: 'GET', url: '/api/jobs', headers: { cookie: aliceCookie } });
+    const item = list.json().items.find((j: { id: string }) => j.id === jobId);
+    expect(item.lastRun).toEqual({
+      id: 'jr-1',
+      status: 'success',
+      created_at: 5000,
+      trigger_type: 'schedule',
+      duration_ms: 3200,
+    });
+  });
+
   it('鉴权与基础校验：401 / 403 / 空 name / 空 steps / 非法 schedule', async () => {
     const anon = await app.inject({ method: 'GET', url: '/api/jobs' });
     expect(anon.statusCode).toBe(401);

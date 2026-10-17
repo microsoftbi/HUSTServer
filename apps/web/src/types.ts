@@ -117,7 +117,13 @@ export interface JobSummary {
   updated_at: number;
   stepCount: number;
   nextRunAt: number | null;
-  lastRun: { id: string; status: string; created_at: number } | null;
+  lastRun: {
+    id: string;
+    status: string;
+    created_at: number;
+    trigger_type: 'manual' | 'schedule';
+    duration_ms: number | null;
+  } | null;
 }
 
 export interface JobDetail {
