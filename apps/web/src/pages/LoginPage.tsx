@@ -35,7 +35,7 @@ export function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <div className="space-y-1">
-            <CardTitle>HUSTServer</CardTitle>
+            <CardTitle>私人中台</CardTitle>
             <CardDescription>登录以管理工作流、运行记录与系统设置。</CardDescription>
           </div>
         </CardHeader>
