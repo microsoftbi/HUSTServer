@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { Database } from 'better-sqlite3';
 import type { AppConfig } from './config.js';
 import { authRoutes } from './modules/auth/routes.js';
+import { loginLogsRepo } from './modules/auth/loginLogs.js';
 import { sessionsRepo } from './modules/auth/sessions.js';
 import { connectionRoutes } from './modules/connections/routes.js';
 import { dataRoutes } from './modules/data/routes.js';
@@ -13,6 +14,7 @@ import { jobRoutes } from './modules/jobs/routes.js';
 import { createJobService, type JobService } from './modules/jobs/service.js';
 import { modelRoutes } from './modules/models/routes.js';
 import { createModelStore, type ModelStore } from './modules/models/service.js';
+import { overviewRoutes } from './modules/overview/routes.js';
 import { createRecorder, type Recorder } from './modules/runs/recorder.js';
 import { runRoutes } from './modules/runs/routes.js';
 import { createRunService, type RunService } from './modules/runs/service.js';
@@ -58,6 +60,7 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
 
   const users = usersRepo(deps.db);
   const sessions = sessionsRepo(deps.db);
+  const loginLogs = loginLogsRepo(deps.db);
 
   const recorder = deps.overrides?.recorder ?? createRecorder(deps.db);
   const runService =
@@ -109,8 +112,8 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
   };
   syncJobScheduler();
 
-  authRoutes(app, { users, sessions, sessionTtlMs: deps.config.sessionTtlMs });
-  userAdminRoutes(app, { users, sessions });
+  authRoutes(app, { users, sessions, loginLogs, sessionTtlMs: deps.config.sessionTtlMs });
+  userAdminRoutes(app, { users, sessions, loginLogs });
   workflowRoutes(app, { db: deps.db, config: deps.config, users, sessions });
   connectionRoutes(app, { db: deps.db, config: deps.config, users, sessions });
   dashboardRoutes(app, { db: deps.db, config: deps.config, users, sessions });
@@ -136,6 +139,8 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
 
   const settings = settingsRepo(deps.db);
   settingsRoutes(app, { config: deps.config, users, sessions, settings });
+
+  overviewRoutes(app, { db: deps.db, users, sessions });
 
   return app;
 }

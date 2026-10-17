@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { KeyRound, Power, Trash2, Users } from 'lucide-react';
+import { History, KeyRound, Power, Trash2, Users } from 'lucide-react';
 import { api } from '../api.js';
 import { useAuth } from '../auth.js';
 import { ROLE_LABELS, ROLES, type Role } from '../roles.js';
+import { LoginLogsModal } from '../components/users/LoginLogsModal.js';
 import { Badge } from '../components/ui/badge.js';
 import { Button } from '../components/ui/button.js';
 import { Card } from '../components/ui/card.js';
@@ -32,6 +33,7 @@ export function UsersPage() {
   const [busy, setBusy] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [logUser, setLogUser] = useState<UserDto | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -144,7 +146,7 @@ export function UsersPage() {
                 <TableHead>用户名</TableHead>
                 <TableHead>角色</TableHead>
                 <TableHead className="w-24">状态</TableHead>
-                <TableHead className="w-52 text-right">操作</TableHead>
+                <TableHead className="w-80 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -173,6 +175,10 @@ export function UsersPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => setLogUser(row)}>
+                        <History />
+                        查看登录日志
+                      </Button>
                       <Button variant="ghost" size="sm" onClick={() => void toggleStatus(row)}>
                         <Power />
                         {row.status === 'active' ? '禁用' : '启用'}
@@ -259,6 +265,8 @@ export function UsersPage() {
           </Field>
         </form>
       </Modal>
+
+      <LoginLogsModal open={logUser !== null} user={logUser} onClose={() => setLogUser(null)} />
     </div>
   );
 }

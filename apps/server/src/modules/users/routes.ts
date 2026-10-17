@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAdmin, requireAuth } from '../../plugins/guards.js';
+import type { LoginLogsRepo } from '../auth/loginLogs.js';
 import { hashPassword } from '../auth/password.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import { isRole, type Role } from './roles.js';
@@ -7,6 +8,8 @@ import type { UserRow, UsersRepo, UserStatus } from './repo.js';
 
 const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,32}$/;
 const MIN_PASSWORD_LEN = 8;
+const DEFAULT_LOG_LIMIT = 20;
+const MAX_LOG_LIMIT = 100;
 
 function publicUser(u: UserRow, roles: Role[]) {
   return { id: u.id, username: u.username, roles, status: u.status, created_at: u.created_at, updated_at: u.updated_at };
@@ -25,6 +28,7 @@ function isStatus(v: unknown): v is UserStatus {
 export interface UserAdminDeps {
   users: UsersRepo;
   sessions: SessionsRepo;
+  loginLogs: LoginLogsRepo;
 }
 
 export function userAdminRoutes(app: FastifyInstance, deps: UserAdminDeps): void {
@@ -51,6 +55,30 @@ export function userAdminRoutes(app: FastifyInstance, deps: UserAdminDeps): void
     if (deps.users.findByUsername(username)) return reply.code(409).send({ error: '用户名已存在' });
     const created = deps.users.create({ username, passwordHash: await hashPassword(password), roles });
     return reply.code(201).send(publicUser(created, roles));
+  });
+
+  app.get('/api/admin/users/:id/login-logs', { preHandler: [auth, requireAdmin] }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const { limit: rawLimit } = req.query as { limit?: string };
+    let limit = DEFAULT_LOG_LIMIT;
+    if (rawLimit !== undefined) {
+      const parsed = Number(rawLimit);
+      if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_LOG_LIMIT) {
+        return reply.code(400).send({ error: `limit 需为 1-${MAX_LOG_LIMIT} 的整数` });
+      }
+      limit = parsed;
+    }
+    if (!deps.users.findById(id)) return reply.code(404).send({ error: '用户不存在' });
+    return {
+      logs: deps.loginLogs.listByUser(id, limit).map((l) => ({
+        id: l.id,
+        success: l.success === 1,
+        reason: l.reason,
+        ip: l.ip,
+        user_agent: l.user_agent,
+        created_at: l.created_at,
+      })),
+    };
   });
 
   app.put('/api/admin/users/:id', { preHandler: [auth, requireAdmin] }, async (req, reply) => {

@@ -209,6 +209,21 @@ CREATE INDEX IF NOT EXISTS idx_job_step_runs_run ON job_step_runs(job_run_id, se
 CREATE INDEX IF NOT EXISTS idx_runs_job_run      ON runs(job_run_id);
 `;
 
+const LOGIN_LOG_TABLES = `
+CREATE TABLE IF NOT EXISTS login_logs (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT REFERENCES users(id) ON DELETE SET NULL,
+  username   TEXT NOT NULL,
+  success    INTEGER NOT NULL,
+  reason     TEXT,
+  ip         TEXT,
+  user_agent TEXT,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_logs_user ON login_logs(user_id, created_at DESC);
+`;
+
 const MODEL_TABLES = `
 CREATE TABLE IF NOT EXISTS data_models (
   name        TEXT PRIMARY KEY,
@@ -243,6 +258,7 @@ export function migrate(db: Database): void {
   db.exec(SCHEMA);
   backfillUserRoles(db);
   db.exec(JOB_TABLES);
+  db.exec(LOGIN_LOG_TABLES);
   db.exec(MODEL_TABLES);
   const runCols = (db.pragma('table_info(runs)') as Array<{ name: string }>).map((c) => c.name);
   if (!runCols.includes('job_run_id')) {
