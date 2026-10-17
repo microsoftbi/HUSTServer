@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api.js';
 import { useAuth } from '../auth.js';
+import { Button } from '../components/ui/button.js';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card.js';
+import { ErrorNote } from '../components/ui/error-note.js';
+import { Field, Input, Textarea } from '../components/ui/input.js';
+import { PageHeader } from '../components/ui/page-header.js';
 
 interface AdminSettings {
   maxConcurrentRuns: number;
@@ -14,7 +19,6 @@ export function SettingsPage() {
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [sharedDirsText, setSharedDirsText] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -32,13 +36,12 @@ export function SettingsPage() {
     if (hasCap('admin')) void load();
   }, [hasCap, load]);
 
-  if (!hasCap('admin')) return <p className="text-sm text-slate-500">无权访问。</p>;
+  if (!hasCap('admin')) return <p className="text-sm text-muted-foreground">无权访问。</p>;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!settings) return;
     setBusy(true);
-    setNotice(null);
     try {
       const body: AdminSettings = {
         ...settings,
@@ -50,8 +53,8 @@ export function SettingsPage() {
       const next = await api.put<AdminSettings>('/api/admin/settings', { body });
       setSettings(next);
       setSharedDirsText(next.sharedDirs.join('\n'));
-      setNotice('已保存（并发数与保留期在服务重启后完全生效）');
       setError(null);
+      window.alert('保存成功。并发数与保留期在服务重启后完全生效。');
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -59,58 +62,83 @@ export function SettingsPage() {
     }
   }
 
-  if (!settings) return <p className="text-sm text-slate-500">加载中…</p>;
+  if (!settings) return <p className="text-sm text-muted-foreground">加载中…</p>;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-semibold">系统设置</h1>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {notice && <p className="text-sm text-green-700">{notice}</p>}
+    <div className="space-y-4">
+      <PageHeader title="系统设置" description="数据库中的配置优先于环境变量默认值。">
+        <Button type="submit" form="settings-form" disabled={busy}>
+          {busy ? '保存中…' : '保存'}
+        </Button>
+      </PageHeader>
 
-      <form onSubmit={submit} className="max-w-xl space-y-3 rounded border p-4 text-sm">
-        <label className="block">
-          最大并发运行数
-          <input
-            type="number"
-            min={1}
-            className="mt-1 block w-32 rounded border px-2 py-1"
-            value={settings.maxConcurrentRuns}
-            onChange={(e) => setSettings({ ...settings, maxConcurrentRuns: Number(e.target.value) })}
-          />
-        </label>
-        <label className="block">
-          日志保留天数
-          <input
-            type="number"
-            min={1}
-            className="mt-1 block w-32 rounded border px-2 py-1"
-            value={settings.logRetentionDays}
-            onChange={(e) => setSettings({ ...settings, logRetentionDays: Number(e.target.value) })}
-          />
-        </label>
-        <label className="block">
-          共享目录（每行一个，允许服务端路径输入引用）
-          <textarea
-            className="mt-1 block h-28 w-full rounded border px-2 py-1 font-mono"
-            value={sharedDirsText}
-            onChange={(e) => setSharedDirsText(e.target.value)}
-          />
-        </label>
-        <label className="block">
-          默认时区
-          <input
-            className="mt-1 block w-64 rounded border px-2 py-1"
-            value={settings.tz}
-            onChange={(e) => setSettings({ ...settings, tz: e.target.value })}
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded bg-blue-600 px-4 py-1.5 text-white disabled:opacity-50"
-        >
-          {busy ? '保存中…' : '保存设置'}
-        </button>
+      {error && <ErrorNote>{error}</ErrorNote>}
+
+      <form id="settings-form" onSubmit={submit} className="space-y-4">
+        <Card>
+          <CardHeader>
+            <div className="space-y-1">
+              <CardTitle>运行</CardTitle>
+              <CardDescription>控制同时执行的工作流数量与运行日志的保留时长。</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <Field label="最大并发运行数">
+              <Input
+                type="number"
+                min={1}
+                className="w-32"
+                value={settings.maxConcurrentRuns}
+                onChange={(e) => setSettings({ ...settings, maxConcurrentRuns: Number(e.target.value) })}
+              />
+            </Field>
+            <Field label="日志保留天数">
+              <Input
+                type="number"
+                min={1}
+                className="w-32"
+                value={settings.logRetentionDays}
+                onChange={(e) => setSettings({ ...settings, logRetentionDays: Number(e.target.value) })}
+              />
+            </Field>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="space-y-1">
+              <CardTitle>存储</CardTitle>
+              <CardDescription>允许服务端路径输入引用的共享目录。</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Field label="共享目录" hint="每行一个目录。">
+              <Textarea
+                className="h-28 font-mono"
+                value={sharedDirsText}
+                onChange={(e) => setSharedDirsText(e.target.value)}
+              />
+            </Field>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="space-y-1">
+              <CardTitle>时间</CardTitle>
+              <CardDescription>调度与日志时间戳使用的默认时区。</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Field label="默认时区">
+              <Input
+                className="w-64"
+                value={settings.tz}
+                onChange={(e) => setSettings({ ...settings, tz: e.target.value })}
+              />
+            </Field>
+          </CardContent>
+        </Card>
       </form>
     </div>
   );

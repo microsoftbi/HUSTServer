@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { Pencil, Plug, PlugZap, Trash2 } from 'lucide-react';
 import { api } from '../api.js';
 import { useAuth } from '../auth.js';
+import { Badge } from '../components/ui/badge.js';
+import { Button } from '../components/ui/button.js';
+import { Card } from '../components/ui/card.js';
+import { EmptyState } from '../components/ui/empty-state.js';
+import { ErrorNote } from '../components/ui/error-note.js';
+import { Checkbox, Field, Input, Select } from '../components/ui/input.js';
+import { Modal } from '../components/ui/modal.js';
+import { PageHeader } from '../components/ui/page-header.js';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table.js';
 
 interface ConnectionDto {
   id: string;
@@ -26,6 +36,15 @@ interface ConnectionForm {
 
 const EMPTY: ConnectionForm = { name: '', server: '', port: '1433', user: '', password: '', database: '', shared: false };
 
+/** 服务器列的展示文本：server:port/database。 */
+function serverText(row: ConnectionDto): string {
+  const server = String(row.config.server ?? '');
+  const port = String(row.config.port ?? '');
+  const database = String(row.config.database ?? '');
+  const host = port ? `${server}:${port}` : server;
+  return database ? `${host}/${database}` : host;
+}
+
 export function ConnectionsPage() {
   const { hasCap } = useAuth();
   const canManage = hasCap('connection.manage');
@@ -33,7 +52,6 @@ export function ConnectionsPage() {
   const [form, setForm] = useState<ConnectionForm>(EMPTY);
   const [editId, setEditId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [msgBox, setMsgBox] = useState<{ ok: boolean; msg: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -41,6 +59,7 @@ export function ConnectionsPage() {
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [databases, setDatabases] = useState<string[]>([]);
   const [dbTested, setDbTested] = useState(false);
+  const [msgBox, setMsgBox] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -97,26 +116,11 @@ export function ConnectionsPage() {
     if (!modalOpen) return;
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape') return;
-      setModalOpen(false);
-      setEditId(null);
-      setForm(EMPTY);
-      setFormError(null);
-      setTestResult(null);
-      setDatabases([]);
-      setDbTested(false);
+      closeModal();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [modalOpen]);
-
-  useEffect(() => {
-    if (!msgBox) return;
-    const onKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setMsgBox(null);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [msgBox]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -135,6 +139,7 @@ export function ConnectionsPage() {
         await api.put(`/api/connections/${editId}`, {
           body: { name: form.name, config, shared: form.shared },
         });
+        window.alert('保存成功');
       } else {
         await api.post('/api/connections', {
           body: { name: form.name, type: 'sqlserver', config, shared: form.shared },
@@ -212,186 +217,187 @@ export function ConnectionsPage() {
   const brokenCount = rows.filter((row) => row.configError).length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">数据连接</h1>
-        <button
-          className="rounded bg-blue-600 px-4 py-1.5 text-white"
-          onClick={openCreate}
-        >
-          新建连接
-        </button>
-      </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+    <div className="space-y-4">
+      <PageHeader
+        title="数据连接"
+        description="平台级共享连接库，密码在服务端加密存储，界面仅显示掩码。"
+      >
+        <Button onClick={openCreate}>新建连接</Button>
+      </PageHeader>
+
+      {error && <ErrorNote>{error}</ErrorNote>}
       {brokenCount > 0 && (
-        <p className="text-sm text-amber-700">
+        <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
           有 {brokenCount} 个连接无法解密，请确认服务器的 ENCRYPTION_KEY 未变更；可编辑该连接并重新保存，以用当前密钥重新加密。
         </p>
       )}
 
-      <table className="w-full border text-left text-sm">
-        <thead className="bg-slate-100">
-          <tr>
-            <th className="p-2">名称</th>
-            <th className="p-2">类型</th>
-            <th className="p-2">服务器</th>
-            <th className="p-2">库</th>
-            <th className="p-2">共享</th>
-            <th className="p-2">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} className="border-t">
-              <td className="p-2">{row.name}</td>
-              <td className="p-2 text-slate-500">{row.type}</td>
-              <td className="p-2">{row.configError ? '（无法解密）' : String(row.config.server ?? '')}</td>
-              <td className="p-2">{row.configError ? '（无法解密）' : String(row.config.database ?? '')}</td>
-              <td className="p-2">{row.shared ? '是' : '否'}</td>
-              <td className="space-x-2 p-2">
-                <button className="text-blue-600 underline" onClick={() => void test(row)}>测试</button>
-                <button className="text-blue-600 underline" onClick={() => openEdit(row)}>编辑</button>
-                <button className="text-red-600 underline" onClick={() => void remove(row)}>删除</button>
-              </td>
-            </tr>
-          ))}
-          {rows.length === 0 && (
-            <tr>
-              <td className="p-2 text-slate-500" colSpan={6}>暂无连接。</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      <Card className="overflow-hidden">
+        {rows.length === 0 ? (
+          <EmptyState
+            icon={Plug}
+            title="暂无连接"
+            description="点击右上角「新建连接」添加一个 SQL Server 连接。"
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>名称</TableHead>
+                <TableHead className="w-32">类型</TableHead>
+                <TableHead>服务器</TableHead>
+                <TableHead className="w-24">共享</TableHead>
+                <TableHead className="w-56">更新时间</TableHead>
+                <TableHead className="w-56 text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell>
+                    <div className="font-medium">{row.name}</div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{row.type}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {row.configError ? (
+                      <span className="text-destructive">（无法解密）</span>
+                    ) : (
+                      serverText(row) || '-'
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge tone={row.shared ? 'primary' : 'neutral'}>{row.shared ? '共享' : '不共享'}</Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {new Date(row.updated_at).toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => void test(row)}>
+                        <PlugZap />
+                        测试
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(row)}>
+                        <Pencil />
+                        编辑
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => void remove(row)}
+                      >
+                        <Trash2 />
+                        删除
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
 
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeModal}>
-          <form
-            onSubmit={submit}
-            className="grid w-full max-w-2xl grid-cols-2 gap-3 rounded bg-white p-4 text-sm shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="col-span-2 font-medium">{editId ? '编辑连接' : '新建连接'}</h2>
-            {formError && <p className="col-span-2 text-sm text-red-600">{formError}</p>}
-            <label className="col-span-2 block">
-              名称
-              <input
-                className="mt-1 w-full rounded border px-2 py-1"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
-              />
-            </label>
-            <label className="block">
-              服务器
-              <input
-                className="mt-1 w-full rounded border px-2 py-1"
+      <Modal
+        open={modalOpen}
+        onClose={closeModal}
+        title={editId ? '编辑连接' : '新建连接'}
+        className="max-w-lg"
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={closeModal}>
+              取消
+            </Button>
+            <Button type="submit" form="connection-form" disabled={busy}>
+              {editId ? '保存修改' : '创建'}
+            </Button>
+          </>
+        }
+      >
+        <form id="connection-form" onSubmit={submit} className="space-y-3">
+          {formError && <ErrorNote>{formError}</ErrorNote>}
+          <Field label="名称">
+            <Input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+            />
+          </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="服务器">
+              <Input
                 value={form.server}
                 onChange={(e) => setForm({ ...form, server: e.target.value })}
                 required
               />
-            </label>
-            <label className="block">
-              端口
-              <input
-                className="mt-1 w-full rounded border px-2 py-1"
+            </Field>
+            <Field label="端口">
+              <Input
                 value={form.port}
                 onChange={(e) => setForm({ ...form, port: e.target.value })}
               />
-            </label>
-            <label className="block">
-              用户
-              <input
-                className="mt-1 w-full rounded border px-2 py-1"
+            </Field>
+            <Field label="用户">
+              <Input
                 value={form.user}
                 onChange={(e) => setForm({ ...form, user: e.target.value })}
               />
-            </label>
-            <label className="block">
-              密码
-              <input
+            </Field>
+            <Field label="密码" hint={editId ? '留空表示沿用原值' : undefined}>
+              <Input
                 type="password"
-                className="mt-1 w-full rounded border px-2 py-1"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder={editId ? '留空则不修改' : ''}
               />
-            </label>
-            <div className="col-span-2 flex items-center gap-3">
-              <button
-                type="button"
-                className="rounded border px-4 py-1.5 disabled:opacity-50"
-                onClick={() => void testDraft()}
-                disabled={testing || busy}
-              >
-                {testing ? '测试中…' : '测试连接'}
-              </button>
-              {testResult && (
-                <span className={`text-sm ${testResult.ok ? 'text-green-700' : 'text-red-600'}`}>
-                  {testResult.msg}
-                </span>
-              )}
-            </div>
-            <label className="block">
-              数据库
-              <select
-                className="mt-1 w-full rounded border px-2 py-1 disabled:bg-slate-100 disabled:text-slate-500"
-                value={form.database}
-                onChange={(e) => setForm({ ...form, database: e.target.value })}
-                disabled={!dbTested}
-              >
-                {dbTested ? (
-                  databases.map((db) => (
-                    <option key={db} value={db}>{db}</option>
-                  ))
-                ) : (
-                  <option value={form.database}>{form.database || '请先测试连接'}</option>
-                )}
-              </select>
-            </label>
-            {canManage && (
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={form.shared}
-                  onChange={(e) => setForm({ ...form, shared: e.target.checked })}
-                />
-                共享给所有用户
-              </label>
-            )}
-            <div className="col-span-2 flex items-center justify-end gap-2">
-              <button type="button" className="rounded border px-4 py-1.5" onClick={closeModal}>取消</button>
-              <button
-                type="submit"
-                disabled={busy}
-                className="rounded bg-blue-600 px-4 py-1.5 text-white disabled:opacity-50"
-              >
-                {editId ? '保存修改' : '新增'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {msgBox && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setMsgBox(null)}>
-          <div
-            className="w-full max-w-sm rounded bg-white p-4 text-sm shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="font-medium">测试连接</h2>
-            <p className={`mt-2 ${msgBox.ok ? 'text-green-700' : 'text-red-600'}`}>{msgBox.msg}</p>
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                className="rounded bg-blue-600 px-4 py-1.5 text-white"
-                onClick={() => setMsgBox(null)}
-              >
-                确定
-              </button>
-            </div>
+            </Field>
           </div>
-        </div>
-      )}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" variant="outline" onClick={() => void testDraft()} disabled={testing || busy}>
+              {testing ? '测试中…' : '测试连接'}
+            </Button>
+            {testResult && <Badge tone={testResult.ok ? 'success' : 'danger'}>{testResult.msg}</Badge>}
+          </div>
+          <Field label="数据库">
+            <Select
+              value={form.database}
+              onChange={(e) => setForm({ ...form, database: e.target.value })}
+              disabled={!dbTested}
+            >
+              {dbTested ? (
+                databases.map((db) => (
+                  <option key={db} value={db}>
+                    {db}
+                  </option>
+                ))
+              ) : (
+                <option value={form.database}>{form.database || '请先测试连接'}</option>
+              )}
+            </Select>
+          </Field>
+          {canManage && (
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={form.shared}
+                onChange={(e) => setForm({ ...form, shared: e.target.checked })}
+              />
+              共享给所有用户
+            </label>
+          )}
+        </form>
+      </Modal>
+
+      <Modal
+        open={msgBox !== null}
+        onClose={() => setMsgBox(null)}
+        title="测试连接"
+        className="max-w-sm"
+        footer={
+          <Button onClick={() => setMsgBox(null)}>确定</Button>
+        }
+      >
+        <p className={msgBox?.ok ? 'text-sm text-success' : 'text-sm text-destructive'}>{msgBox?.msg}</p>
+      </Modal>
     </div>
   );
 }

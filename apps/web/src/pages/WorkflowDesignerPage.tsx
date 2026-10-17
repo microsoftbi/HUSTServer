@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Button } from '../components/ui/button.js';
 import { api, ApiClientError } from '../api';
 import type { WorkflowConnectionNode, WorkflowDetail } from '../types';
 import { WorkflowDesigner, type DesignerAdapter } from '@hustserver/workflow-designer';
@@ -134,9 +135,11 @@ export function WorkflowDesignerPage() {
           const created = await api.post<{ id: string }>('/api/workflows', {
             body: { name: wf.name, workflow: payload },
           });
+          window.alert('保存成功');
           navigate(`/workflows/${created.id}/designer`, { replace: true });
         } else {
           await api.put(`/api/workflows/${id}`, { body: { name: wf.name, workflow: payload } });
+          window.alert('保存成功');
         }
       },
       // 资源管理器式浏览资源库目录；文件以绝对路径写回配置
@@ -321,9 +324,11 @@ export function WorkflowDesignerPage() {
 
   if (error) {
     return (
-      <div className="flex h-screen items-center justify-center gap-3 text-sm">
-        <span className="text-red-500">{error}</span>
-        <button className="underline" onClick={() => navigate('/workflows')}>返回列表</button>
+      <div className="flex h-screen flex-col items-center justify-center gap-3">
+        <span className="text-sm text-destructive">{error}</span>
+        <Button variant="outline" onClick={() => navigate('/workflows')}>
+          返回列表
+        </Button>
       </div>
     );
   }

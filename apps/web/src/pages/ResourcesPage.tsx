@@ -1,5 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Download,
+  FileSpreadsheet,
+  Folder,
+  FolderOpen,
+  FolderPlus,
+  LayoutGrid,
+  List,
+  Pencil,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 import { api } from '../api.js';
+import { Badge } from '../components/ui/badge.js';
+import { Button } from '../components/ui/button.js';
+import { Card, CardHeader, CardTitle } from '../components/ui/card.js';
+import { EmptyState } from '../components/ui/empty-state.js';
+import { ErrorNote } from '../components/ui/error-note.js';
+import { Field, Input } from '../components/ui/input.js';
+import { Modal } from '../components/ui/modal.js';
+import { PageHeader } from '../components/ui/page-header.js';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table.js';
 
 interface ResourceEntry {
   name: string;
@@ -29,22 +50,6 @@ function formatTime(ms: number | undefined): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function FolderIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.2l1.6 1.8h9.2A1.5 1.5 0 0 1 21 8.3v9.2a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-11z" />
-    </svg>
-  );
-}
-
-function FileIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M6.5 3h7.2L19 8.3V20a1 1 0 0 1-1 1H6.5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm6.7 1.6V9h4.4l-4.4-4.4z" />
-    </svg>
-  );
-}
-
 interface TreeBranchProps {
   nodes: FolderNode[];
   depth: number;
@@ -66,14 +71,14 @@ function TreeBranch(props: TreeBranchProps) {
         const isCurrent = currentPath === node.path;
         const isOver = dragOver === node.path;
         const rowClass = isOver
-          ? 'bg-blue-100 ring-1 ring-blue-400'
+          ? 'bg-primary/10 ring-1 ring-primary/40'
           : isCurrent
-            ? 'bg-blue-50'
-            : 'hover:bg-slate-100';
+            ? 'bg-primary/10 font-medium text-primary'
+            : 'hover:bg-accent';
         return (
           <div key={node.path}>
             <div
-              className={`flex items-center gap-1 rounded px-1 py-0.5 ${rowClass}`}
+              className={`flex items-center gap-1 rounded-md px-2 py-1 text-sm ${rowClass}`}
               style={{ paddingLeft: depth * 12 }}
               onDragOver={(e) => {
                 e.preventDefault();
@@ -89,7 +94,7 @@ function TreeBranch(props: TreeBranchProps) {
               }}
             >
               <button
-                className="flex h-4 w-4 shrink-0 items-center justify-center text-slate-400"
+                className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground"
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggle(node.path);
@@ -97,7 +102,7 @@ function TreeBranch(props: TreeBranchProps) {
               >
                 {node.children.length > 0 ? (isOpen ? '▾' : '▸') : ''}
               </button>
-              <FolderIcon className="h-4 w-4 shrink-0 text-amber-400" />
+              <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
               <button className="flex-1 truncate text-left" onClick={() => onNavigate(node.path)}>
                 {node.name}
               </button>
@@ -124,7 +129,7 @@ export function ResourcesPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [newFolder, setNewFolder] = useState<string | null>(null);
-  const [renaming, setRenaming] = useState<{ path: string; name: string } | null>(null);
+  const [renaming, setRenaming] = useState<{ entry: ResourceEntry; name: string } | null>(null);
   const [confirm, setConfirm] = useState<ResourceEntry[] | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; entry: ResourceEntry | null } | null>(null);
@@ -210,15 +215,20 @@ export function ResourcesPage() {
     if (ok) setNewFolder(null);
   }
 
-  async function submitRename(entry: ResourceEntry): Promise<void> {
-    const name = renaming?.name.trim();
+  async function submitRename(): Promise<void> {
+    if (!renaming) return;
+    const { entry } = renaming;
+    const name = renaming.name.trim();
     if (!name || name === entry.name) {
       setRenaming(null);
       return;
     }
     const url = entry.kind === 'folder' ? '/api/resources/folders' : '/api/resources/files';
     const ok = await run(() => api.request('PATCH', url, { body: { path: entry.path, name } }));
-    if (ok) setRenaming(null);
+    if (ok) {
+      setRenaming(null);
+      window.alert('保存成功');
+    }
   }
 
   /** 按目录顺序返回当前选中的条目。 */
@@ -325,157 +335,50 @@ export function ResourcesPage() {
   const bgOver = dragOver === '__bg__';
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-xl font-semibold">资源管理</h1>
-        <span className="text-xs text-slate-400">
-          Cmd/Ctrl+单击多选，Shift 区间选择{selected.size > 0 ? `；已选 ${selected.size} 项` : ''}
-        </span>
-        <div className="ml-auto flex items-center gap-2">
-          <div className="flex overflow-hidden rounded border text-sm">
-            <button
-              className={`px-2 py-1 ${view === 'grid' ? 'bg-slate-200 text-slate-800' : 'text-slate-600 hover:bg-slate-100'}`}
-              onClick={() => setView('grid')}
-            >
-              图标
-            </button>
-            <button
-              className={`px-2 py-1 ${view === 'list' ? 'bg-slate-200 text-slate-800' : 'text-slate-600 hover:bg-slate-100'}`}
-              onClick={() => setView('list')}
-            >
-              列表
-            </button>
-          </div>
-          <button
-            className="rounded border px-3 py-1 text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50"
-            disabled={busy}
-            onClick={() => setNewFolder(newFolder === null ? '' : null)}
-          >
-            新建文件夹
-          </button>
-          <button
-            className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
-            disabled={busy}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            上传 csv / excel
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv,.xlsx,.xls"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) uploadFile(file);
-              e.target.value = '';
-            }}
-          />
-        </div>
-      </div>
+    <div className="space-y-4">
+      <PageHeader
+        title="资源库"
+        description="平台内的文件工作区：上传的数据文件可供工作流输入节点与「加载成模型」引用。"
+      >
+        <Button variant="outline" disabled={busy} onClick={() => setNewFolder('')}>
+          <FolderPlus />
+          新建文件夹
+        </Button>
+        <Button disabled={busy} onClick={() => fileInputRef.current?.click()}>
+          <Upload />
+          上传文件
+        </Button>
+      </PageHeader>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,.xlsx,.xls"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) uploadFile(file);
+          e.target.value = '';
+        }}
+      />
 
-      {confirm && (
-        <div className="flex flex-wrap items-center gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm">
-          <span className="text-red-700">
-            {confirm.length === 1
-              ? `确定删除${confirm[0].kind === 'folder' ? '文件夹（含其下全部内容）' : '文件'}「${confirm[0].name}」？`
-              : `确定删除选中的 ${confirm.length} 项？（含文件夹及其全部内容）`}
-          </span>
-          <button
-            className="rounded bg-red-600 px-3 py-1 text-white hover:bg-red-700 disabled:opacity-50"
-            disabled={busy}
-            onClick={() => void submitDelete(confirm)}
-          >
-            删除
-          </button>
-          <button
-            className="rounded border px-3 py-1 text-slate-600 hover:bg-white disabled:opacity-50"
-            disabled={busy}
-            onClick={() => setConfirm(null)}
-          >
-            取消
-          </button>
-        </div>
-      )}
+      {error && <ErrorNote>{error}</ErrorNote>}
 
-      {newFolder !== null && (
-        <form
-          className="flex items-center gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submitNewFolder();
-          }}
-        >
-          <input
-            className="w-72 border px-2 py-1 text-sm"
-            placeholder="文件夹名称（可用 / 创建多级目录）"
-            value={newFolder}
-            autoFocus
-            onChange={(e) => setNewFolder(e.target.value)}
-          />
-          <button
-            type="submit"
-            className="rounded bg-blue-600 px-3 py-1 text-sm text-white disabled:opacity-50"
-            disabled={busy || !newFolder.trim()}
-          >
-            创建
-          </button>
-          <button
-            type="button"
-            className="rounded border px-3 py-1 text-sm text-slate-600 disabled:opacity-50"
-            disabled={busy}
-            onClick={() => setNewFolder(null)}
-          >
-            取消
-          </button>
-        </form>
-      )}
-
-      <div className="flex min-h-0 flex-1 gap-3">
-        <aside className="w-56 shrink-0 overflow-auto rounded border bg-white p-2 text-sm">
-          <div
-            className={`flex items-center gap-1 rounded px-1 py-0.5 ${
-              rootOver ? 'bg-blue-100 ring-1 ring-blue-400' : path === '' ? 'bg-blue-50' : 'hover:bg-slate-100'
-            }`}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver('__root__');
-            }}
-            onDragLeave={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(null);
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              void dropInto('');
-            }}
-          >
-            <span className="w-4" />
-            <FolderIcon className="h-4 w-4 shrink-0 text-amber-400" />
-            <button className="flex-1 truncate text-left" onClick={() => void loadDir('')}>
-              根目录
-            </button>
-          </div>
-          <TreeBranch
-            nodes={tree}
-            depth={1}
-            currentPath={path}
-            expanded={expanded}
-            dragOver={dragOver}
-            onToggle={toggleExpand}
-            onNavigate={(p) => void loadDir(p)}
-            onDropInto={(toDir) => void dropInto(toDir)}
-            onDragOverDir={setDragOver}
-          />
-        </aside>
-
-        <main className="flex min-h-0 flex-1 flex-col rounded border bg-white">
-          <nav className="flex flex-wrap items-center gap-1 border-b px-3 py-2 text-sm">
-            <button
-              className={`rounded px-1 hover:bg-slate-100 ${rootOver ? 'ring-1 ring-blue-400' : ''}`}
-              onClick={() => void loadDir('')}
+      <div className="flex h-[calc(100vh-11rem)] min-h-0 gap-4">
+        <Card className="flex w-56 shrink-0 flex-col overflow-hidden">
+          <CardHeader>
+            <CardTitle>目录</CardTitle>
+            <Folder className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <div className="min-h-0 flex-1 overflow-auto p-2 text-sm">
+            <div
+              className={`flex items-center gap-1 rounded-md px-2 py-1 ${
+                rootOver
+                  ? 'bg-primary/10 ring-1 ring-primary/40'
+                  : path === ''
+                    ? 'bg-primary/10 font-medium text-primary'
+                    : 'hover:bg-accent'
+              }`}
               onDragOver={(e) => {
                 e.preventDefault();
                 setDragOver('__root__');
@@ -485,44 +388,105 @@ export function ResourcesPage() {
               }}
               onDrop={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 void dropInto('');
               }}
             >
-              根目录
-            </button>
-            {crumbs.map((seg, i) => {
-              const rel = crumbs.slice(0, i + 1).join('/');
-              return (
-                <span key={rel} className="flex items-center gap-1">
-                  <span className="text-slate-400">/</span>
-                  {i === crumbs.length - 1 ? (
-                    <span className="px-1 text-slate-700">{seg}</span>
-                  ) : (
-                    <button
-                      className="rounded px-1 text-blue-600 hover:bg-slate-100"
-                      onClick={() => void loadDir(rel)}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setDragOver(rel);
-                      }}
-                      onDragLeave={(e) => {
-                        if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(null);
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        void dropInto(rel);
-                      }}
-                    >
-                      {seg}
-                    </button>
-                  )}
-                </span>
-              );
-            })}
-          </nav>
+              <span className="w-4" />
+              <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <button className="flex-1 truncate text-left" onClick={() => void loadDir('')}>
+                根目录
+              </button>
+            </div>
+            <TreeBranch
+              nodes={tree}
+              depth={1}
+              currentPath={path}
+              expanded={expanded}
+              dragOver={dragOver}
+              onToggle={toggleExpand}
+              onNavigate={(p) => void loadDir(p)}
+              onDropInto={(toDir) => void dropInto(toDir)}
+              onDragOverDir={setDragOver}
+            />
+          </div>
+        </Card>
+
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <CardHeader>
+            <nav className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-sm">
+              <button
+                className={`rounded px-1 hover:bg-accent ${rootOver ? 'ring-1 ring-primary/40' : ''}`}
+                onClick={() => void loadDir('')}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver('__root__');
+                }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  void dropInto('');
+                }}
+              >
+                根目录
+              </button>
+              {crumbs.map((seg, i) => {
+                const rel = crumbs.slice(0, i + 1).join('/');
+                return (
+                  <span key={rel} className="flex items-center gap-1">
+                    <span className="text-muted-foreground">/</span>
+                    {i === crumbs.length - 1 ? (
+                      <span className="px-1 text-foreground">{seg}</span>
+                    ) : (
+                      <button
+                        className="rounded px-1 text-primary hover:bg-accent"
+                        onClick={() => void loadDir(rel)}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setDragOver(rel);
+                        }}
+                        onDragLeave={(e) => {
+                          if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(null);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          void dropInto(rel);
+                        }}
+                      >
+                        {seg}
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
+            </nav>
+            <div className="flex items-center gap-2">
+              {selected.size > 0 && <Badge tone="primary">已选 {selected.size} 项</Badge>}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant={view === 'grid' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setView('grid')}
+                >
+                  <LayoutGrid />
+                  图标
+                </Button>
+                <Button
+                  variant={view === 'list' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setView('list')}
+                >
+                  <List />
+                  列表
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
 
           <div
-            className={`min-h-0 flex-1 overflow-auto p-3 ${bgOver ? 'bg-blue-50' : ''}`}
+            className={`min-h-0 flex-1 overflow-auto ${bgOver ? 'bg-primary/10' : ''}`}
             onClick={() => {
               setSelected(new Set());
               anchorRef.current = null;
@@ -540,10 +504,14 @@ export function ResourcesPage() {
               void dropInto(path);
             }}
           >
-            {entries.length === 0 && <p className="text-sm text-slate-500">此目录为空。</p>}
-
-            {view === 'grid' ? (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(108px,1fr))] gap-1">
+            {entries.length === 0 ? (
+              <EmptyState
+                icon={FolderOpen}
+                title="此目录为空"
+                description="使用右上角「上传文件」导入数据，或用「新建文件夹」创建多级目录。"
+              />
+            ) : view === 'grid' ? (
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(108px,1fr))] gap-1 p-3">
                 {entries.map((entry) => {
                   const isSel = selected.has(entry.path);
                   const isOver = dragOver === entry.path;
@@ -583,141 +551,159 @@ export function ResourcesPage() {
                             }
                           : undefined
                       }
-                      className={`flex cursor-default select-none flex-col items-center gap-1 rounded border p-2 text-center ${
+                      className={`flex cursor-default select-none flex-col items-center gap-1 rounded-md border p-2 text-center ${
                         isOver
-                          ? 'border-blue-400 bg-blue-100'
+                          ? 'border-primary/40 bg-primary/10'
                           : isSel
-                            ? 'border-blue-400 bg-blue-50'
-                            : 'border-transparent hover:bg-slate-100'
+                            ? 'border-primary/60 bg-primary/10'
+                            : 'border-transparent hover:bg-accent'
                       }`}
                     >
                       {entry.kind === 'folder' ? (
-                        <FolderIcon className="h-10 w-10 text-amber-400" />
+                        <Folder className="h-10 w-10 text-muted-foreground" />
                       ) : (
-                        <FileIcon className="h-10 w-10 text-emerald-500" />
+                        <FileSpreadsheet className="h-10 w-10 text-muted-foreground" />
                       )}
-                      {renaming?.path === entry.path ? (
-                        <input
-                          className="w-full border px-1 py-0.5 text-center text-xs"
-                          value={renaming.name}
-                          autoFocus
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => setRenaming({ path: entry.path, name: e.target.value })}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') void submitRename(entry);
-                            if (e.key === 'Escape') setRenaming(null);
-                          }}
-                          onBlur={() => void submitRename(entry)}
-                        />
-                      ) : (
-                        <span className="line-clamp-2 w-full break-all text-xs">
-                          {entry.name}
-                          {entry.kind === 'file' && (
-                            <span className="block text-[10px] text-slate-400">{formatSize(entry.size)}</span>
-                          )}
-                        </span>
-                      )}
+                      <span className="line-clamp-2 w-full break-all text-xs">
+                        {entry.name}
+                        {entry.kind === 'file' && (
+                          <span className="block text-[10px] text-muted-foreground">{formatSize(entry.size)}</span>
+                        )}
+                      </span>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <div className="divide-y">
-                <div className="flex items-center gap-2 px-2 py-1 text-xs font-medium text-slate-500">
-                  <span className="flex-1">名称</span>
-                  <span className="w-20 text-right">大小</span>
-                  <span className="w-40 text-right">修改时间</span>
-                </div>
-                {entries.map((entry) => {
-                  const isSel = selected.has(entry.path);
-                  const isOver = dragOver === entry.path;
-                  return (
-                    <div
-                      key={entry.path}
-                      draggable
-                      onDragStart={(e) => startDrag(e, entry)}
-                      onDragEnd={() => {
-                        dragItems.current = [];
-                        setDragOver(null);
-                      }}
-                      onClick={(e) => handleEntryClick(e, entry)}
-                      onDoubleClick={() => openEntry(entry)}
-                      onContextMenu={(e) => openMenu(e, entry)}
-                      onDragOver={
-                        entry.kind === 'folder'
-                          ? (e) => {
-                              e.preventDefault();
-                              setDragOver(entry.path);
-                            }
-                          : undefined
-                      }
-                      onDragLeave={
-                        entry.kind === 'folder'
-                          ? (e) => {
-                              if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(null);
-                            }
-                          : undefined
-                      }
-                      onDrop={
-                        entry.kind === 'folder'
-                          ? (e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              void dropInto(entry.path);
-                            }
-                          : undefined
-                      }
-                      className={`flex cursor-default select-none items-center gap-2 px-2 py-1 text-sm ${
-                        isOver ? 'bg-blue-100 ring-1 ring-inset ring-blue-400' : isSel ? 'bg-blue-50' : 'hover:bg-slate-100'
-                      }`}
-                    >
-                      {entry.kind === 'folder' ? (
-                        <FolderIcon className="h-4 w-4 shrink-0 text-amber-400" />
-                      ) : (
-                        <FileIcon className="h-4 w-4 shrink-0 text-emerald-500" />
-                      )}
-                      {renaming?.path === entry.path ? (
-                        <input
-                          className="flex-1 border px-1 py-0.5 text-sm"
-                          value={renaming.name}
-                          autoFocus
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => setRenaming({ path: entry.path, name: e.target.value })}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') void submitRename(entry);
-                            if (e.key === 'Escape') setRenaming(null);
-                          }}
-                          onBlur={() => void submitRename(entry)}
-                        />
-                      ) : (
-                        <span className="flex-1 truncate">{entry.name}</span>
-                      )}
-                      <span className="w-20 text-right text-xs text-slate-400">
-                        {entry.kind === 'file' ? formatSize(entry.size) : ''}
-                      </span>
-                      <span className="w-40 text-right text-xs text-slate-400">
-                        {entry.kind === 'file' ? formatTime(entry.mtime) : ''}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>名称</TableHead>
+                    <TableHead className="w-24 text-right">大小</TableHead>
+                    <TableHead className="w-44 text-right">修改时间</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {entries.map((entry) => {
+                    const isSel = selected.has(entry.path);
+                    const isOver = dragOver === entry.path;
+                    return (
+                      <TableRow
+                        key={entry.path}
+                        draggable
+                        onDragStart={(e) => startDrag(e, entry)}
+                        onDragEnd={() => {
+                          dragItems.current = [];
+                          setDragOver(null);
+                        }}
+                        onClick={(e) => handleEntryClick(e, entry)}
+                        onDoubleClick={() => openEntry(entry)}
+                        onContextMenu={(e) => openMenu(e, entry)}
+                        onDragOver={
+                          entry.kind === 'folder'
+                            ? (e) => {
+                                e.preventDefault();
+                                setDragOver(entry.path);
+                              }
+                            : undefined
+                        }
+                        onDragLeave={
+                          entry.kind === 'folder'
+                            ? (e) => {
+                                if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(null);
+                              }
+                            : undefined
+                        }
+                        onDrop={
+                          entry.kind === 'folder'
+                            ? (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                void dropInto(entry.path);
+                              }
+                            : undefined
+                        }
+                        className={isOver ? 'bg-primary/10' : isSel ? 'bg-primary/10' : undefined}
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {entry.kind === 'folder' ? (
+                              <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            ) : (
+                              <FileSpreadsheet className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            )}
+                            <span className="truncate">{entry.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground">
+                          {entry.kind === 'file' ? formatSize(entry.size) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground">
+                          {entry.kind === 'file' ? formatTime(entry.mtime) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div
+                            className="flex items-center justify-end gap-1"
+                            onDoubleClick={(e) => e.stopPropagation()}
+                          >
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={busy}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEntry(entry);
+                              }}
+                            >
+                              {entry.kind === 'folder' ? <FolderOpen /> : <Download />}
+                              {entry.kind === 'folder' ? '打开' : '下载'}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={busy}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenaming({ entry, name: entry.name });
+                              }}
+                            >
+                              <Pencil />
+                              重命名
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              disabled={busy}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setConfirm([entry]);
+                              }}
+                            >
+                              <Trash2 />
+                              删除
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             )}
           </div>
-        </main>
+        </Card>
       </div>
 
       {menu && (
         <div
-          className="fixed z-50 min-w-40 overflow-hidden rounded border bg-white py-1 text-sm shadow-lg"
+          className="fixed z-50 min-w-40 overflow-hidden rounded-md border border-border bg-popover py-1 text-sm text-popover-foreground shadow-lg"
           style={{ left: menu.x, top: menu.y }}
         >
           {menu.entry === null ? (
             <>
-              <MenuItem
-                label="新建文件夹"
-                onClick={() => setNewFolder('')}
-              />
+              <MenuItem label="新建文件夹" onClick={() => setNewFolder('')} />
               <MenuItem label="上传文件" onClick={() => fileInputRef.current?.click()} />
               <MenuItem
                 label="刷新"
@@ -740,7 +726,7 @@ export function ResourcesPage() {
                   {!multi && (
                     <MenuItem
                       label="重命名"
-                      onClick={() => setRenaming({ path: entry.path, name: entry.name })}
+                      onClick={() => setRenaming({ entry, name: entry.name })}
                     />
                   )}
                   <MenuItem
@@ -754,6 +740,86 @@ export function ResourcesPage() {
           )}
         </div>
       )}
+
+      <Modal
+        open={newFolder !== null}
+        onClose={() => setNewFolder(null)}
+        title="新建文件夹"
+        footer={
+          <>
+            <Button variant="outline" disabled={busy} onClick={() => setNewFolder(null)}>
+              取消
+            </Button>
+            <Button disabled={busy || !(newFolder ?? '').trim()} onClick={() => void submitNewFolder()}>
+              创建
+            </Button>
+          </>
+        }
+      >
+        <Field label="文件夹名称" hint="相对于当前所在目录，可用 / 创建多级目录。">
+          <Input
+            value={newFolder ?? ''}
+            autoFocus
+            placeholder="文件夹名称"
+            onChange={(e) => setNewFolder(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void submitNewFolder();
+            }}
+          />
+        </Field>
+      </Modal>
+
+      <Modal
+        open={renaming !== null}
+        onClose={() => setRenaming(null)}
+        title="重命名"
+        footer={
+          <>
+            <Button variant="outline" disabled={busy} onClick={() => setRenaming(null)}>
+              取消
+            </Button>
+            <Button disabled={busy || !(renaming?.name ?? '').trim()} onClick={() => void submitRename()}>
+              保存
+            </Button>
+          </>
+        }
+      >
+        <Field label="名称" hint={renaming ? `原名称：${renaming.entry.name}` : undefined}>
+          <Input
+            value={renaming?.name ?? ''}
+            autoFocus
+            placeholder="新名称"
+            onChange={(e) => setRenaming((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void submitRename();
+            }}
+          />
+        </Field>
+      </Modal>
+
+      <Modal
+        open={confirm !== null}
+        onClose={() => setConfirm(null)}
+        title="删除确认"
+        footer={
+          <>
+            <Button variant="outline" disabled={busy} onClick={() => setConfirm(null)}>
+              取消
+            </Button>
+            <Button variant="danger" disabled={busy} onClick={() => confirm && void submitDelete(confirm)}>
+              删除
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          {confirm
+            ? confirm.length === 1
+              ? `确定删除${confirm[0].kind === 'folder' ? '文件夹（含其下全部内容）' : '文件'}「${confirm[0].name}」？`
+              : `确定删除选中的 ${confirm.length} 项？（含文件夹及其全部内容）`
+            : ''}
+        </p>
+      </Modal>
     </div>
   );
 }
@@ -761,7 +827,7 @@ export function ResourcesPage() {
 function MenuItem({ label, danger, onClick }: { label: string; danger?: boolean; onClick: () => void }) {
   return (
     <button
-      className={`block w-full px-3 py-1 text-left hover:bg-slate-100 ${danger ? 'text-red-600' : 'text-slate-700'}`}
+      className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-accent ${danger ? 'text-destructive' : 'text-foreground'}`}
       onClick={onClick}
     >
       {label}

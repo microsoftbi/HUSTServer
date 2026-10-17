@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowDown, ArrowLeft, ArrowUp, History, ListChecks, Pencil, Play, Plus, Save, Trash2 } from 'lucide-react';
 import { api } from '../api.js';
+import { Badge } from '../components/ui/badge.js';
+import { Button } from '../components/ui/button.js';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card.js';
+import { Checkbox, Field, Input, Select, Textarea } from '../components/ui/input.js';
+import { EmptyState } from '../components/ui/empty-state.js';
+import { ErrorNote } from '../components/ui/error-note.js';
+import { Modal } from '../components/ui/modal.js';
+import { PageHeader } from '../components/ui/page-header.js';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table.js';
 import type { JobOnFailure, JobRunSummary, JobStepType, LoadModelSource, WorkflowSummary } from '../types.js';
 
 interface ConnectionOption {
@@ -82,6 +92,37 @@ const FREQ_OPTIONS: Array<{ value: ScheduleForm['freqType']; label: string }> = 
   { value: 'monthly', label: '每月' },
   { value: 'cron', label: '自定义 cron' },
 ];
+
+/** 步骤类型显示名（用于步骤表格与徽标）。 */
+const STEP_TYPE_LABEL: Record<JobStepType, string> = {
+  workflow: '工作流',
+  sql: 'SQL',
+  load_model: '模型',
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  pending: '排队中',
+  queued: '排队中',
+  running: '运行中',
+  success: '成功',
+  error: '失败',
+  failed: '失败',
+  canceled: '已取消',
+  skipped: '已跳过',
+};
+
+type BadgeTone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger';
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  pending: 'neutral',
+  queued: 'neutral',
+  running: 'primary',
+  success: 'success',
+  error: 'danger',
+  failed: 'danger',
+  canceled: 'warning',
+  skipped: 'neutral',
+};
 
 let stepKeySeed = 0;
 function nextStepKey(): number {
@@ -363,10 +404,12 @@ export function JobEditorPage() {
       };
       if (isNew) {
         const created = await api.post<{ id: string }>('/api/jobs', { body });
+        window.alert('保存成功');
         navigate(`/jobs/${created.id}`, { replace: true });
       } else {
         await api.put(`/api/jobs/${id}`, { body });
         setError(null);
+        window.alert('保存成功');
       }
     } catch (err) {
       setError((err as Error).message);
@@ -385,312 +428,405 @@ export function JobEditorPage() {
     }
   }
 
-  const inputClass = 'w-full rounded border px-2 py-1.5 text-sm';
-
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{isNew ? '新建 Job' : '编辑 Job'}</h1>
-        <Link className="text-sm text-blue-600 underline" to="/jobs">返回列表</Link>
-      </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
-      <section className="space-y-2 rounded border bg-white p-4">
-        <h2 className="font-medium">基本信息</h2>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <label className="text-sm">
-            名称（必填）
-            <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
-          </label>
-          <label className="text-sm">
-            描述
-            <input className={inputClass} value={description} onChange={(e) => setDescription(e.target.value)} />
-          </label>
-        </div>
-      </section>
-
-      <section className="space-y-3 rounded border bg-white p-4">
-        <h2 className="font-medium">步骤编排</h2>
-        {steps.length === 0 ? (
-          <p className="text-sm text-slate-500">暂无步骤，请点击下方按钮添加。</p>
-        ) : (
-          steps.map((s, i) => {
-            const workflowName = workflows.find((w) => w.id === s.workflowId)?.name ?? '（未选择）';
-            const connectionName = connections.find((c) => c.id === s.connectionId)?.name ?? '（未选择）';
-            const sqlLine = s.sql.trim() ? s.sql.trim().split('\n')[0].slice(0, 60) : '（空）';
-            return (
-              <div key={s.key} className="space-y-1 rounded border p-3 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{i + 1}.</span>
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
-                    {s.type === 'workflow' ? '工作流' : s.type === 'sql' ? 'SQL' : '模型'}
-                  </span>
-                  <span className="font-medium">{s.name}</span>
-                  <div className="ml-auto flex gap-1">
-                    <button className="rounded border px-2" disabled={i === 0} onClick={() => moveStep(i, -1)}>上移</button>
-                    <button className="rounded border px-2" disabled={i === steps.length - 1} onClick={() => moveStep(i, 1)}>下移</button>
-                    <button className="rounded border px-2" onClick={() => openEdit(s)}>编辑</button>
-                    <button className="rounded border px-2 text-red-600" onClick={() => setSteps((prev) => prev.filter((x) => x.key !== s.key))}>删除</button>
-                  </div>
-                </div>
-                <p className="text-slate-600">
-                  {s.type === 'workflow'
-                    ? `工作流：${workflowName}`
-                    : s.type === 'sql'
-                      ? `连接：${connectionName} · SQL：${sqlLine}`
-                      : `模型：${s.modelName || '（未命名）'} · 来源：${
-                          s.source === 'file'
-                            ? s.resourcePath || '（未选择）'
-                            : s.object || '（未选择）'
-                        }`}
-                </p>
-                <p className="text-slate-500">失败策略：{s.onFailure === 'abort' ? '中止' : '继续'}</p>
-              </div>
-            );
-          })
-        )}
-        <button className="rounded border px-3 py-1.5 text-sm" onClick={openAdd}>+ 添加步骤</button>
-      </section>
-
-      <section className="space-y-2 rounded border bg-white p-4">
-        <h2 className="font-medium">调度配置</h2>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={schedule.enabled} onChange={(e) => setSchedule({ ...schedule, enabled: e.target.checked })} />
-          启用定时调度
-        </label>
-        {schedule.enabled && (
-          <div className="grid gap-2 sm:grid-cols-2">
-            <label className="text-sm">
-              频次
-              <select
-                className={inputClass}
-                value={schedule.freqType}
-                onChange={(e) => setSchedule({ ...schedule, freqType: e.target.value as ScheduleForm['freqType'] })}
-              >
-                {FREQ_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </label>
-            {schedule.freqType !== 'cron' && (
-              <label className="text-sm">
-                时间
-                <input type="time" className={inputClass} value={schedule.time} onChange={(e) => setSchedule({ ...schedule, time: e.target.value })} />
-              </label>
-            )}
-            {schedule.freqType === 'weekly' && (
-              <label className="text-sm">
-                星期
-                <select className={inputClass} value={schedule.weekday} onChange={(e) => setSchedule({ ...schedule, weekday: Number(e.target.value) })}>
-                  {['周日', '周一', '周二', '周三', '周四', '周五', '周六'].map((label, idx) => (
-                    <option key={idx} value={idx}>{label}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {schedule.freqType === 'monthly' && (
-              <label className="text-sm">
-                日期（1-31）
-                <input type="number" min={1} max={31} className={inputClass} value={schedule.monthDay} onChange={(e) => setSchedule({ ...schedule, monthDay: Number(e.target.value) })} />
-              </label>
-            )}
-            {schedule.freqType === 'cron' && (
-              <label className="text-sm">
-                cron 表达式（5 段）
-                <input className={`${inputClass} font-mono`} value={schedule.cronExpr} onChange={(e) => setSchedule({ ...schedule, cronExpr: e.target.value })} />
-              </label>
-            )}
-            <label className="text-sm">
-              时区
-              <input className={inputClass} value={schedule.timezone} onChange={(e) => setSchedule({ ...schedule, timezone: e.target.value })} />
-            </label>
-          </div>
-        )}
-      </section>
-
-      <div className="flex items-center gap-2">
-        <button className="rounded bg-blue-600 px-4 py-1.5 text-white disabled:opacity-50" disabled={saving} onClick={() => void save()}>
-          {saving ? '保存中…' : '保存'}
-        </button>
+    <div className="space-y-4">
+      <PageHeader
+        title={isNew ? '新建 Job' : name ? `编辑「${name}」` : '编辑 Job'}
+        description="把工作流、SQL 与加载模型串成有序流水线，可手动运行或定时调度。"
+      >
+        <Button asChild variant="outline">
+          <Link to="/jobs">
+            <ArrowLeft />
+            返回列表
+          </Link>
+        </Button>
         {!isNew && (
-          <button className="rounded border px-4 py-1.5" onClick={() => void runNow()}>手动运行</button>
+          <Button variant="outline" onClick={() => void runNow()}>
+            <Play />
+            手动运行
+          </Button>
         )}
-      </div>
+        <Button disabled={saving} onClick={() => void save()}>
+          <Save />
+          {saving ? '保存中…' : '保存'}
+        </Button>
+      </PageHeader>
+
+      {error && <ErrorNote>{error}</ErrorNote>}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>基本信息</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <Field label="名称（必填）">
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+          <Field label="描述">
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <CardHeader>
+          <div className="space-y-1">
+            <CardTitle>步骤编排</CardTitle>
+            <CardDescription>按顺序执行，可通过上移 / 下移调整优先级。</CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={openAdd}>
+            <Plus />
+            添加步骤
+          </Button>
+        </CardHeader>
+        {steps.length === 0 ? (
+          <EmptyState
+            icon={ListChecks}
+            title="暂无步骤"
+            description="点击右上角「添加步骤」开始编排流水线。"
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-14">序号</TableHead>
+                <TableHead className="w-24">类型</TableHead>
+                <TableHead>步骤</TableHead>
+                <TableHead className="w-24">失败策略</TableHead>
+                <TableHead className="w-40 text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {steps.map((s, i) => {
+                const workflowName = workflows.find((w) => w.id === s.workflowId)?.name ?? '（未选择）';
+                const connectionName = connections.find((c) => c.id === s.connectionId)?.name ?? '（未选择）';
+                const sqlLine = s.sql.trim() ? s.sql.trim().split('\n')[0].slice(0, 60) : '（空）';
+                return (
+                  <TableRow key={s.key}>
+                    <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                    <TableCell>
+                      <Badge tone="neutral">{STEP_TYPE_LABEL[s.type]}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">{s.name}</div>
+                      <p className="text-xs text-muted-foreground">
+                        {s.type === 'workflow'
+                          ? `工作流：${workflowName}`
+                          : s.type === 'sql'
+                            ? `连接：${connectionName} · SQL：${sqlLine}`
+                            : `模型：${s.modelName || '（未命名）'} · 来源：${
+                                s.source === 'file'
+                                  ? s.resourcePath || '（未选择）'
+                                  : s.object || '（未选择）'
+                              }`}
+                      </p>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {s.onFailure === 'abort' ? '中止' : '继续'}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="上移"
+                          disabled={i === 0}
+                          onClick={() => moveStep(i, -1)}
+                        >
+                          <ArrowUp />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="下移"
+                          disabled={i === steps.length - 1}
+                          onClick={() => moveStep(i, 1)}
+                        >
+                          <ArrowDown />
+                        </Button>
+                        <Button variant="ghost" size="sm" aria-label="编辑" onClick={() => openEdit(s)}>
+                          <Pencil />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="删除"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => setSteps((prev) => prev.filter((x) => x.key !== s.key))}
+                        >
+                          <Trash2 />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>调度配置</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={schedule.enabled}
+              onChange={(e) => setSchedule({ ...schedule, enabled: e.target.checked })}
+            />
+            启用定时调度
+          </label>
+          {schedule.enabled && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="频次">
+                <Select
+                  value={schedule.freqType}
+                  onChange={(e) => setSchedule({ ...schedule, freqType: e.target.value as ScheduleForm['freqType'] })}
+                >
+                  {FREQ_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </Select>
+              </Field>
+              {schedule.freqType !== 'cron' && (
+                <Field label="时间">
+                  <Input
+                    type="time"
+                    value={schedule.time}
+                    onChange={(e) => setSchedule({ ...schedule, time: e.target.value })}
+                  />
+                </Field>
+              )}
+              {schedule.freqType === 'weekly' && (
+                <Field label="星期">
+                  <Select
+                    value={schedule.weekday}
+                    onChange={(e) => setSchedule({ ...schedule, weekday: Number(e.target.value) })}
+                  >
+                    {['周日', '周一', '周二', '周三', '周四', '周五', '周六'].map((label, idx) => (
+                      <option key={idx} value={idx}>{label}</option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
+              {schedule.freqType === 'monthly' && (
+                <Field label="日期（1-31）">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={schedule.monthDay}
+                    onChange={(e) => setSchedule({ ...schedule, monthDay: Number(e.target.value) })}
+                  />
+                </Field>
+              )}
+              {schedule.freqType === 'cron' && (
+                <Field label="cron 表达式（5 段）">
+                  <Input
+                    className="font-mono"
+                    value={schedule.cronExpr}
+                    onChange={(e) => setSchedule({ ...schedule, cronExpr: e.target.value })}
+                  />
+                </Field>
+              )}
+              <Field label="时区">
+                <Input value={schedule.timezone} onChange={(e) => setSchedule({ ...schedule, timezone: e.target.value })} />
+              </Field>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {!isNew && (
-        <section className="space-y-2 rounded border bg-white p-4">
-          <h2 className="font-medium">最近运行（10 条）</h2>
+        <Card className="overflow-hidden">
+          <CardHeader>
+            <CardTitle>最近运行（10 条）</CardTitle>
+          </CardHeader>
           {history.length === 0 ? (
-            <p className="text-sm text-slate-500">暂无运行记录。</p>
+            <EmptyState icon={History} title="暂无运行记录" description="保存后可手动运行，或等待定时调度触发。" />
           ) : (
-            <table className="w-full border text-left text-sm">
-              <thead className="bg-slate-100">
-                <tr>
-                  <th className="p-2">状态</th>
-                  <th className="p-2">触发方式</th>
-                  <th className="p-2">开始时间</th>
-                  <th className="p-2">耗时</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-32">状态</TableHead>
+                  <TableHead className="w-28">触发方式</TableHead>
+                  <TableHead>开始时间</TableHead>
+                  <TableHead className="w-28 text-right">耗时</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {history.map((r) => (
-                  <tr key={r.id} className="border-t">
-                    <td className={`p-2 ${r.status === 'error' ? 'text-red-600' : ''}`}>
-                      <Link className="underline" to={`/job-runs/${r.id}`}>{r.status}</Link>
-                    </td>
-                    <td className="p-2">{r.trigger_type === 'manual' ? '手动' : '调度'}</td>
-                    <td className="p-2">{r.started_at ? new Date(r.started_at).toLocaleString() : '—'}</td>
-                    <td className="p-2">{r.duration_ms != null ? `${r.duration_ms} ms` : '—'}</td>
-                  </tr>
+                  <TableRow key={r.id}>
+                    <TableCell>
+                      <Link to={`/job-runs/${r.id}`}>
+                        <Badge dot tone={STATUS_TONE[r.status] ?? 'neutral'}>
+                          {STATUS_LABEL[r.status] ?? r.status}
+                        </Badge>
+                      </Link>
+                    </TableCell>
+                    <TableCell>{r.trigger_type === 'manual' ? '手动' : '调度'}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {r.started_at ? new Date(r.started_at).toLocaleString() : '—'}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {r.duration_ms != null ? `${r.duration_ms} ms` : '—'}
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           )}
-        </section>
+        </Card>
       )}
 
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeModal}>
-          <div
-            className="w-full max-w-lg space-y-3 rounded bg-white p-4 shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="font-medium">{modal.editingKey == null ? '添加步骤' : '编辑步骤'}</h2>
-            <div className="flex gap-1 rounded bg-slate-100 p-1 text-sm">
-              <button
-                className={`flex-1 rounded px-3 py-1 ${modal.step.type === 'workflow' ? 'bg-white shadow' : ''}`}
-                onClick={() => switchDraftType('workflow')}
-              >
-                运行工作流
-              </button>
-              <button
-                className={`flex-1 rounded px-3 py-1 ${modal.step.type === 'sql' ? 'bg-white shadow' : ''}`}
-                onClick={() => switchDraftType('sql')}
-              >
-                运行 SQL
-              </button>
-              <button
-                className={`flex-1 rounded px-3 py-1 ${modal.step.type === 'load_model' ? 'bg-white shadow' : ''}`}
-                onClick={() => switchDraftType('load_model')}
-              >
-                加载成模型
-              </button>
-            </div>
-            {modalError && <p className="text-sm text-red-600">{modalError}</p>}
-            <label className="block text-sm">
-              步骤名称
-              <input className={inputClass} value={modal.step.name} onChange={(e) => patchDraft({ name: e.target.value })} />
-            </label>
-            {modal.step.type === 'load_model' ? (
-              <>
-                <label className="block text-sm">
-                  数据来源
-                  <select
-                    className={inputClass}
-                    value={modal.step.source}
-                    onChange={(e) => patchDraft({ source: e.target.value as LoadModelSource })}
+        <Modal
+          open
+          onClose={closeModal}
+          title={modal.editingKey == null ? '添加步骤' : '编辑步骤'}
+          className="max-w-lg"
+          footer={
+            <>
+              <Button variant="outline" onClick={closeModal}>取消</Button>
+              <Button onClick={confirmDraft}>{modal.editingKey == null ? '添加' : '保存'}</Button>
+            </>
+          }
+        >
+          <div className="flex gap-1 rounded-md bg-muted p-1">
+            <Button
+              type="button"
+              size="sm"
+              variant={modal.step.type === 'workflow' ? 'secondary' : 'ghost'}
+              className="flex-1"
+              onClick={() => switchDraftType('workflow')}
+            >
+              运行工作流
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={modal.step.type === 'sql' ? 'secondary' : 'ghost'}
+              className="flex-1"
+              onClick={() => switchDraftType('sql')}
+            >
+              运行 SQL
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={modal.step.type === 'load_model' ? 'secondary' : 'ghost'}
+              className="flex-1"
+              onClick={() => switchDraftType('load_model')}
+            >
+              加载成模型
+            </Button>
+          </div>
+          {modalError && <ErrorNote>{modalError}</ErrorNote>}
+          <Field label="步骤名称">
+            <Input value={modal.step.name} onChange={(e) => patchDraft({ name: e.target.value })} />
+          </Field>
+          {modal.step.type === 'load_model' ? (
+            <>
+              <Field label="数据来源">
+                <Select
+                  value={modal.step.source}
+                  onChange={(e) => patchDraft({ source: e.target.value as LoadModelSource })}
+                >
+                  <option value="file">资源库文件（CSV/Excel）</option>
+                  <option value="sqlserver">SQL Server 表</option>
+                </Select>
+              </Field>
+              {modal.step.source === 'file' ? (
+                <Field label="资源文件">
+                  <Select
+                    value={modal.step.resourcePath}
+                    onChange={(e) => patchDraft({ resourcePath: e.target.value })}
                   >
-                    <option value="file">资源库文件（CSV/Excel）</option>
-                    <option value="sqlserver">SQL Server 表</option>
-                  </select>
-                </label>
-                {modal.step.source === 'file' ? (
-                  <label className="block text-sm">
-                    资源文件
-                    <select
-                      className={inputClass}
-                      value={modal.step.resourcePath}
-                      onChange={(e) => patchDraft({ resourcePath: e.target.value })}
+                    <option value="">请选择…</option>
+                    {resourceFiles.map((f) => (
+                      <option key={f.path} value={f.path}>{f.name}</option>
+                    ))}
+                  </Select>
+                </Field>
+              ) : (
+                <>
+                  <Field label="连接（SQL Server）">
+                    <Select
+                      value={modal.step.connectionId}
+                      onChange={(e) => patchDraft({ connectionId: e.target.value, object: '' })}
                     >
                       <option value="">请选择…</option>
-                      {resourceFiles.map((f) => (
-                        <option key={f.path} value={f.path}>{f.name}</option>
+                      {connections.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
-                    </select>
-                  </label>
-                ) : (
-                  <>
-                    <label className="block text-sm">
-                      连接（SQL Server）
-                      <select
-                        className={inputClass}
-                        value={modal.step.connectionId}
-                        onChange={(e) => patchDraft({ connectionId: e.target.value, object: '' })}
-                      >
-                        <option value="">请选择…</option>
-                        {connections.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="block text-sm">
-                      数据表
-                      <select
-                        className={inputClass}
-                        value={modal.step.object}
-                        onChange={(e) => patchDraft({ object: e.target.value })}
-                      >
-                        <option value="">请选择…</option>
-                        {tables.map((t) => (
-                          <option key={`${t.schema}.${t.name}`} value={`${t.schema}.${t.name}`}>
-                            {t.schema}.{t.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </>
-                )}
-                <label className="block text-sm">
-                  模型名（字母或下划线开头，仅含字母数字下划线，最长 64）
-                  <input
-                    className={`${inputClass} font-mono`}
-                    value={modal.step.modelName}
-                    onChange={(e) => patchDraft({ modelName: e.target.value })}
-                  />
-                </label>
-              </>
-            ) : modal.step.type === 'workflow' ? (
-              <label className="block text-sm">
-                工作流
-                <select className={inputClass} value={modal.step.workflowId} onChange={(e) => patchDraft({ workflowId: e.target.value })}>
+                    </Select>
+                  </Field>
+                  <Field label="数据表">
+                    <Select
+                      value={modal.step.object}
+                      onChange={(e) => patchDraft({ object: e.target.value })}
+                    >
+                      <option value="">请选择…</option>
+                      {tables.map((t) => (
+                        <option key={`${t.schema}.${t.name}`} value={`${t.schema}.${t.name}`}>
+                          {t.schema}.{t.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </>
+              )}
+              <Field label="模型名（字母或下划线开头，仅含字母数字下划线，最长 64）">
+                <Input
+                  className="font-mono"
+                  value={modal.step.modelName}
+                  onChange={(e) => patchDraft({ modelName: e.target.value })}
+                />
+              </Field>
+            </>
+          ) : modal.step.type === 'workflow' ? (
+            <Field label="工作流">
+              <Select value={modal.step.workflowId} onChange={(e) => patchDraft({ workflowId: e.target.value })}>
+                <option value="">请选择…</option>
+                {workflows.map((w) => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </Select>
+            </Field>
+          ) : (
+            <>
+              <Field label="连接（SQL Server）">
+                <Select
+                  value={modal.step.connectionId}
+                  onChange={(e) => patchDraft({ connectionId: e.target.value })}
+                >
                   <option value="">请选择…</option>
-                  {workflows.map((w) => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
+                  {connections.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
-                </select>
-              </label>
-            ) : (
-              <>
-                <label className="block text-sm">
-                  连接（SQL Server）
-                  <select className={inputClass} value={modal.step.connectionId} onChange={(e) => patchDraft({ connectionId: e.target.value })}>
-                    <option value="">请选择…</option>
-                    {connections.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block text-sm">
-                  SQL（将直接在该连接上执行）
-                  <textarea className={`${inputClass} h-28 font-mono`} value={modal.step.sql} onChange={(e) => patchDraft({ sql: e.target.value })} />
-                </label>
-              </>
-            )}
-            <label className="block text-sm">
-              失败策略
-              <select className={inputClass} value={modal.step.onFailure} onChange={(e) => patchDraft({ onFailure: e.target.value as JobOnFailure })}>
-                <option value="abort">中止（后续步骤跳过）</option>
-                <option value="continue">继续（记录失败并执行下一步）</option>
-              </select>
-            </label>
-            <div className="flex justify-end gap-2">
-              <button className="rounded border px-4 py-1.5" onClick={closeModal}>取消</button>
-              <button className="rounded bg-blue-600 px-4 py-1.5 text-white" onClick={confirmDraft}>
-                {modal.editingKey == null ? '添加' : '保存'}
-              </button>
-            </div>
-          </div>
-        </div>
+                </Select>
+              </Field>
+              <Field label="SQL（将直接在该连接上执行）">
+                <Textarea
+                  className="min-h-28 font-mono"
+                  value={modal.step.sql}
+                  onChange={(e) => patchDraft({ sql: e.target.value })}
+                />
+              </Field>
+            </>
+          )}
+          <Field label="失败策略">
+            <Select
+              value={modal.step.onFailure}
+              onChange={(e) => patchDraft({ onFailure: e.target.value as JobOnFailure })}
+            >
+              <option value="abort">中止（后续步骤跳过）</option>
+              <option value="continue">继续（记录失败并执行下一步）</option>
+            </Select>
+          </Field>
+        </Modal>
       )}
     </div>
   );
