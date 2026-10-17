@@ -21,6 +21,8 @@ interface ReportCanvasProps {
   onSelect: (id: string | null) => void;
   onLayout: (id: string, layout: WidgetLayout) => void;
   onRemove: (id: string) => void;
+  /** 只读预览：不可拖动 / 缩放 / 删除，也不显示选中框与操作按钮 */
+  readOnly?: boolean;
   /** 当前交叉高亮状态 */
   highlight?: HighlightSelection | null;
   /** 图元点击回调（sourceId 为触发高亮的视觉对象） */
@@ -72,6 +74,7 @@ export function ReportCanvas({
   onSelect,
   onLayout,
   onRemove,
+  readOnly = false,
   highlight = null,
   onPointClick,
 }: ReportCanvasProps) {
@@ -270,6 +273,7 @@ export function ReportCanvas({
       className={cn("relative", drag && "select-none")}
       style={{ height: pageH }}
       onClick={(e) => {
+        if (readOnly) return;
         if (e.target === e.currentTarget) onSelect(null);
       }}
     >
@@ -277,16 +281,18 @@ export function ReportCanvas({
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
           <LayoutDashboard className="h-10 w-10" />
           <p className="text-sm">
-            {datasets.length === 0
-              ? "请先在左侧「数据」标签中添加数据集，再新建图表"
-              : "点击「新建图表」，或从右侧数据窗格拖入字段"}
+            {readOnly
+              ? "此仪表板暂无图表"
+              : datasets.length === 0
+                ? "请先在左侧「数据」标签中添加数据集，再新建图表"
+                : "点击「新建图表」，或从右侧数据窗格拖入字段"}
           </p>
         </div>
       ) : null}
 
       {widgets.map((w) => {
         const dataset = datasets.find((d) => d.id === w.datasetId);
-        const isSelected = selectedId === w.id;
+        const isSelected = !readOnly && selectedId === w.id;
         const isDragging = drag?.id === w.id;
         const rect = isDragging && preview ? preview : w.layout;
         const showTitle = w.showTitle ?? true;
@@ -294,8 +300,8 @@ export function ReportCanvas({
         return (
           <div
             key={w.id}
-            onPointerDown={(e) => handleWidgetPointerDown(e, w)}
-            onClick={() => onSelect(w.id)}
+            onPointerDown={readOnly ? undefined : (e) => handleWidgetPointerDown(e, w)}
+            onClick={readOnly ? undefined : () => onSelect(w.id)}
             className={cn(
               "group absolute flex touch-none select-none flex-col rounded-md border bg-background shadow-sm",
               isSelected ? "z-10 ring-2 ring-[#2563eb]" : "z-0",
@@ -316,28 +322,30 @@ export function ReportCanvas({
             ) : null}
 
             {/* 悬停/选中时右上角浮出操作按钮（抓取 + 删除），不占用图表空间 */}
-            <div
-              className={cn(
-                "absolute right-1 top-1 z-20 flex items-center gap-0.5 rounded-md border bg-background/90 p-0.5 shadow-sm backdrop-blur-sm transition-opacity",
-                isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-              )}
-            >
-              <span className="flex h-6 w-5 cursor-grab items-center justify-center text-muted-foreground">
-                <GripVertical className="h-3.5 w-3.5" />
-              </span>
-              <button
-                type="button"
-                data-no-drag
-                aria-label="删除图表"
-                className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemove(w.id);
-                }}
+            {!readOnly && (
+              <div
+                className={cn(
+                  "absolute right-1 top-1 z-20 flex items-center gap-0.5 rounded-md border bg-background/90 p-0.5 shadow-sm backdrop-blur-sm transition-opacity",
+                  isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                )}
               >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
+                <span className="flex h-6 w-5 cursor-grab items-center justify-center text-muted-foreground">
+                  <GripVertical className="h-3.5 w-3.5" />
+                </span>
+                <button
+                  type="button"
+                  data-no-drag
+                  aria-label="删除图表"
+                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(w.id);
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
 
             <div className={cn("min-h-0 flex-1 overflow-hidden p-2", showTitle && title && "pt-6")}>
               <ChartRenderer

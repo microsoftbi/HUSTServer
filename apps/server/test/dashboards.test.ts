@@ -67,16 +67,16 @@ describe('dashboard routes', () => {
     expect((await app.inject({ method: 'GET', url: '/api/dashboards', headers: { cookie: bobCookie } })).statusCode).toBe(200);
   });
 
-  it('查看全部可见：viewer 列表长度 2，且可查看他人未共享单条（200）', async () => {
+  it('查看全部可见：viewer 列表长度 2，且可查看他人单条（200）', async () => {
     const aliceOwn = await createDashboard(aliceCookie, { name: 'a', payload: okPayload });
-    const shared = await createDashboard(adminCookie, { name: '公共', shared: true, payload: okPayload });
+    const adminOwn = await createDashboard(adminCookie, { name: '公共', payload: okPayload });
     expect(aliceOwn.statusCode).toBe(201);
-    expect(shared.statusCode).toBe(201);
+    expect(adminOwn.statusCode).toBe(201);
 
     const bobList = await app.inject({ method: 'GET', url: '/api/dashboards', headers: { cookie: bobCookie } });
     expect(bobList.json()).toHaveLength(2);
 
-    // viewer 可查看他人未共享的仪表板
+    // viewer 可查看他人的仪表板
     const one = await app.inject({ method: 'GET', url: `/api/dashboards/${aliceOwn.id}`, headers: { cookie: bobCookie } });
     expect(one.statusCode).toBe(200);
     expect(one.json().payload).toEqual(okPayload);
@@ -101,22 +101,6 @@ describe('dashboard routes', () => {
     const otherPut = await app.inject({ method: 'PUT', url: `/api/dashboards/${carolOwn.id}`, headers: { cookie: aliceCookie }, payload: { name: 'hacked' } });
     expect(otherPut.statusCode).toBe(403);
     expect(otherPut.json().error).toBe('无权编辑该仪表板');
-  });
-
-  it('shared 仅 admin 可置真：carol 置真被忽略；admin 置真生效后 alice 可编辑 carol 的仪表板', async () => {
-    const carolOwn = await createDashboard(carolCookie, { name: 'c', payload: okPayload });
-
-    await app.inject({ method: 'PUT', url: `/api/dashboards/${carolOwn.id}`, headers: { cookie: carolCookie }, payload: { shared: true } });
-    expect((await app.inject({ method: 'GET', url: `/api/dashboards/${carolOwn.id}`, headers: { cookie: carolCookie } })).json().shared).toBe(false);
-
-    const beforeShare = await app.inject({ method: 'PUT', url: `/api/dashboards/${carolOwn.id}`, headers: { cookie: aliceCookie }, payload: { name: 'x' } });
-    expect(beforeShare.statusCode).toBe(403);
-
-    await app.inject({ method: 'PUT', url: `/api/dashboards/${carolOwn.id}`, headers: { cookie: adminCookie }, payload: { shared: true } });
-    expect((await app.inject({ method: 'GET', url: `/api/dashboards/${carolOwn.id}`, headers: { cookie: aliceCookie } })).json().shared).toBe(true);
-
-    const afterShare = await app.inject({ method: 'PUT', url: `/api/dashboards/${carolOwn.id}`, headers: { cookie: aliceCookie }, payload: { name: 'y' } });
-    expect(afterShare.statusCode).toBe(200);
   });
 
   it('PUT 更新 name/payload，DELETE 后 404', async () => {

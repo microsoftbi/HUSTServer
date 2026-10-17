@@ -47,6 +47,16 @@ export function App() {
             }
           />
           <Route
+            path="/dashboards/:id/preview"
+            element={
+              <RequireAuth>
+                <RequireCap cap="dashboard.view">
+                  <DashboardEditorPage readOnly />
+                </RequireCap>
+              </RequireAuth>
+            }
+          />
+          <Route
             element={
               <RequireAuth>
                 <Layout />

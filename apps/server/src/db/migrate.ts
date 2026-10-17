@@ -130,7 +130,6 @@ CREATE TABLE IF NOT EXISTS dashboards (
   owner_id   TEXT REFERENCES users(id),
   name       TEXT NOT NULL,
   payload    TEXT NOT NULL,
-  shared     INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -248,6 +247,11 @@ export function migrate(db: Database): void {
   const runCols = (db.pragma('table_info(runs)') as Array<{ name: string }>).map((c) => c.name);
   if (!runCols.includes('job_run_id')) {
     db.exec('ALTER TABLE runs ADD COLUMN job_run_id TEXT REFERENCES job_runs(id) ON DELETE SET NULL');
+  }
+  // 仪表板已取消共享功能（对所有具备 dashboard.view 的用户可见），清掉历史库中的 shared 列
+  const dashCols = (db.pragma('table_info(dashboards)') as Array<{ name: string }>).map((c) => c.name);
+  if (dashCols.includes('shared')) {
+    db.exec('ALTER TABLE dashboards DROP COLUMN shared');
   }
   db.exec(JOB_INDEXES);
 }

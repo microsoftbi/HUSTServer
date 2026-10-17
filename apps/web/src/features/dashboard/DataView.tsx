@@ -489,7 +489,7 @@ function AddDatasetDialog({ mode, onClose, onAdded }: AddDatasetDialogProps) {
           </Button>
         </div>
 
-        {error ? <p className="break-all text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="break-all text-sm text-destructive">{error}</p> : null}
 
         {preview ? (
           <div className="min-w-0 space-y-2">

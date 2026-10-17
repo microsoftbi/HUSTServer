@@ -40,7 +40,10 @@ function defaultEncoding(dataset: Dataset): WidgetEncoding {
   };
 }
 
-export function DashboardView({ onAddDataset }: { onAddDataset?: () => void } = {}) {
+export function DashboardView({
+  onAddDataset,
+  readOnly = false,
+}: { onAddDataset?: () => void; readOnly?: boolean } = {}) {
   const dashboards = useDashboardStore((s) => s.dashboards);
   const activeId = useDashboardStore((s) => s.activeId);
   const setActive = useDashboardStore((s) => s.setActive);
@@ -174,7 +177,7 @@ export function DashboardView({ onAddDataset }: { onAddDataset?: () => void } = 
     if (!name) return;
     renameDashboard(active.id, name);
     setRenameOpen(false);
-    toast.success("已重命名");
+    window.alert("保存成功");
   }
 
   return (
@@ -196,41 +199,47 @@ export function DashboardView({ onAddDataset }: { onAddDataset?: () => void } = 
               {d.name}
             </button>
           ))}
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label="新建仪表盘"
-            onClick={() => addDashboard(`仪表盘 ${dashboards.length + 1}`)}
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
+          {!readOnly && (
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label="新建仪表盘"
+              onClick={() => addDashboard(`仪表盘 ${dashboards.length + 1}`)}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={!active}
-          onClick={() => {
-            setRenameValue(active?.name ?? "");
-            setRenameOpen(true);
-          }}
-        >
-          <Pencil className="h-4 w-4" />
-          重命名
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={!active || dashboards.length <= 1}
-          onClick={() => active && removeDashboard(active.id)}
-        >
-          <Trash2 className="h-4 w-4" />
-          删除
-        </Button>
-        <Button size="sm" onClick={() => handleCreate()} disabled={datasets.length === 0}>
-          <Plus className="h-4 w-4" />
-          新建图表
-        </Button>
+        {!readOnly && (
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!active}
+              onClick={() => {
+                setRenameValue(active?.name ?? "");
+                setRenameOpen(true);
+              }}
+            >
+              <Pencil className="h-4 w-4" />
+              重命名
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!active || dashboards.length <= 1}
+              onClick={() => active && removeDashboard(active.id)}
+            >
+              <Trash2 className="h-4 w-4" />
+              删除
+            </Button>
+            <Button size="sm" onClick={() => handleCreate()} disabled={datasets.length === 0}>
+              <Plus className="h-4 w-4" />
+              新建图表
+            </Button>
+          </>
+        )}
       </div>
 
       {/* 画布 + 右侧面板 */}
@@ -270,31 +279,34 @@ export function DashboardView({ onAddDataset }: { onAddDataset?: () => void } = 
               }}
               highlight={highlight}
               onPointClick={handlePointClick}
+              readOnly={readOnly}
             />
           </div>
         </div>
 
         {/* 右侧面板（Power BI 风格：可视化 / 数据 两列并排） */}
-        <aside className="flex w-[480px] shrink-0 border-l">
-          <VisualizationsPane
-            className="min-h-0 min-w-0 border-r"
-            grow={1}
-            widget={selected}
-            dataset={selectedDataset}
-            onChange={(patch) => selected && updateWidget(selected.id, patch)}
-            onCreate={handleCreate}
-            canCreate={datasets.length > 0}
-          />
-          <FieldsPane
-            className="min-h-0 min-w-0"
-            grow={1}
-            datasets={datasets}
-            datasetId={browseDataset?.id ?? null}
-            onSelectDataset={handleSelectDataset}
-            onPickField={handlePickField}
-            onAddDataset={onAddDataset}
-          />
-        </aside>
+        {!readOnly && (
+          <aside className="flex w-[480px] shrink-0 border-l">
+            <VisualizationsPane
+              className="min-h-0 min-w-0 border-r"
+              grow={1}
+              widget={selected}
+              dataset={selectedDataset}
+              onChange={(patch) => selected && updateWidget(selected.id, patch)}
+              onCreate={handleCreate}
+              canCreate={datasets.length > 0}
+            />
+            <FieldsPane
+              className="min-h-0 min-w-0"
+              grow={1}
+              datasets={datasets}
+              datasetId={browseDataset?.id ?? null}
+              onSelectDataset={handleSelectDataset}
+              onPickField={handlePickField}
+              onAddDataset={onAddDataset}
+            />
+          </aside>
+        )}
       </div>
 
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>

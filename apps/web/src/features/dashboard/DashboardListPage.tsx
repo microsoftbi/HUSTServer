@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Pencil, PenLine, Plus, Trash2 } from 'lucide-react';
 import { api } from '../../api.js';
-import { useAuth } from '../../auth.js';
+import { Button } from '../../components/ui/button.js';
+import { Card } from '../../components/ui/card.js';
+import { EmptyState } from '../../components/ui/empty-state.js';
+import { ErrorNote } from '../../components/ui/error-note.js';
+import { Field, Input } from '../../components/ui/input.js';
+import { Modal } from '../../components/ui/modal.js';
+import { PageHeader } from '../../components/ui/page-header.js';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table.js';
 import { uid } from './lib/utils';
 import type { DashboardPayload } from './types';
 
 interface DashboardSummary {
   id: string;
   name: string;
-  shared: boolean;
   owner_id: string | null;
   updated_at: number;
 }
@@ -19,7 +26,6 @@ function makeInitialPayload(): DashboardPayload {
 }
 
 export function DashboardListPage() {
-  const { hasCap } = useAuth();
   const navigate = useNavigate();
   const [items, setItems] = useState<DashboardSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +68,7 @@ export function DashboardListPage() {
     if (!name) return;
     await api.put(`/api/dashboards/${renameTarget.id}`, { body: { name } });
     setRenameTarget(null);
+    window.alert('保存成功');
     await load();
   }
 
@@ -71,119 +78,138 @@ export function DashboardListPage() {
     await load();
   }
 
-  async function toggleShared(row: DashboardSummary) {
-    await api.put(`/api/dashboards/${row.id}`, { body: { shared: !row.shared } });
-    await load();
-  }
-
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">仪表板</h1>
-        <button className="rounded bg-blue-600 px-3 py-1.5 text-white" onClick={() => setCreateOpen(true)}>
+      <PageHeader title="仪表板" description="拖拽字段即可生成图表；点击名称进入只读预览。">
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus />
           新建仪表板
-        </button>
-      </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <table className="w-full border text-left text-sm">
-        <thead className="bg-slate-100">
-          <tr>
-            <th className="p-2">名称</th>
-            <th className="p-2">共享</th>
-            <th className="p-2">更新时间</th>
-            <th className="p-2">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((row) => (
-            <tr key={row.id} className="border-t">
-              <td className="p-2">
-                <Link className="text-blue-600 underline" to={`/dashboards/${row.id}`}>
-                  {row.name}
-                </Link>
-              </td>
-              <td className="p-2">{row.shared ? '是' : '否'}</td>
-              <td className="p-2">{new Date(row.updated_at).toLocaleString()}</td>
-              <td className="space-x-2 p-2">
-                <Link className="text-blue-600 underline" to={`/dashboards/${row.id}`}>
-                  打开
-                </Link>
-                <button
-                  className="text-blue-600"
-                  onClick={() => {
-                    setRenameTarget(row);
-                    setRenameName(row.name);
-                  }}
-                >
-                  重命名
-                </button>
-                {hasCap('admin') && (
-                  <button className="text-blue-600" onClick={() => void toggleShared(row)}>
-                    {row.shared ? '取消共享' : '共享'}
-                  </button>
-                )}
-                <button className="text-red-600" onClick={() => void remove(row)}>
-                  删除
-                </button>
-              </td>
-            </tr>
-          ))}
-          {items.length === 0 && (
-            <tr>
-              <td className="p-2 text-slate-500" colSpan={4}>
-                暂无仪表板，点击右上角「新建仪表板」。
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+        </Button>
+      </PageHeader>
 
-      {createOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setCreateOpen(false)}>
-          <div className="w-full max-w-sm rounded bg-white p-4 shadow-lg" onClick={(e) => e.stopPropagation()}>
-            <h2 className="font-medium">新建仪表板</h2>
-            <input
-              className="mt-3 w-full rounded border px-3 py-1.5 text-sm"
-              placeholder="仪表板名称"
-              value={createName}
-              onChange={(e) => setCreateName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && void create()}
-              autoFocus
-            />
-            <div className="mt-4 flex justify-end gap-2">
-              <button className="rounded border px-4 py-1.5" onClick={() => setCreateOpen(false)}>
-                取消
-              </button>
-              <button className="rounded bg-blue-600 px-4 py-1.5 text-white" onClick={() => void create()}>
-                创建
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {error && <ErrorNote>{error}</ErrorNote>}
 
-      {renameTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setRenameTarget(null)}>
-          <div className="w-full max-w-sm rounded bg-white p-4 shadow-lg" onClick={(e) => e.stopPropagation()}>
-            <h2 className="font-medium">重命名仪表板</h2>
-            <input
-              className="mt-3 w-full rounded border px-3 py-1.5 text-sm"
-              value={renameName}
-              onChange={(e) => setRenameName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && void rename()}
-              autoFocus
-            />
-            <div className="mt-4 flex justify-end gap-2">
-              <button className="rounded border px-4 py-1.5" onClick={() => setRenameTarget(null)}>
-                取消
-              </button>
-              <button className="rounded bg-blue-600 px-4 py-1.5 text-white" onClick={() => void rename()}>
-                保存
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Card className="overflow-hidden">
+        {items.length === 0 ? (
+          <EmptyState
+            icon={LayoutDashboard}
+            title="暂无仪表板"
+            description="点击右上角「新建仪表板」创建第一个仪表板。"
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>名称</TableHead>
+                <TableHead className="w-64">更新时间</TableHead>
+                <TableHead className="w-64 text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell>
+                    <Link
+                      className="font-medium hover:text-primary hover:underline"
+                      to={`/dashboards/${row.id}/preview`}
+                    >
+                      {row.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {new Date(row.updated_at).toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button asChild variant="ghost" size="sm">
+                        <Link to={`/dashboards/${row.id}`}>
+                          <Pencil />
+                          编辑
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setRenameTarget(row);
+                          setRenameName(row.name);
+                        }}
+                      >
+                        <PenLine />
+                        重命名
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => void remove(row)}
+                      >
+                        <Trash2 />
+                        删除
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+
+      <Modal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title="新建仪表板"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+              取消
+            </Button>
+            <Button disabled={!createName.trim()} onClick={() => void create()}>
+              创建
+            </Button>
+          </>
+        }
+      >
+        <Field label="名称">
+          <Input
+            placeholder="仪表板名称"
+            value={createName}
+            autoFocus
+            onChange={(e) => setCreateName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void create();
+            }}
+          />
+        </Field>
+      </Modal>
+
+      <Modal
+        open={renameTarget !== null}
+        onClose={() => setRenameTarget(null)}
+        title="重命名仪表板"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setRenameTarget(null)}>
+              取消
+            </Button>
+            <Button disabled={!renameName.trim()} onClick={() => void rename()}>
+              保存
+            </Button>
+          </>
+        }
+      >
+        <Field label="名称">
+          <Input
+            value={renameName}
+            autoFocus
+            onChange={(e) => setRenameName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void rename();
+            }}
+          />
+        </Field>
+      </Modal>
     </div>
   );
 }
