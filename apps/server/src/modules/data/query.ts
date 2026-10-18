@@ -43,9 +43,15 @@ function toCell(v: unknown): QueryCell {
   return String(v);
 }
 
-export async function runQuery(conn: SqlServerConnection, query: string, limit?: number): Promise<QueryResult> {
+export async function runQuery(
+  conn: SqlServerConnection,
+  query: string,
+  limit?: number,
+  timeoutMs?: number,
+): Promise<QueryResult> {
   const cap = Math.min(Math.max(Number(limit) || DEFAULT_LIMIT, 1), MAX_LIMIT);
-  const pool = new sql.ConnectionPool(buildMssqlConfig(conn));
+  const cfg = buildMssqlConfig(conn);
+  const pool = new sql.ConnectionPool(timeoutMs ? { ...cfg, requestTimeout: timeoutMs } : cfg);
   try {
     await pool.connect();
     const result = await pool.request().query(query);

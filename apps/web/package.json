@@ -23,6 +23,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.471.2",
+    "monaco-editor": "^0.57.0",
     "papaparse": "^5.7.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

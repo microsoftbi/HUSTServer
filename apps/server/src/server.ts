@@ -3,12 +3,15 @@ import multipart from '@fastify/multipart';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Database } from 'better-sqlite3';
 import type { AppConfig } from './config.js';
+import { auditRepo } from './modules/audit/repo.js';
+import { auditRoutes } from './modules/audit/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { loginLogsRepo } from './modules/auth/loginLogs.js';
 import { sessionsRepo } from './modules/auth/sessions.js';
 import { connectionRoutes } from './modules/connections/routes.js';
 import { dataRoutes } from './modules/data/routes.js';
 import { dashboardRoutes } from './modules/dashboards/routes.js';
+import { exploreRoutes } from './modules/explore/routes.js';
 import { jobsRepo } from './modules/jobs/repo.js';
 import { jobRoutes } from './modules/jobs/routes.js';
 import { createJobService, type JobService } from './modules/jobs/service.js';
@@ -61,6 +64,10 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
   const users = usersRepo(deps.db);
   const sessions = sessionsRepo(deps.db);
   const loginLogs = loginLogsRepo(deps.db);
+  const audit = auditRepo(deps.db, {
+    // 审计写入失败只记日志，不影响业务响应
+    onError: (err) => app.log.warn({ err }, '审计日志写入失败'),
+  });
 
   const recorder = deps.overrides?.recorder ?? createRecorder(deps.db);
   const runService =
@@ -112,18 +119,19 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
   };
   syncJobScheduler();
 
-  authRoutes(app, { users, sessions, loginLogs, sessionTtlMs: deps.config.sessionTtlMs });
-  userAdminRoutes(app, { users, sessions, loginLogs });
-  workflowRoutes(app, { db: deps.db, config: deps.config, users, sessions });
-  connectionRoutes(app, { db: deps.db, config: deps.config, users, sessions });
-  dashboardRoutes(app, { db: deps.db, config: deps.config, users, sessions });
+  authRoutes(app, { users, sessions, loginLogs, audit, sessionTtlMs: deps.config.sessionTtlMs });
+  userAdminRoutes(app, { users, sessions, loginLogs, audit });
+  workflowRoutes(app, { db: deps.db, config: deps.config, users, sessions, audit });
+  connectionRoutes(app, { db: deps.db, config: deps.config, users, sessions, audit });
+  dashboardRoutes(app, { db: deps.db, config: deps.config, users, sessions, audit });
   dataRoutes(app, { db: deps.db, config: deps.config, users, sessions });
-  modelRoutes(app, { db: deps.db, config: deps.config, users, sessions, modelStore });
+  modelRoutes(app, { db: deps.db, config: deps.config, users, sessions, modelStore, audit });
   resourceRoutes(app, {
     resourceDir: deps.config.resourceDir,
     uploadDir: deps.config.uploadDir,
     users,
     sessions,
+    audit,
   });
   schemaRoutes(app, {
     db: deps.db,
@@ -133,14 +141,26 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
     users,
     sessions,
   });
-  runRoutes(app, { db: deps.db, config: deps.config, users, sessions, recorder, runService });
+  runRoutes(app, { db: deps.db, config: deps.config, users, sessions, recorder, runService, audit });
   scheduleRoutes(app, { db: deps.db, config: deps.config, users, sessions, resync: syncWorkflowScheduler });
-  jobRoutes(app, { db: deps.db, config: deps.config, users, sessions, jobService, resync: syncJobScheduler });
+  jobRoutes(app, {
+    db: deps.db,
+    config: deps.config,
+    users,
+    sessions,
+    jobService,
+    resync: syncJobScheduler,
+    audit,
+  });
 
   const settings = settingsRepo(deps.db);
   settingsRoutes(app, { config: deps.config, users, sessions, settings });
 
   overviewRoutes(app, { db: deps.db, users, sessions });
+
+  auditRoutes(app, { audit, users, sessions });
+
+  exploreRoutes(app, { db: deps.db, config: deps.config, users, sessions, modelStore });
 
   return app;
 }

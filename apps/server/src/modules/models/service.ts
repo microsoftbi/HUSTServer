@@ -62,6 +62,8 @@ export interface LoadResult {
 export interface ModelStore {
   load(cfg: LoadModelConfig, ownerId: string | null): Promise<LoadResult>;
   query(name: string, limit?: number): Promise<QueryResult>;
+  /** 数据探索：在模型库上执行只读 SQL（调用方须先做只读校验） */
+  rawQuery(sqlText: string, limit?: number): Promise<QueryResult>;
   pivot(req: PivotSpec): Promise<PivotResult>;
   distinctValues(name: string, field: string, limit?: number): Promise<DistinctResult>;
   stats(name: string): Promise<StatsResult>;
@@ -340,6 +342,26 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
     return { columns, rows, truncated: total > rows.length };
   }
 
+  /** 数据探索：在模型库上执行只读 SQL（表名即模型名，可 join 多个模型）。 */
+  async function doRawQuery(sqlText: string, limit?: number): Promise<QueryResult> {
+    const connection = await conn();
+    const cap = Math.min(Math.max(Number(limit) || DEFAULT_LIMIT, 1), MAX_LIMIT);
+    // 去掉结尾分号后包一层子查询，用 LIMIT 限制真正读入内存的行数
+    const body = sqlText.trim().replace(/[\s;]+$/, '');
+    const reader = await connection.runAndReadAll(
+      `SELECT * FROM (${body}) AS __explore_sub LIMIT ${cap + 1}`,
+    );
+    const names = reader.columnNames();
+    const raw = reader.getRowsJS() as unknown[][];
+    const columns: QueryColumn[] = names.map((col, i) => ({
+      name: col,
+      type: inferColumnType(raw.map((r) => r[i])),
+    }));
+    const truncated = raw.length > cap;
+    const rows = raw.slice(0, cap).map((r) => r.map((v) => toCell(v)));
+    return { columns, rows, truncated };
+  }
+
   async function doPivot(req: PivotSpec): Promise<PivotResult> {
     const connection = await conn();
     const known = knownColumns(repo, req.name);
@@ -466,6 +488,7 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
   return {
     load: (cfg, ownerId) => sem.run(() => doLoad(cfg, ownerId)),
     query: (name, limit) => sem.run(() => doQuery(name, limit)),
+    rawQuery: (sqlText, limit) => sem.run(() => doRawQuery(sqlText, limit)),
     pivot: (req) => sem.run(() => doPivot(req)),
     distinctValues: (name, field, limit) => sem.run(() => doDistinctValues(name, field, limit)),
     stats: (name) => sem.run(() => doStats(name)),

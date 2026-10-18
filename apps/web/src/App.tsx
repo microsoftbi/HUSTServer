@@ -3,7 +3,9 @@ import { AuthProvider, RequireAuth, RequireCap } from './auth.js';
 import { Layout } from './components/Layout.js';
 import { DashboardEditorPage } from './features/dashboard/DashboardEditorPage.js';
 import { DashboardListPage } from './features/dashboard/DashboardListPage.js';
+import { AuditPage } from './pages/AuditPage.js';
 import { ConnectionsPage } from './pages/ConnectionsPage.js';
+import { DataExplorerPage } from './pages/DataExplorerPage.js';
 import { HomePage } from './pages/HomePage.js';
 import { JobEditorPage } from './pages/JobEditorPage.js';
 import { JobListPage } from './pages/JobListPage.js';
@@ -181,6 +183,22 @@ export function App() {
               element={
                 <RequireCap cap="dashboard.view">
                   <ModelsPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/explore"
+              element={
+                <RequireCap cap="connection.use">
+                  <DataExplorerPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/audit"
+              element={
+                <RequireCap cap="admin">
+                  <AuditPage />
                 </RequireCap>
               }
             />

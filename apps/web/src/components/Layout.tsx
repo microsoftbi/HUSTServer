@@ -32,12 +32,14 @@ export function Layout() {
             {hasCap('workflow') && <NavLink to="/workflows" className={linkClass}>工作流</NavLink>}
             {hasCap('dashboard.view') && <NavLink to="/dashboards" className={linkClass}>仪表板</NavLink>}
             {hasCap('dashboard.view') && <NavLink to="/models" className={linkClass}>数据模型</NavLink>}
+            {hasCap('connection.use') && <NavLink to="/explore" className={linkClass}>数据探索</NavLink>}
             {hasCap('resources') && <NavLink to="/resources" className={linkClass}>资源管理</NavLink>}
             {hasCap('connection.manage') && <NavLink to="/connections" className={linkClass}>连接</NavLink>}
             {hasCap('job') && <NavLink to="/jobs" className={linkClass}>Job编排</NavLink>}
             {hasCap('job') && <NavLink to="/job-logs" className={linkClass}>Job日志</NavLink>}
             {hasCap('admin') && (
               <>
+                <NavLink to="/audit" className={linkClass}>系统审计</NavLink>
                 <NavLink to="/users" className={linkClass}>用户</NavLink>
                 <NavLink to="/settings" className={linkClass}>设置</NavLink>
               </>
