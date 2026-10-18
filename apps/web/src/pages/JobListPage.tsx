@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ListChecks, Pencil, Play, Trash2 } from 'lucide-react';
-import { api } from '../api.js';
+import { Download, ListChecks, Pencil, Play, Trash2, Upload } from 'lucide-react';
+import { Toaster, toast } from 'sonner';
+import { ApiClientError, api } from '../api.js';
 import { Badge } from '../components/ui/badge.js';
 import { Button } from '../components/ui/button.js';
 import { Card } from '../components/ui/card.js';
@@ -12,9 +13,30 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { RUN_STATUS_TONE, describeSchedule } from '../jobDisplay.js';
 import type { JobSummary } from '../types.js';
 
+interface ExportFile {
+  kind: string;
+  version: number;
+  exportedAt: number;
+  job: unknown;
+}
+
+/** 把后端返回的 Job 导出对象下载为 .job.json 文件 */
+function downloadExport(file: ExportFile, name: string) {
+  const text = JSON.stringify(file, null, 2);
+  const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${name.replace(/[/\\?%*:|"<>]/g, '_')}.job.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function JobListPage() {
   const [items, setItems] = useState<JobSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   async function load() {
@@ -46,9 +68,60 @@ export function JobListPage() {
     await load();
   }
 
+  async function exportJob(job: JobSummary) {
+    try {
+      const file = await api.get<ExportFile>(`/api/jobs/${job.id}/export`);
+      downloadExport(file, job.name);
+      toast.success(`已导出「${job.name}」`);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  async function importFile(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.target;
+    const file = input.files?.[0];
+    input.value = ''; // 清空以便同一文件可重复选择
+    if (!file) return;
+
+    setError(null);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch {
+      setError('文件不是合法的 JSON');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const res = await api.post<{ id: string; name: string; warnings: string[] }>('/api/jobs/import', {
+        body: parsed,
+      });
+      toast.success(`已导入「${res.name}」`);
+      for (const warning of res.warnings ?? []) toast.warning(warning);
+      navigate(`/jobs/${res.id}`);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? (err.detail ?? err.message) : (err as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader title="Job 编排" description="把工作流、SQL 与加载模型串成可定时运行的流水线。">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          onChange={(e) => void importFile(e)}
+        />
+        <Button variant="outline" disabled={importing} onClick={() => fileInputRef.current?.click()}>
+          <Upload />
+          {importing ? '导入中…' : '导入 Job'}
+        </Button>
         <Button asChild>
           <Link to="/jobs/new">新建 Job</Link>
         </Button>
@@ -72,7 +145,7 @@ export function JobListPage() {
                 <TableHead className="w-64">调度</TableHead>
                 <TableHead className="w-28">最近运行</TableHead>
                 <TableHead className="w-48">更新时间</TableHead>
-                <TableHead className="w-40 text-right">操作</TableHead>
+                <TableHead className="w-56 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -102,6 +175,10 @@ export function JobListPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => void exportJob(job)}>
+                        <Download />
+                        导出
+                      </Button>
                       <Button variant="ghost" size="sm" onClick={() => void run(job)}>
                         <Play />
                         运行
@@ -131,6 +208,8 @@ export function JobListPage() {
       </Card>
 
       {items.length > 0 && <p className="px-1 text-xs text-muted-foreground">共 {items.length} 个 Job</p>}
+
+      <Toaster position="bottom-left" />
     </div>
   );
 }

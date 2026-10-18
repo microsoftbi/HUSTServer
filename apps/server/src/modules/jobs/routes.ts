@@ -4,6 +4,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { AppConfig } from '../../config.js';
 import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { SessionsRepo } from '../auth/sessions.js';
+import type { AuditRecorder } from '../audit/repo.js';
 import { connectionsRepo } from '../connections/repo.js';
 import { MODEL_NAME_RE, type LoadModelConfig } from '../models/service.js';
 import { isAllowedResourceFile, resolveResourcePath } from '../resources/paths.js';
@@ -15,6 +16,7 @@ import {
   type JobOnFailure, type JobRow, type JobStepInput,
 } from './repo.js';
 import type { JobService } from './service.js';
+import { buildJobFile, parseJobFile } from './transfer.js';
 
 export interface JobRoutesDeps {
   db: Database;
@@ -23,6 +25,7 @@ export interface JobRoutesDeps {
   sessions: SessionsRepo;
   jobService: JobService;
   resync: () => void;
+  audit: AuditRecorder;
 }
 
 interface StepBody {
@@ -292,7 +295,64 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
       cronExpr: parsed.schedule.cronExpr, timezone: parsed.schedule.timezone, steps: parsed.steps,
     });
     deps.resync();
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'create',
+      resource: 'job',
+      resourceName: job.name,
+      description: `创建了 Job「${job.name}」`,
+    });
     return reply.code(201).send(toDetail(job));
+  });
+
+  /** 导出 Job 配置为 JSON 内容（前端另存为文件） */
+  app.get('/api/jobs/:id/export', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const job = loadJob(id, req.auth!.caps.has('admin'), req.auth!.userId, reply);
+    if (!job) return reply;
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'other',
+      resource: 'job',
+      resourceName: job.name,
+      description: `导出了 Job「${job.name}」的配置`,
+    });
+    return buildJobFile(job, jobs.listSteps(job.id), { connections, workflows });
+  });
+
+  /** 从导出的 JSON 内容导入 Job：同名自动加后缀，连接/工作流按名称重新匹配 */
+  app.post('/api/jobs/import', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
+    const isAdmin = req.auth!.caps.has('admin');
+    const userId = req.auth!.userId;
+    const existing = isAdmin ? jobs.listAll() : jobs.listForOwner(userId);
+    const parsed = parseJobFile(req.body, {
+      connections,
+      workflows,
+      isAdmin,
+      userId,
+      takenNames: new Set(existing.map((j) => j.name)),
+      defaultTimezone,
+    });
+    if (!parsed.ok) return reply.code(400).send({ error: parsed.error });
+    const job = jobs.create({
+      ownerId: userId,
+      name: parsed.data.name,
+      description: parsed.data.description,
+      enabled: parsed.data.enabled,
+      freqType: parsed.data.freqType,
+      cronExpr: parsed.data.cronExpr,
+      timezone: parsed.data.timezone,
+      steps: parsed.data.steps,
+    });
+    deps.resync();
+    deps.audit.record({
+      userId,
+      action: 'create',
+      resource: 'job',
+      resourceName: job.name,
+      description: `导入了 Job「${job.name}」`,
+    });
+    return reply.code(201).send({ id: job.id, name: job.name, warnings: parsed.data.warnings });
   });
 
   app.get('/api/jobs/:id', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
@@ -314,6 +374,13 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
       cronExpr: parsed.schedule.cronExpr, timezone: parsed.schedule.timezone, steps: parsed.steps,
     })!;
     deps.resync();
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'update',
+      resource: 'job',
+      resourceName: updated.name,
+      description: `修改了 Job「${updated.name}」`,
+    });
     return toDetail(updated);
   });
 
@@ -323,6 +390,13 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
     if (!job) return reply;
     jobs.remove(id);
     deps.resync();
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'delete',
+      resource: 'job',
+      resourceName: job.name,
+      description: `删除了 Job「${job.name}」`,
+    });
     return { ok: true };
   });
 
@@ -332,6 +406,13 @@ export function jobRoutes(app: FastifyInstance, deps: JobRoutesDeps): void {
     if (!job) return reply;
     try {
       const jobRun = deps.jobService.trigger(id, { triggerType: 'manual', triggeredBy: req.auth!.userId });
+      deps.audit.record({
+        userId: req.auth!.userId,
+        action: 'other',
+        resource: 'job',
+        resourceName: job.name,
+        description: `手动运行了 Job「${job.name}」`,
+      });
       return reply.code(202).send({ jobRunId: jobRun.id });
     } catch (err) {
       return reply.code(400).send({ error: err instanceof Error ? err.message : '触发失败' });
