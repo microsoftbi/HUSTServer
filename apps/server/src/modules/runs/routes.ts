@@ -17,6 +17,7 @@ import type { AppConfig } from '../../config.js';
 import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import type { UsersRepo } from '../users/repo.js';
+import type { AuditRecorder } from '../audit/repo.js';
 import { workflowsRepo } from '../workflows/repo.js';
 import type { Recorder } from './recorder.js';
 import { runLogsRepo, runNodeResultsRepo, runsRepo } from './repo.js';
@@ -30,6 +31,7 @@ export interface RunRoutesDeps {
   sessions: SessionsRepo;
   recorder: Recorder;
   runService: RunService;
+  audit: AuditRecorder;
 }
 
 export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
@@ -97,6 +99,13 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
       });
       // 边界节点及其全部上游：前端据此标记「已缓存」。
       const cachedNodeIds = [...ancestorNodeIds(workflow, targetNodeId), targetNodeId];
+      deps.audit.record({
+        userId: req.auth!.userId,
+        action: 'other',
+        resource: 'workflow',
+        resourceName: wf.name,
+        description: `运行了工作流「${wf.name}」`,
+      });
       return reply.code(202).send({ runId: run.id, cacheToken, cachedNodeIds });
     }
 
@@ -111,6 +120,13 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
       triggeredBy: req.auth!.userId,
       ...(targetNodeId ? { targetNodeId } : {}),
       ...(cacheToken ? { cacheToken } : {}),
+    });
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'other',
+      resource: 'workflow',
+      resourceName: wf.name,
+      description: `运行了工作流「${wf.name}」`,
     });
     return reply.code(202).send({ runId: run.id });
   });

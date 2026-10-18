@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Database } from 'better-sqlite3';
 import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { AppConfig } from '../../config.js';
+import type { AuditRecorder } from '../audit/repo.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import type { UsersRepo } from '../users/repo.js';
 import { decryptConfig, encryptConfig, maskConnection } from './crypto.js';
@@ -13,6 +14,7 @@ export interface ConnectionRouteDeps {
   config: AppConfig;
   users: UsersRepo;
   sessions: SessionsRepo;
+  audit: AuditRecorder;
 }
 
 const DECRYPT_ERROR = '连接配置无法解密';
@@ -72,6 +74,13 @@ export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps
       configEncrypted: encryptConfig(body.config, deps.config.encryptionKey),
       shared,
     });
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'create',
+      resource: 'connection',
+      resourceName: row.name,
+      description: `创建了连接「${row.name}」`,
+    });
     return reply.code(201).send(toDto(row, deps.config));
   });
 
@@ -86,6 +95,13 @@ export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps
       configEncrypted: body.config ? encryptConfig(body.config, deps.config.encryptionKey) : undefined,
       shared: req.auth!.caps.has('admin') ? body.shared : undefined,
     });
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'update',
+      resource: 'connection',
+      resourceName: updated!.name,
+      description: `修改了连接「${updated!.name}」`,
+    });
     return toDto(updated!, deps.config);
   });
 
@@ -95,6 +111,13 @@ export function connectionRoutes(app: FastifyInstance, deps: ConnectionRouteDeps
     if (!row) return reply.code(404).send({ error: '连接不存在' });
     if (!canManage(req, row)) return reply.code(403).send({ error: '无权删除该连接' });
     repo.remove(id);
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'delete',
+      resource: 'connection',
+      resourceName: row.name,
+      description: `删除了连接「${row.name}」`,
+    });
     return { ok: true };
   });
 

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import type { AuditRecorder } from '../audit/repo.js';
 import { verifyPassword } from './password.js';
 import type { LoginLogsRepo } from './loginLogs.js';
 import type { SessionsRepo } from './sessions.js';
@@ -12,13 +13,14 @@ export interface AuthRouteDeps {
   users: UsersRepo;
   sessions: SessionsRepo;
   loginLogs: LoginLogsRepo;
+  audit: AuditRecorder;
   sessionTtlMs: number;
 }
 
 export function authRoutes(app: FastifyInstance, deps: AuthRouteDeps): void {
   const guard = requireAuth({ users: deps.users, sessions: deps.sessions });
 
-  // 登录日志仅用于审计，写入失败不应阻断登录
+  // 登录日志与审计写入失败不应阻断登录
   const recordLogin = (
     input: Parameters<LoginLogsRepo['record']>[0],
     req: { ip: string; headers: Record<string, unknown> },
@@ -33,6 +35,17 @@ export function authRoutes(app: FastifyInstance, deps: AuthRouteDeps): void {
     } catch (err) {
       app.log.warn({ err }, '写入登录日志失败');
     }
+    // 登录事件同时进入系统审计列表（username 显式传入：失败时用户可能不存在）
+    deps.audit.record({
+      userId: input.userId,
+      username: input.username,
+      action: input.success ? 'login' : 'login_failed',
+      resource: 'auth',
+      resourceName: input.username,
+      description: input.success
+        ? `登录成功（${req.ip}）`
+        : `登录失败（${input.reason ?? '未知原因'}）（${req.ip}）`,
+    });
   };
 
   app.post('/api/auth/login', async (req, reply) => {

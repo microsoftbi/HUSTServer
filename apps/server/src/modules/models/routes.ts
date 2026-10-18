@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import type { AppConfig } from '../../config.js';
 import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { SessionsRepo } from '../auth/sessions.js';
+import type { AuditRecorder } from '../audit/repo.js';
 import { connectionsRepo } from '../connections/repo.js';
 import { isAllowedResourceFile, resolveResourcePath } from '../resources/paths.js';
 import type { UsersRepo } from '../users/repo.js';
@@ -23,6 +24,7 @@ export interface ModelRouteDeps {
   users: UsersRepo;
   sessions: SessionsRepo;
   modelStore: ModelStore;
+  audit: AuditRecorder;
 }
 
 /** 透视维度字段数上限（行、列各自） */
@@ -137,6 +139,13 @@ export function modelRoutes(app: FastifyInstance, deps: ModelRouteDeps): void {
 
     try {
       const result = await deps.modelStore.load(cfg, userId);
+      deps.audit.record({
+        userId: req.auth!.userId,
+        action: 'create',
+        resource: 'model',
+        resourceName: modelName,
+        description: `载入了数据模型「${modelName}」`,
+      });
       return reply.code(201).send({ name: modelName, rowCount: result.rowCount, columns: result.columns });
     } catch (err) {
       return reply
@@ -225,6 +234,13 @@ export function modelRoutes(app: FastifyInstance, deps: ModelRouteDeps): void {
     if (!repo.findByName(name)) return reply.code(404).send({ error: '模型不存在' });
     if (repo.findByName(newName)) return reply.code(409).send({ error: '模型名已存在' });
     await deps.modelStore.rename(name, newName);
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'update',
+      resource: 'model',
+      resourceName: newName,
+      description: `重命名了数据模型「${name}」为「${newName}」`,
+    });
     return { ok: true };
   });
 
@@ -232,6 +248,13 @@ export function modelRoutes(app: FastifyInstance, deps: ModelRouteDeps): void {
     const { name } = req.params as { name: string };
     if (!repo.findByName(name)) return reply.code(404).send({ error: '模型不存在' });
     await deps.modelStore.remove(name);
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'delete',
+      resource: 'model',
+      resourceName: name,
+      description: `删除了数据模型「${name}」`,
+    });
     return { ok: true };
   });
 }

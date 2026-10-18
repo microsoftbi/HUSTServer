@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { listExcelSheets } from '@hustserver/engine';
 import { requireAnyCap, requireAuth, requireCap } from '../../plugins/guards.js';
+import type { AuditRecorder } from '../audit/repo.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import type { UsersRepo } from '../users/repo.js';
 import { isAllowedResourceFile, resolveResourcePath, toResourceRel } from './paths.js';
@@ -15,6 +16,7 @@ export interface ResourceRouteDeps {
   uploadDir: string;
   users: UsersRepo;
   sessions: SessionsRepo;
+  audit: AuditRecorder;
 }
 
 interface ResourceEntry {
@@ -151,6 +153,13 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
     if (targetAbs === fromAbs) return { path: relOf(fromAbs) };
     if (fs.existsSync(targetAbs)) return reply.code(409).send({ error: '目标目录已存在同名项' });
     fs.renameSync(fromAbs, targetAbs);
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'update',
+      resource: 'resource',
+      resourceName: path.basename(targetAbs),
+      description: `移动了资源「${path.basename(targetAbs)}」`,
+    });
     return { path: relOf(targetAbs) };
   });
 
@@ -166,6 +175,13 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
     }
     if (fs.existsSync(abs)) return reply.code(409).send({ error: '同名文件夹或文件已存在' });
     fs.mkdirSync(abs, { recursive: true });
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'create',
+      resource: 'resource',
+      resourceName: name.trim(),
+      description: `新建了文件夹「${name.trim()}」`,
+    });
     return reply.code(201).send({ path: relOf(abs) });
   });
 
@@ -186,6 +202,13 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
     if (!fs.existsSync(from) || !fs.statSync(from).isDirectory()) return reply.code(404).send({ error: '目录不存在' });
     if (fs.existsSync(to)) return reply.code(409).send({ error: '同名文件夹或文件已存在' });
     fs.renameSync(from, to);
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'update',
+      resource: 'resource',
+      resourceName: path.basename(to),
+      description: `重命名了文件夹「${path.basename(from)}」为「${path.basename(to)}」`,
+    });
     return { path: relOf(to) };
   });
 
@@ -201,6 +224,13 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
     if (abs === root) return reply.code(400).send({ error: '不能删除根目录' });
     if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) return reply.code(404).send({ error: '目录不存在' });
     fs.rmSync(abs, { recursive: true, force: true });
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'delete',
+      resource: 'resource',
+      resourceName: path.basename(abs),
+      description: `删除了文件夹「${path.basename(abs)}」`,
+    });
     return { ok: true };
   });
 
@@ -226,6 +256,13 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
     fs.mkdirSync(dirAbs, { recursive: true });
     if (fs.existsSync(fileAbs)) return reply.code(409).send({ error: '同名文件已存在' });
     fs.writeFileSync(fileAbs, buf);
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'create',
+      resource: 'resource',
+      resourceName: filename,
+      description: `上传了资源文件「${filename}」`,
+    });
     return reply.code(201).send({ name: filename, path: relOf(fileAbs), size: buf.byteLength });
   });
 
@@ -247,6 +284,13 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
     if (!fs.existsSync(from) || !fs.statSync(from).isFile()) return reply.code(404).send({ error: '文件不存在' });
     if (fs.existsSync(to)) return reply.code(409).send({ error: '同名文件夹或文件已存在' });
     fs.renameSync(from, to);
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'update',
+      resource: 'resource',
+      resourceName: path.basename(to),
+      description: `重命名了资源文件「${path.basename(from)}」为「${path.basename(to)}」`,
+    });
     return { path: relOf(to) };
   });
 
@@ -261,6 +305,13 @@ export function resourceRoutes(app: FastifyInstance, deps: ResourceRouteDeps): v
     }
     if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) return reply.code(404).send({ error: '文件不存在' });
     fs.rmSync(abs, { force: true });
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'delete',
+      resource: 'resource',
+      resourceName: path.basename(abs),
+      description: `删除了资源文件「${path.basename(abs)}」`,
+    });
     return { ok: true };
   });
 

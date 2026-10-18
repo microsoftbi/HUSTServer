@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Database } from 'better-sqlite3';
 import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { AppConfig } from '../../config.js';
+import type { AuditRecorder } from '../audit/repo.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import type { UsersRepo } from '../users/repo.js';
 import { dashboardsRepo, type DashboardRow } from './repo.js';
@@ -11,6 +12,7 @@ export interface DashboardRouteDeps {
   config: AppConfig;
   users: UsersRepo;
   sessions: SessionsRepo;
+  audit: AuditRecorder;
 }
 
 const MAX_PAYLOAD_BYTES = 8 * 1024 * 1024;
@@ -52,6 +54,13 @@ export function dashboardRoutes(app: FastifyInstance, deps: DashboardRouteDeps):
       name: body.name.trim(),
       payload: JSON.stringify(body.payload),
     });
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'create',
+      resource: 'dashboard',
+      resourceName: row.name,
+      description: `创建了仪表板「${row.name}」`,
+    });
     return reply.code(201).send(toDto(row, true));
   });
 
@@ -78,6 +87,13 @@ export function dashboardRoutes(app: FastifyInstance, deps: DashboardRouteDeps):
       name: body.name?.trim(),
       payload: payloadText,
     });
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'update',
+      resource: 'dashboard',
+      resourceName: updated!.name,
+      description: `修改了仪表板「${updated!.name}」`,
+    });
     return toDto(updated!, true);
   });
 
@@ -87,6 +103,13 @@ export function dashboardRoutes(app: FastifyInstance, deps: DashboardRouteDeps):
     if (!row) return reply.code(404).send({ error: '仪表板不存在' });
     if (!canEdit(req, row)) return reply.code(403).send({ error: '无权编辑该仪表板' });
     repo.remove(id);
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'delete',
+      resource: 'dashboard',
+      resourceName: row.name,
+      description: `删除了仪表板「${row.name}」`,
+    });
     return { ok: true };
   });
 }

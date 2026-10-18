@@ -4,6 +4,7 @@ import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { AppConfig } from '../../config.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import type { UsersRepo } from '../users/repo.js';
+import type { AuditRecorder } from '../audit/repo.js';
 import { parseWorkflowPayload, WorkflowParseError } from './parse.js';
 import { decryptConfig, encryptConfig, maskConnection } from '../connections/crypto.js';
 import { testTcp } from '../connections/probe.js';
@@ -29,6 +30,7 @@ export interface WorkflowRouteDeps {
   config: AppConfig;
   users: UsersRepo;
   sessions: SessionsRepo;
+  audit: AuditRecorder;
 }
 
 function stripEmbeddedConnections(workflow: { nodes: Array<Record<string, unknown>> }) {
@@ -97,6 +99,13 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
     try {
       const parsed = parseWorkflowPayload(buf.toString('utf8'));
       // 保留内嵌连接一并返回：前端会原样回传给创建接口，用于留存为工作流私有默认配置。
+      deps.audit.record({
+        userId: req.auth!.userId,
+        action: 'create',
+        resource: 'workflow',
+        resourceName: parsed.workflow.name,
+        description: `上传了工作流「${parsed.workflow.name}」`,
+      });
       return {
         name: parsed.workflow.name,
         workflow: parsed.workflow,
@@ -132,6 +141,13 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
     if (Array.isArray(body.mappings) && body.mappings.length) {
       mappings.replaceForWorkflow(wf.id, body.mappings.map((m) => ({ ...m, workflow_id: wf.id })));
     }
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'create',
+      resource: 'workflow',
+      resourceName: wf.name,
+      description: `创建了工作流「${wf.name}」`,
+    });
     return reply.code(201).send({ id: wf.id, name: wf.name });
   });
 
@@ -184,6 +200,13 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
       wfConnections.delNotIn(wf.id, extracted.map((e) => e.nodeId));
     });
     persistConnections();
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'update',
+      resource: 'workflow',
+      resourceName: updated!.name,
+      description: `修改了工作流「${updated!.name}」`,
+    });
     return { ok: true, id: updated!.id, name: updated!.name };
   });
 
@@ -191,6 +214,13 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
     const wf = await loadChecked(req, reply);
     if (!wf) return;
     workflows.remove(wf.id);
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'delete',
+      resource: 'workflow',
+      resourceName: wf.name,
+      description: `删除了工作流「${wf.name}」`,
+    });
     return { ok: true };
   });
 
@@ -200,6 +230,13 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
     const { mappings: items } = (req.body ?? {}) as { mappings?: Array<PathMappingInput> };
     if (!Array.isArray(items)) return reply.code(400).send({ error: 'mappings 必须为数组' });
     mappings.replaceForWorkflow(wf.id, items.map((m) => ({ ...m, workflow_id: wf.id })));
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'update',
+      resource: 'workflow',
+      resourceName: wf.name,
+      description: `修改了工作流「${wf.name}」的输入绑定`,
+    });
     return { ok: true, mappings: mappings.listByWorkflow(wf.id) };
   });
 
@@ -240,6 +277,13 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
     const prev = existing ? decryptConfig(existing.config_encrypted, deps.config.encryptionKey) : {};
     const next = mergeConnectionConfig(prev, body.config);
     wfConnections.upsert({ workflowId: wf.id, nodeId, configEncrypted: encryptConfig(next, deps.config.encryptionKey) });
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'update',
+      resource: 'workflow',
+      resourceName: wf.name,
+      description: `修改了工作流「${wf.name}」的节点连接`,
+    });
     return { ok: true, node_id: nodeId, config: maskConnection(next) };
   });
 
@@ -297,6 +341,13 @@ export function workflowRoutes(app: FastifyInstance, deps: WorkflowRouteDeps): v
     });
     const row = write();
 
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'update',
+      resource: 'workflow',
+      resourceName: wf.name,
+      description: `重新上传了工作流「${wf.name}」的数据文件`,
+    });
     return reply.code(201).send({ id: row.id, stored_name: row.stored_name, size: row.size, original_ref: row.original_ref });
   });
 

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAdmin, requireAuth } from '../../plugins/guards.js';
+import type { AuditRecorder } from '../audit/repo.js';
 import type { LoginLogsRepo } from '../auth/loginLogs.js';
 import { hashPassword } from '../auth/password.js';
 import type { SessionsRepo } from '../auth/sessions.js';
@@ -29,6 +30,7 @@ export interface UserAdminDeps {
   users: UsersRepo;
   sessions: SessionsRepo;
   loginLogs: LoginLogsRepo;
+  audit: AuditRecorder;
 }
 
 export function userAdminRoutes(app: FastifyInstance, deps: UserAdminDeps): void {
@@ -54,6 +56,13 @@ export function userAdminRoutes(app: FastifyInstance, deps: UserAdminDeps): void
     if (!roles) return reply.code(400).send({ error: 'roles 必须为非空且合法的角色数组' });
     if (deps.users.findByUsername(username)) return reply.code(409).send({ error: '用户名已存在' });
     const created = deps.users.create({ username, passwordHash: await hashPassword(password), roles });
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'create',
+      resource: 'user',
+      resourceName: created.username,
+      description: `创建了用户「${created.username}」`,
+    });
     return reply.code(201).send(publicUser(created, roles));
   });
 
@@ -97,6 +106,13 @@ export function userAdminRoutes(app: FastifyInstance, deps: UserAdminDeps): void
     const updated = deps.users.update(id, { roles, status: status as UserStatus | undefined });
     if (!updated) return reply.code(404).send({ error: '用户不存在' });
     if (status === 'disabled') deps.sessions.removeByUser(id);
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'update',
+      resource: 'user',
+      resourceName: updated.username,
+      description: `修改了用户「${updated.username}」`,
+    });
     return publicUser(updated, deps.users.rolesOf(id));
   });
 
@@ -109,14 +125,29 @@ export function userAdminRoutes(app: FastifyInstance, deps: UserAdminDeps): void
     const updated = deps.users.update(id, { passwordHash: await hashPassword(password) });
     if (!updated) return reply.code(404).send({ error: '用户不存在' });
     deps.sessions.removeByUser(id);
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'other',
+      resource: 'user',
+      resourceName: updated.username,
+      description: `重置了用户「${updated.username}」的密码`,
+    });
     return { ok: true };
   });
 
   app.delete('/api/admin/users/:id', { preHandler: [auth, requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     if (id === req.auth!.userId) return reply.code(400).send({ error: '不能删除当前登录账号' });
+    const existing = deps.users.findById(id);
     const removed = deps.users.remove(id);
     if (!removed) return reply.code(404).send({ error: '用户不存在' });
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'delete',
+      resource: 'user',
+      resourceName: existing!.username,
+      description: `删除了用户「${existing!.username}」`,
+    });
     return { ok: true };
   });
 }
