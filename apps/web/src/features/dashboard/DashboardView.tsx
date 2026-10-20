@@ -18,7 +18,7 @@ import { useDashboardStore } from "@bi/stores/dashboardStore";
 import { useDatasetStore } from "@bi/stores/datasetStore";
 import { cn } from "@bi/lib/utils";
 import { uid } from "@bi/lib/utils";
-import type { ChartType, ChartWidget, Column, Dataset, WidgetEncoding } from "@bi/types";
+import type { ChartType, ChartWidget, Column } from "@bi/types";
 import { toggleSelection, type HighlightSelection } from "@bi/lib/highlight";
 
 /** 新建视觉对象的默认像素尺寸与级联偏移 */
@@ -26,19 +26,6 @@ const DEFAULT_WIDGET_W = 420;
 const DEFAULT_WIDGET_H = 280;
 const CASCADE_STEP = 28;
 const PAGE_MARGIN = 24;
-
-/** 为数据集生成一个可立即渲染的默认编码（首个非数值列作维度，首个数值列作度量） */
-function defaultEncoding(dataset: Dataset): WidgetEncoding {
-  const dimension = dataset.columns.find((c) => c.type !== "number")?.name;
-  const numeric = dataset.columns.find((c) => c.type === "number");
-  const measureField = numeric?.name ?? dataset.columns[0]?.name;
-  return {
-    dimension,
-    measures: measureField
-      ? [{ field: measureField, agg: numeric ? "sum" : "count" }]
-      : [],
-  };
-}
 
 export function DashboardView({
   onAddDataset,
@@ -119,7 +106,8 @@ export function DashboardView({
       // 标题留空 → 画布按字段自动生成（Power BI 风格），不使用数据源名称
       title: "",
       datasetId: ds.id,
-      encoding: defaultEncoding(ds),
+      // 字段留空，由用户自行拖拽
+      encoding: { measures: [] },
       layout: {
         x: PAGE_MARGIN + step,
         y: PAGE_MARGIN + step,
@@ -168,7 +156,8 @@ export function DashboardView({
     if (!selected) return;
     const ds = datasets.find((d) => d.id === id);
     if (!ds) return;
-    updateWidget(selected.id, { datasetId: id, encoding: defaultEncoding(ds) });
+    // 字段留空，由用户自行拖拽
+    updateWidget(selected.id, { datasetId: id, encoding: { measures: [] } });
   }
 
   function handleRename() {

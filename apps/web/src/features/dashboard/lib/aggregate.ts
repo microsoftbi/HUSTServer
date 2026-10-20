@@ -56,7 +56,8 @@ export function applyAgg(values: CellValue[], agg: AggregateFn): number | null {
   }
 }
 
-function labelOf(v: CellValue): string {
+/** 归一化单元格标签（空值统一为「(空)」），交叉筛选按同一规则匹配 */
+export function normalizeLabel(v: CellValue): string {
   return v === null || v === undefined || v === "" ? "(空)" : String(v);
 }
 
@@ -79,7 +80,7 @@ export function aggregate(dataset: Dataset, encoding: WidgetEncoding): Aggregate
   const groups = new Map<string, CellValue[][]>();
   const order: string[] = [];
   for (const row of dataset.rows) {
-    const key = dimIdx >= 0 ? labelOf(row[dimIdx]) : ALL_KEY;
+    const key = dimIdx >= 0 ? normalizeLabel(row[dimIdx]) : ALL_KEY;
     let bucket = groups.get(key);
     if (!bucket) {
       bucket = [];
@@ -95,7 +96,7 @@ export function aggregate(dataset: Dataset, encoding: WidgetEncoding): Aggregate
     const seriesValues: string[] = [];
     const seen = new Set<string>();
     for (const row of dataset.rows) {
-      const key = labelOf(row[seriesIdx]);
+      const key = normalizeLabel(row[seriesIdx]);
       if (!seen.has(key)) {
         seen.add(key);
         seriesValues.push(key);
@@ -106,7 +107,7 @@ export function aggregate(dataset: Dataset, encoding: WidgetEncoding): Aggregate
       const rowsInGroup = groups.get(dimKey)!;
       const datum: Record<string, string | number | null> = { [dimensionKey]: dimKey };
       for (const sv of seriesValues) {
-        const subset = rowsInGroup.filter((r) => labelOf(r[seriesIdx]) === sv);
+        const subset = rowsInGroup.filter((r) => normalizeLabel(r[seriesIdx]) === sv);
         datum[sv] = applyAgg(
           subset.map((r) => r[m.idx]),
           m.agg,

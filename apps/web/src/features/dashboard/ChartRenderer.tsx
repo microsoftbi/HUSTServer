@@ -30,7 +30,12 @@ import { DataTable } from "@bi/components/DataTable";
 import { MapChart } from "./MapChart";
 import { PivotTable } from "./PivotTable";
 import { formatCell } from "@bi/lib/format";
-import { cellOpacity, type HighlightSelection } from "@bi/lib/highlight";
+import {
+  cellOpacity,
+  filterDataset,
+  type CrossFilter,
+  type HighlightSelection,
+} from "@bi/lib/highlight";
 import type { MouseEvent } from "react";
 
 interface ChartRendererProps {
@@ -38,6 +43,8 @@ interface ChartRendererProps {
   dataset: Dataset | undefined;
   /** 当前交叉高亮状态（瞬时态，不参与聚合） */
   highlight?: HighlightSelection | null;
+  /** 来自其它视觉对象的交叉筛选条件（源视觉对象自身不传） */
+  crossFilter?: CrossFilter | null;
   /** 点击图元回调：field 为分组字段，value 为标签值，additive 表示 ⌘/Ctrl 多选 */
   onPointClick?: (field: string, value: string, additive: boolean) => void;
 }
@@ -46,6 +53,7 @@ export function ChartRenderer({
   widget,
   dataset,
   highlight = null,
+  crossFilter = null,
   onPointClick,
 }: ChartRendererProps) {
   if (!dataset) {
@@ -64,7 +72,8 @@ export function ChartRenderer({
     );
   }
 
-  const agg = aggregate(dataset, widget.encoding);
+  // 交叉筛选：按其它视觉对象选中的维度值过滤行，再重新聚合
+  const agg = aggregate(filterDataset(dataset, crossFilter), widget.encoding);
   const keys = agg.series.length > 0 ? agg.series : agg.measureKeys;
   const showLegend = widget.showLegend ?? true;
 

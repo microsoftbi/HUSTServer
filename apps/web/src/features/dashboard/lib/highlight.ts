@@ -1,4 +1,30 @@
-/** 交叉高亮：不改变聚合结果，仅按选中值调整视觉对象的透明度 */
+/** 交叉筛选/高亮：其它视觉对象按选中值过滤行后重新聚合，源视觉对象仅调整透明度 */
+
+import type { Dataset } from "@bi/types";
+import { normalizeLabel } from "./aggregate";
+
+/** 作用于其它视觉对象的行级筛选条件 */
+export interface CrossFilter {
+  field: string;
+  values: string[];
+}
+
+/**
+ * 按选中维度值过滤数据集行。
+ * 其它图表可各自使用不同维度字段，过滤后重新聚合即形成联动。
+ * 字段不存在（例如跨数据集）或条件为空时原样返回。
+ */
+export function filterDataset(
+  dataset: Dataset,
+  filter: CrossFilter | null | undefined,
+): Dataset {
+  if (!filter || filter.values.length === 0) return dataset;
+  const idx = dataset.columns.findIndex((c) => c.name === filter.field);
+  if (idx < 0) return dataset;
+  const allowed = new Set(filter.values);
+  const rows = dataset.rows.filter((row) => allowed.has(normalizeLabel(row[idx])));
+  return rows.length === dataset.rows.length ? dataset : { ...dataset, rows };
+}
 
 export interface HighlightSelection {
   /** 参与高亮的维度字段名 */

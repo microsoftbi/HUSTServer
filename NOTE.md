@@ -1,6 +1,18 @@
 Next:
+[Done]
 Job编排，元素包括：工作流，运行一个SQL脚本。
 工作流将不带有scheduler。
 只有Job级别才能有scheduler。
 
+[Done]
 对于 连接 功能，创建后，可以直接在工作流里使用。连接只制定服务器，端口，数据库。具体哪张表在工作流里制定。
+
+[Done]
+csv，excel，或者sqlserver里的数据，加一个功能叫加载成模型，其就是把数据加载到duckdb里，加载成模型的数据，也可以在仪表板里被使用板里既可以访问板里既可以访问csv,excel,sqlserver里的数据，也可以访问duckdb里的数据。
+具体的实现就是在Job编排里，加一个步骤类型，把csv,excel或者sqlserver里的数据加载成模型，就是指定 资源里的csv or excel文件，或者sqlserver里的表，然后把它们加载到duckdb里，完成数据模型的加载。
+加载成模型后，需要给模型取一个名字，然后在仪表板的设计里，就可以通过这个名字来使用这个模型了。
+
+[TODO]
+Dashboard的交互还需要测试完善下。
+
+[TODO]

@@ -252,6 +252,13 @@ CREATE TABLE IF NOT EXISTS data_models (
 );
 
 CREATE INDEX IF NOT EXISTS idx_data_models_loaded ON data_models(loaded_at DESC);
+
+-- 列类型配置：按模型名映射，columns 为 [{ name, type }] 的 JSON（仅保存被改写的列）
+CREATE TABLE IF NOT EXISTS model_column_configs (
+  model_name TEXT PRIMARY KEY,
+  columns    TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 `;
 
 export function backfillUserRoles(db: Database): void {

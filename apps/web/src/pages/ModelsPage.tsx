@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BarChart3, Database, Eye, Pencil, Plus, RefreshCw, Table2, Trash2 } from 'lucide-react';
+import {
+  BarChart3,
+  Database,
+  Eye,
+  Pencil,
+  Plus,
+  RefreshCw,
+  SlidersHorizontal,
+  Table2,
+  Trash2,
+} from 'lucide-react';
 import { api, ApiClientError } from '../api.js';
 import { useAuth } from '../auth.js';
 import { CreateModelModal, type CreatedModel } from '../components/models/CreateModelModal.js';
+import { ModelColumnConfigModal } from '../components/models/ModelColumnConfigModal.js';
 import { ModelStatsModal } from '../components/models/ModelStatsModal.js';
 import { PivotBuilder } from '../components/pivot/PivotBuilder.js';
 import { Badge } from '../components/ui/badge.js';
@@ -21,7 +32,7 @@ interface ModelColumn {
 
 interface ModelItem {
   name: string;
-  sourceKind: 'csv' | 'excel' | 'sqlserver';
+  sourceKind: 'csv' | 'excel' | 'sqlserver' | 'audit';
   sourceRef: {
     resourcePath?: string;
     format?: string;
@@ -58,10 +69,12 @@ const SOURCE_LABEL: Record<ModelItem['sourceKind'], string> = {
   csv: 'CSV 文件',
   excel: 'Excel 文件',
   sqlserver: 'SQL Server',
+  audit: '系统审计',
 };
 
 function sourceText(m: ModelItem): string {
   if (m.sourceKind === 'sqlserver') return m.sourceRef.object ?? m.sourceRef.query ?? '—';
+  if (m.sourceKind === 'audit') return '审计日志';
   return m.sourceRef.resourcePath ?? '—';
 }
 
@@ -86,6 +99,7 @@ export function ModelsPage() {
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [pivotModel, setPivotModel] = useState<ModelItem | null>(null);
   const [statsModel, setStatsModel] = useState<ModelItem | null>(null);
+  const [configModel, setConfigModel] = useState<ModelItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -197,7 +211,7 @@ export function ModelsPage() {
                 <TableHead className="w-24">行数</TableHead>
                 <TableHead className="w-24">列数</TableHead>
                 <TableHead className="w-48">加载时间</TableHead>
-                <TableHead className="w-64 text-right">操作</TableHead>
+                <TableHead className="w-[18rem] text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -214,7 +228,7 @@ export function ModelsPage() {
                   <TableCell className="text-muted-foreground">{m.columns.length}</TableCell>
                   <TableCell className="text-muted-foreground">{new Date(m.loadedAt).toLocaleString()}</TableCell>
                   <TableCell>
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="ml-auto flex max-w-[16rem] flex-wrap items-center justify-end gap-1">
                       <Button variant="ghost" size="sm" onClick={() => void openPreview(m)}>
                         <Eye />
                         数据预览
@@ -229,6 +243,10 @@ export function ModelsPage() {
                       </Button>
                       {canManage && (
                         <>
+                          <Button variant="ghost" size="sm" onClick={() => setConfigModel(m)}>
+                            <SlidersHorizontal />
+                            配置
+                          </Button>
                           <Button variant="ghost" size="sm" onClick={() => void rename(m)}>
                             <Pencil />
                             重命名
@@ -273,6 +291,16 @@ export function ModelsPage() {
         open={statsModel !== null}
         modelName={statsModel?.name ?? ''}
         onClose={() => setStatsModel(null)}
+      />
+
+      <ModelColumnConfigModal
+        open={configModel !== null}
+        modelName={configModel?.name ?? ''}
+        onClose={() => setConfigModel(null)}
+        onSaved={(count) => {
+          setNotice(`已保存模型「${configModel?.name ?? ''}」的列类型配置（${count} 列）`);
+          void load();
+        }}
       />
 
       <Modal

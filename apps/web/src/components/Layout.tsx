@@ -1,64 +1,182 @@
+import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Boxes } from 'lucide-react';
+import {
+  Boxes,
+  Compass,
+  Database,
+  FolderOpen,
+  Home,
+  LayoutDashboard,
+  ListChecks,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plug,
+  ScrollText,
+  Settings,
+  ShieldCheck,
+  Users,
+  Workflow,
+  type LucideIcon,
+} from 'lucide-react';
 import { useAuth } from '../auth.js';
 import { ROLE_LABELS } from '../roles.js';
 import { Badge } from './ui/badge.js';
 import { Button } from './ui/button.js';
 
-const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-full px-3 py-1.5 text-sm transition-colors ${
-    isActive
-      ? 'bg-primary/10 font-medium text-primary'
-      : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-  }`;
+const COLLAPSED_KEY = 'hustserver.sidebar.collapsed';
+
+function NavItem({
+  to,
+  icon: Icon,
+  label,
+  collapsed,
+  end,
+}: {
+  to: string;
+  icon: LucideIcon;
+  label: string;
+  collapsed: boolean;
+  end?: boolean;
+}) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      title={collapsed ? label : undefined}
+      className={({ isActive }) =>
+        `flex items-center gap-2.5 rounded-lg py-2 text-sm transition-colors ${
+          collapsed ? 'justify-center px-0' : 'px-3'
+        } ${
+          isActive
+            ? 'bg-primary/10 font-medium text-primary'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+        }`
+      }
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      {!collapsed && <span className="truncate">{label}</span>}
+    </NavLink>
+  );
+}
 
 export function Layout() {
   const { user, logout, hasCap } = useAuth();
   const navigate = useNavigate();
   const roleLabels = user ? user.roles.map((r) => ROLE_LABELS[r]).join('、') : '';
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(COLLAPSED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  function toggleCollapsed(): void {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0');
+      } catch {
+        /* 忽略隐私模式等场景下的写入失败 */
+      }
+      return next;
+    });
+  }
 
   return (
-    <div className="min-h-screen bg-muted/40 text-foreground">
-      <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3">
-          <span className="flex items-center gap-2 font-semibold">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
-              <Boxes className="h-4 w-4" />
-            </span>
-            私人中台
+    <div className="flex min-h-screen bg-muted/40 text-foreground">
+      <aside
+        className={`sticky top-0 flex h-screen shrink-0 flex-col border-r border-border bg-background transition-[width] duration-200 ${
+          collapsed ? 'w-[4.25rem]' : 'w-56'
+        }`}
+      >
+        <div
+          className={`flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 ${
+            collapsed ? 'justify-center' : ''
+          }`}
+        >
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
+            <Boxes className="h-4 w-4" />
           </span>
-          <nav className="flex flex-wrap items-center gap-1">
-            {hasCap('admin') && <NavLink to="/" end className={linkClass}>主页</NavLink>}
-            {hasCap('workflow') && <NavLink to="/workflows" className={linkClass}>工作流</NavLink>}
-            {hasCap('dashboard.view') && <NavLink to="/dashboards" className={linkClass}>仪表板</NavLink>}
-            {hasCap('dashboard.view') && <NavLink to="/models" className={linkClass}>数据模型</NavLink>}
-            {hasCap('connection.use') && <NavLink to="/explore" className={linkClass}>数据探索</NavLink>}
-            {hasCap('resources') && <NavLink to="/resources" className={linkClass}>资源管理</NavLink>}
-            {hasCap('connection.manage') && <NavLink to="/connections" className={linkClass}>连接</NavLink>}
-            {hasCap('job') && <NavLink to="/jobs" className={linkClass}>Job编排</NavLink>}
-            {hasCap('job') && <NavLink to="/job-logs" className={linkClass}>Job日志</NavLink>}
-            {hasCap('admin') && (
-              <>
-                <NavLink to="/audit" className={linkClass}>系统审计</NavLink>
-                <NavLink to="/users" className={linkClass}>用户</NavLink>
-                <NavLink to="/settings" className={linkClass}>设置</NavLink>
-              </>
-            )}
-          </nav>
-          <div className="ml-auto flex items-center gap-3 text-sm">
-            <span className="flex items-center gap-2">
-              <span className="font-medium">{user?.username}</span>
-              {roleLabels ? <Badge tone="neutral">{roleLabels}</Badge> : null}
-            </span>
-            <Button variant="ghost" size="sm" onClick={() => void logout().then(() => navigate('/login'))}>
-              退出
+          {!collapsed && <span className="truncate font-semibold">个人数据工作台</span>}
+        </div>
+
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
+          {hasCap('admin') && <NavItem to="/" end icon={Home} label="主页" collapsed={collapsed} />}
+          {hasCap('workflow') && (
+            <NavItem to="/workflows" icon={Workflow} label="工作流" collapsed={collapsed} />
+          )}
+          {hasCap('dashboard.view') && (
+            <NavItem to="/dashboards" icon={LayoutDashboard} label="仪表板" collapsed={collapsed} />
+          )}
+          {hasCap('dashboard.view') && (
+            <NavItem to="/models" icon={Database} label="数据模型" collapsed={collapsed} />
+          )}
+          {hasCap('connection.use') && (
+            <NavItem to="/explore" icon={Compass} label="数据探索" collapsed={collapsed} />
+          )}
+          {hasCap('resources') && (
+            <NavItem to="/resources" icon={FolderOpen} label="资源管理" collapsed={collapsed} />
+          )}
+          {hasCap('connection.manage') && (
+            <NavItem to="/connections" icon={Plug} label="连接" collapsed={collapsed} />
+          )}
+          {hasCap('job') && <NavItem to="/jobs" icon={ListChecks} label="Job编排" collapsed={collapsed} />}
+          {hasCap('job') && (
+            <NavItem to="/job-logs" icon={ScrollText} label="Job日志" collapsed={collapsed} />
+          )}
+          {hasCap('admin') && (
+            <>
+              <div aria-hidden className="my-1 h-px bg-border" />
+              <NavItem to="/audit" icon={ShieldCheck} label="系统审计" collapsed={collapsed} />
+              <NavItem to="/users" icon={Users} label="用户" collapsed={collapsed} />
+              <NavItem to="/settings" icon={Settings} label="设置" collapsed={collapsed} />
+            </>
+          )}
+        </nav>
+
+        <div className="shrink-0 border-t border-border p-2">
+          {!collapsed && (
+            <div className="mb-2 px-1">
+              <div className="truncate text-sm font-medium">{user?.username}</div>
+              {roleLabels ? (
+                <div className="mt-1">
+                  <Badge tone="neutral">{roleLabels}</Badge>
+                </div>
+              ) : null}
+            </div>
+          )}
+          <div className={collapsed ? 'flex flex-col items-center gap-1' : 'flex items-center gap-1'}>
+            <Button
+              variant="ghost"
+              size="sm"
+              title="退出登录"
+              className={collapsed ? 'w-9 justify-center px-0' : 'flex-1 justify-start'}
+              onClick={() => void logout().then(() => navigate('/login'))}
+            >
+              <LogOut className="text-destructive" />
+              {!collapsed && '退出'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              title={collapsed ? '展开菜单' : '收起菜单'}
+              className={collapsed ? 'w-9 justify-center px-0' : 'justify-center'}
+              onClick={toggleCollapsed}
+            >
+              {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+              {!collapsed && '收起'}
             </Button>
           </div>
         </div>
-      </header>
-      <main className="mx-auto max-w-6xl px-6 py-6">
-        <Outlet />
-      </main>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-6">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

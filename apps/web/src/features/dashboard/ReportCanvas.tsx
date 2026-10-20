@@ -23,7 +23,7 @@ interface ReportCanvasProps {
   onRemove: (id: string) => void;
   /** 只读预览：不可拖动 / 缩放 / 删除，也不显示选中框与操作按钮 */
   readOnly?: boolean;
-  /** 当前交叉高亮状态 */
+  /** 当前交叉筛选状态：源视觉对象变暗未选项，同数据集其它图表按选中值过滤 */
   highlight?: HighlightSelection | null;
   /** 图元点击回调（sourceId 为触发高亮的视觉对象） */
   onPointClick?: (
@@ -85,6 +85,12 @@ export function ReportCanvas({
     const maxBottom = widgets.reduce((m, w) => Math.max(m, w.layout.y + w.layout.h), 0);
     return Math.max(PAGE_MIN_H, maxBottom + PAGE_BOTTOM_GAP);
   }, [widgets]);
+
+  /** 触发交叉筛选的视觉对象所属数据集：仅同数据集内的其它图表参与过滤 */
+  const sourceDatasetId = useMemo(() => {
+    if (!highlight) return null;
+    return widgets.find((w) => w.id === highlight.sourceId)?.datasetId ?? null;
+  }, [highlight, widgets]);
 
   const [drag, setDrag] = useState<DragState | null>(null);
   const [preview, setPreview] = useState<Rect | null>(null);
@@ -295,6 +301,11 @@ export function ReportCanvas({
         const isSelected = !readOnly && selectedId === w.id;
         const isDragging = drag?.id === w.id;
         const rect = isDragging && preview ? preview : w.layout;
+        // 源视觉对象保持全量（仅变暗未选项），同数据集内的其它图表按选中值过滤后重算
+        const crossFilter =
+          highlight && dataset && highlight.sourceId !== w.id && dataset.id === sourceDatasetId
+            ? { field: highlight.field, values: highlight.values }
+            : null;
         const showTitle = w.showTitle ?? true;
         const title = w.title.trim() || autoTitle(w.encoding);
         return (
@@ -352,6 +363,7 @@ export function ReportCanvas({
                 widget={w}
                 dataset={dataset}
                 highlight={highlight}
+                crossFilter={crossFilter}
                 onPointClick={
                   onPointClick
                     ? (field, value, additive) =>

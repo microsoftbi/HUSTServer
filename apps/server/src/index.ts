@@ -65,7 +65,7 @@ async function main(): Promise<void> {
   app.scheduler.start();
   app.jobScheduler.start();
   retention.start();
-  app.log.info(`私人中台已启动：http://${cfg.host}:${cfg.port}`);
+  app.log.info(`个人数据工作台已启动：http://${cfg.host}:${cfg.port}`);
 
   let closing = false;
   const shutdown = async (signal: string): Promise<void> => {
@@ -87,6 +87,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  console.error('私人中台启动失败：', err);
+  console.error('个人数据工作台启动失败：', err);
   process.exit(1);
 });

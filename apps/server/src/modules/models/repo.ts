@@ -1,6 +1,6 @@
 import type { Database } from 'better-sqlite3';
 
-export type ModelSourceKind = 'csv' | 'excel' | 'sqlserver';
+export type ModelSourceKind = 'csv' | 'excel' | 'sqlserver' | 'audit';
 
 export interface DataModelRow {
   name: string;
@@ -27,6 +27,43 @@ export interface DataModelsRepo {
   findByName(name: string): DataModelRow | null;
   rename(oldName: string, newName: string): boolean;
   remove(name: string): boolean;
+}
+
+export interface ModelColumnConfigRow {
+  model_name: string;
+  /** [{ name, type }] 的 JSON，仅包含被用户改写的列 */
+  columns: string;
+  updated_at: number;
+}
+
+export interface ModelColumnConfigsRepo {
+  get(modelName: string): ModelColumnConfigRow | null;
+  save(modelName: string, columns: string): void;
+  remove(modelName: string): boolean;
+  rename(oldName: string, newName: string): boolean;
+}
+
+/** 列类型配置仓库：独立表，通过模型名映射到 data_models 中的模型。 */
+export function modelColumnConfigsRepo(db: Database): ModelColumnConfigsRepo {
+  const byName = db.prepare('SELECT * FROM model_column_configs WHERE model_name = ?');
+  const upsertStmt = db.prepare(`
+    INSERT INTO model_column_configs (model_name, columns, updated_at)
+    VALUES (?,?,?)
+    ON CONFLICT(model_name) DO UPDATE SET
+      columns    = excluded.columns,
+      updated_at = excluded.updated_at
+  `);
+  const del = db.prepare('DELETE FROM model_column_configs WHERE model_name = ?');
+  const renameStmt = db.prepare('UPDATE model_column_configs SET model_name = ? WHERE model_name = ?');
+
+  return {
+    get: (name) => (byName.get(name) as ModelColumnConfigRow | undefined) ?? null,
+    save(modelName, columns) {
+      upsertStmt.run(modelName, columns, Date.now());
+    },
+    remove: (name) => del.run(name).changes > 0,
+    rename: (oldName, newName) => renameStmt.run(newName, oldName).changes > 0,
+  };
 }
 
 export function dataModelsRepo(db: Database): DataModelsRepo {

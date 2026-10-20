@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCw, ScrollText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Database, RefreshCw, ScrollText } from 'lucide-react';
+import { Toaster, toast } from 'sonner';
 import { api } from '../api.js';
 import { Badge } from '../components/ui/badge.js';
 import { Button } from '../components/ui/button.js';
@@ -90,6 +91,7 @@ export function AuditPage() {
   const [action, setAction] = useState<AuditAction | ''>('');
   const [resource, setResource] = useState<AuditResource | ''>('');
   const [page, setPage] = useState(0);
+  const [loadingModel, setLoadingModel] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -130,6 +132,23 @@ export function AuditPage() {
     setPage(0);
   }
 
+  /** 把全部审计日志加载为数据模型 audit_logs（重复执行即覆盖刷新） */
+  async function loadToModel(): Promise<void> {
+    if (!window.confirm('将全部审计日志加载为数据模型 audit_logs？同名模型会被覆盖。')) return;
+    setLoadingModel(true);
+    try {
+      const res = await api.post<{ name: string; rowCount: number }>(
+        '/api/admin/audit-logs/load-model',
+      );
+      setError(null);
+      toast.success(`已加载 ${res.rowCount} 条审计日志到模型「${res.name}」`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoadingModel(false);
+    }
+  }
+
   const hasPrev = page > 0;
   const hasNext = (page + 1) * PAGE_SIZE < total;
 
@@ -139,6 +158,10 @@ export function AuditPage() {
         title="系统审计"
         description="记录谁在什么时间对哪些资源做了什么操作（仅记录本功能上线后的操作）。"
       >
+        <Button variant="outline" disabled={loadingModel} onClick={() => void loadToModel()}>
+          <Database />
+          {loadingModel ? '加载中…' : '日志加载到模型'}
+        </Button>
         <Button variant="outline" disabled={loading} onClick={() => void load()}>
           <RefreshCw />
           {loading ? '刷新中…' : '刷新'}
@@ -240,6 +263,7 @@ export function AuditPage() {
           </>
         )}
       </Card>
+      <Toaster position="bottom-left" />
     </div>
   );
 }

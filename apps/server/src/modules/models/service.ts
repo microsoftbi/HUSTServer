@@ -9,6 +9,7 @@ import {
   loadCsvInto,
   loadExcelInto,
   loadSqlServerInto,
+  materializeRows,
   openModelDb,
   promoteStagingTable,
   quoteIdent,
@@ -23,7 +24,14 @@ import { connectionsRepo } from '../connections/repo.js';
 import type { QueryCell, QueryColumn, QueryResult } from '../data/query.js';
 import { resolveResourcePath } from '../resources/paths.js';
 import { createSemaphore } from '../runs/queue.js';
-import { dataModelsRepo, type ModelSourceKind } from './repo.js';
+import {
+  coerceCell,
+  mergeColumnTypes,
+  parseColumnTypeConfig,
+  toQueryColumnType,
+  type LogicalColumnType,
+} from './columnTypes.js';
+import { dataModelsRepo, modelColumnConfigsRepo, type ModelSourceKind } from './repo.js';
 
 /** DuckDB 连接类型从 engine 公开面推导，避免 server 直接依赖 @duckdb/node-api。 */
 type DuckConnection = DuckSession['connection'];
@@ -54,6 +62,16 @@ export type LoadModelConfig =
       query?: string;
     };
 
+/** 来自内存行数据的模型（如审计日志） */
+export interface LoadRowsConfig {
+  modelName: string;
+  rows: Array<Record<string, unknown>>;
+  /** 行数据列名（空行集时用于建表） */
+  columns: string[];
+  sourceKind: ModelSourceKind;
+  sourceRef: Record<string, unknown>;
+}
+
 export interface LoadResult {
   rowCount: number;
   columns: ColumnInfo[];
@@ -61,6 +79,8 @@ export interface LoadResult {
 
 export interface ModelStore {
   load(cfg: LoadModelConfig, ownerId: string | null): Promise<LoadResult>;
+  /** 把内存中的行数据整体替换为同名模型 */
+  loadRows(cfg: LoadRowsConfig, ownerId: string | null): Promise<LoadResult>;
   query(name: string, limit?: number): Promise<QueryResult>;
   /** 数据探索：在模型库上执行只读 SQL（调用方须先做只读校验） */
   rawQuery(sqlText: string, limit?: number): Promise<QueryResult>;
@@ -169,15 +189,22 @@ function sqlLiteral(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-/** 组装透视 SQL：分组与聚合全部下推给 DuckDB。 */
-function buildPivotSql(req: PivotSpec, limit: number): string {
+/**
+ * 组装透视 SQL：分组与聚合全部下推给 DuckDB。
+ * castFields：被配置为「数字」但原始类型非数值的列，聚合前先 TRY_CAST 成 DOUBLE。
+ */
+function buildPivotSql(req: PivotSpec, limit: number, castFields: Set<string>): string {
   // 别名固定为 r0…/c0…/v0…，避免同一字段同时出现在行列两侧时重名
   const rowAliases = req.rows.map((_, i) => `r${i}`);
   const colAliases = req.columns.map((_, j) => `c${j}`);
+  const measureExpr = (field: string): string =>
+    castFields.has(field)
+      ? `TRY_CAST(${quoteIdent(field)} AS DOUBLE)`
+      : quoteIdent(field);
   const selects = [
     ...req.rows.map((f, i) => `${quoteIdent(f)} AS ${quoteIdent(rowAliases[i])}`),
     ...req.columns.map((f, j) => `${quoteIdent(f)} AS ${quoteIdent(colAliases[j])}`),
-    ...req.values.map((v, k) => `${AGG_SQL[v.agg]}(${quoteIdent(v.field)}) AS ${quoteIdent(`v${k}`)}`),
+    ...req.values.map((v, k) => `${AGG_SQL[v.agg]}(${measureExpr(v.field)}) AS ${quoteIdent(`v${k}`)}`),
   ];
   const groupBy = [...rowAliases, ...colAliases].map((a) => quoteIdent(a));
   const wheres = req.filters
@@ -198,16 +225,6 @@ function knownColumns(repo: ReturnType<typeof dataModelsRepo>, name: string): Se
   const row = repo.findByName(name);
   if (!row) return null;
   return new Set((JSON.parse(row.columns) as ColumnInfo[]).map((c) => c.name));
-}
-
-/** 模型已知列（含类型），不存在返回 null。 */
-function knownColumnInfos(
-  repo: ReturnType<typeof dataModelsRepo>,
-  name: string,
-): ColumnInfo[] | null {
-  const row = repo.findByName(name);
-  if (!row) return null;
-  return JSON.parse(row.columns) as ColumnInfo[];
 }
 
 /** 按列的首个非空值推断类型（规则与 modules/data/query.ts 一致，另兼容 DuckDB BIGINT）。 */
@@ -247,9 +264,28 @@ function quoteObjectName(object: string): string {
 export function createModelStore(deps: { db: Database; config: AppConfig }): ModelStore {
   const { db, config } = deps;
   const repo = dataModelsRepo(db);
+  const columnConfigs = modelColumnConfigsRepo(db);
   const connections = connectionsRepo(db);
   // DuckDB 单文件只允许单写者：所有读写串行
   const sem = createSemaphore(1);
+
+  /** 读取模型的列类型配置（无配置返回空对象） */
+  function columnTypeOverrides(name: string): Record<string, LogicalColumnType> {
+    return parseColumnTypeConfig(columnConfigs.get(name)?.columns ?? null);
+  }
+
+  /** 需要先 TRY_CAST 成 DOUBLE 的度量列：被配置为数字、但 DuckDB 原始类型不是数值。 */
+  function numericCastFields(name: string): Set<string> {
+    const info = repo.findByName(name);
+    if (!info) return new Set();
+    const overrides = columnTypeOverrides(name);
+    const columns = JSON.parse(info.columns) as ColumnInfo[];
+    return new Set(
+      columns
+        .filter((c) => overrides[c.name] === 'number' && !NUMERIC_TYPE_RE.test(c.type))
+        .map((c) => c.name),
+    );
+  }
 
   let session: DuckSession | null = null;
   async function conn(): Promise<DuckConnection> {
@@ -325,6 +361,34 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
     return { rowCount, columns };
   }
 
+  async function doLoadRows(
+    cfg: LoadRowsConfig,
+    ownerId: string | null,
+  ): Promise<LoadResult> {
+    const connection = await conn();
+    const staging = `__stg_${nanoid(8)}`;
+    let rowCount = 0;
+    let columns: ColumnInfo[] = [];
+    try {
+      rowCount = await materializeRows(connection, staging, cfg.rows, cfg.columns);
+      columns = await describeTable(connection, staging);
+      await promoteStagingTable(connection, cfg.modelName, staging);
+    } catch (err) {
+      await dropTable(connection, staging).catch(() => undefined);
+      throw err;
+    }
+    repo.upsert({
+      name: cfg.modelName,
+      sourceKind: cfg.sourceKind,
+      sourceRef: JSON.stringify(cfg.sourceRef),
+      ownerId,
+      loadedAt: Date.now(),
+      rowCount,
+      columns: JSON.stringify(columns),
+    });
+    return { rowCount, columns };
+  }
+
   async function doQuery(name: string, limit?: number): Promise<QueryResult> {
     const connection = await conn();
     const cap = Math.min(Math.max(Number(limit) || DEFAULT_LIMIT, 1), MAX_LIMIT);
@@ -334,11 +398,22 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
     );
     const names = reader.columnNames();
     const raw = reader.getRowsJS() as unknown[][];
-    const columns: QueryColumn[] = names.map((col, i) => ({
-      name: col,
-      type: inferColumnType(raw.map((r) => r[i])),
-    }));
-    const rows = raw.map((r) => r.map((v) => toCell(v)));
+    // 类型配置优先：命中配置的列按配置类型返回，并按该类型转换值
+    const overrides = columnTypeOverrides(name);
+    const columns: QueryColumn[] = names.map((col, i) => {
+      const override = overrides[col];
+      return {
+        name: col,
+        type: override ? toQueryColumnType(override) : inferColumnType(raw.map((r) => r[i])),
+      };
+    });
+    const rows = raw.map((r) =>
+      r.map((v, i) => {
+        const override = overrides[names[i]];
+        const cell = toCell(v);
+        return override ? coerceCell(cell, override) : cell;
+      }),
+    );
     return { columns, rows, truncated: total > rows.length };
   }
 
@@ -378,7 +453,9 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
     const cap = Math.min(Math.max(Number(req.limit) || PIVOT_DEFAULT_LIMIT, 1), PIVOT_MAX_LIMIT);
     const total = await countRows(connection, req.name);
     // 多取一行用于判定是否被截断
-    const reader = await connection.runAndReadAll(buildPivotSql(req, cap + 1));
+    const reader = await connection.runAndReadAll(
+      buildPivotSql(req, cap + 1, numericCastFields(req.name)),
+    );
     const names = reader.columnNames();
     const raw = reader.getRowsJS() as unknown[][];
     const truncated = raw.length > cap;
@@ -419,30 +496,40 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
     return { values: kept.map((r) => toCell(r[0])), truncated, limit: cap };
   }
 
-  /** 全表统计 SQL：所有列一次扫描算完，数值列追加五个统计量。 */
-  function buildStatsSql(name: string, columns: ColumnInfo[]): string {
+  /** 全表统计 SQL：所有列一次扫描算完，数值列追加五个统计量；配置为数字的文本列先 TRY_CAST。 */
+  function buildStatsSql(
+    name: string,
+    columns: ColumnInfo[],
+    rawColumns: ColumnInfo[],
+  ): string {
     const selects = ['COUNT(*) AS n'];
     columns.forEach((c, i) => {
       const col = quoteIdent(c.name);
+      const rawType = rawColumns[i]?.type ?? c.type;
+      const numeric = NUMERIC_TYPE_RE.test(c.type);
+      // 类型配置为数字、但底层是文本时，聚合前显式转数字，避免 AVG/MEDIAN 报错
+      const expr = numeric && !NUMERIC_TYPE_RE.test(rawType) ? `TRY_CAST(${col} AS DOUBLE)` : col;
       selects.push(`COUNT(${col}) AS c${i}_nonnull`);
       selects.push(`COUNT(*) - COUNT(${col}) AS c${i}_nulls`);
       selects.push(`COUNT(DISTINCT ${col}) AS c${i}_distinct`);
-      if (NUMERIC_TYPE_RE.test(c.type)) {
-        selects.push(`MIN(${col}) AS c${i}_min`);
-        selects.push(`MAX(${col}) AS c${i}_max`);
-        selects.push(`AVG(${col}) AS c${i}_avg`);
-        selects.push(`MEDIAN(${col}) AS c${i}_median`);
-        selects.push(`STDDEV_SAMP(${col}) AS c${i}_stddev`);
+      if (numeric) {
+        selects.push(`MIN(${expr}) AS c${i}_min`);
+        selects.push(`MAX(${expr}) AS c${i}_max`);
+        selects.push(`AVG(${expr}) AS c${i}_avg`);
+        selects.push(`MEDIAN(${expr}) AS c${i}_median`);
+        selects.push(`STDDEV_SAMP(${expr}) AS c${i}_stddev`);
       }
     });
     return `SELECT ${selects.join(', ')} FROM ${quoteIdent(name)}`;
   }
 
   async function doStats(name: string): Promise<StatsResult> {
-    const columns = knownColumnInfos(repo, name);
-    if (!columns) throw new Error('模型不存在');
+    const info = repo.findByName(name);
+    if (!info) throw new Error('模型不存在');
+    const rawColumns = JSON.parse(info.columns) as ColumnInfo[];
+    const columns = mergeColumnTypes(rawColumns, columnTypeOverrides(name));
     const connection = await conn();
-    const reader = await connection.runAndReadAll(buildStatsSql(name, columns));
+    const reader = await connection.runAndReadAll(buildStatsSql(name, columns, rawColumns));
     const record = (reader.getRowObjectsJS() as Array<Record<string, unknown>>)[0] ?? {};
     const count = (v: unknown): number => Number(v ?? 0);
     const maybeNumber = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
@@ -477,16 +564,20 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
     const connection = await conn();
     await connection.run(`ALTER TABLE ${quoteIdent(oldName)} RENAME TO ${quoteIdent(newName)}`);
     repo.rename(oldName, newName);
+    // 列类型配置按模型名映射，重命名后同步迁移
+    columnConfigs.rename(oldName, newName);
   }
 
   async function doRemove(name: string): Promise<void> {
     const connection = await conn();
     await dropTable(connection, name);
     repo.remove(name);
+    columnConfigs.remove(name);
   }
 
   return {
     load: (cfg, ownerId) => sem.run(() => doLoad(cfg, ownerId)),
+    loadRows: (cfg, ownerId) => sem.run(() => doLoadRows(cfg, ownerId)),
     query: (name, limit) => sem.run(() => doQuery(name, limit)),
     rawQuery: (sqlText, limit) => sem.run(() => doRawQuery(sqlText, limit)),
     pivot: (req) => sem.run(() => doPivot(req)),

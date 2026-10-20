@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import type { Database } from 'better-sqlite3';
 import type { FastifyInstance } from 'fastify';
+import type { ColumnInfo } from '@hustserver/engine';
 import type { AppConfig } from '../../config.js';
 import { requireAuth, requireCap } from '../../plugins/guards.js';
 import type { SessionsRepo } from '../auth/sessions.js';
@@ -8,7 +9,14 @@ import type { AuditRecorder } from '../audit/repo.js';
 import { connectionsRepo } from '../connections/repo.js';
 import { isAllowedResourceFile, resolveResourcePath } from '../resources/paths.js';
 import type { UsersRepo } from '../users/repo.js';
-import { dataModelsRepo } from './repo.js';
+import {
+  LOGICAL_COLUMN_TYPES,
+  mergeColumnTypes,
+  parseColumnTypeConfig,
+  type LogicalColumnType,
+  type StoredColumnType,
+} from './columnTypes.js';
+import { dataModelsRepo, modelColumnConfigsRepo } from './repo.js';
 import {
   MODEL_NAME_RE,
   PIVOT_AGGS,
@@ -97,6 +105,7 @@ function parsePivotBody(raw: unknown): { spec: PivotSpec } | { error: string } {
 export function modelRoutes(app: FastifyInstance, deps: ModelRouteDeps): void {
   const auth = requireAuth({ users: deps.users, sessions: deps.sessions });
   const repo = dataModelsRepo(deps.db);
+  const columnConfigs = modelColumnConfigsRepo(deps.db);
   const connections = connectionsRepo(deps.db);
 
   /** 直接从资源文件或 SQL Server 表载入模型（与 Job 的「加载成模型」步骤同一套 config 与校验）。 */
@@ -155,16 +164,85 @@ export function modelRoutes(app: FastifyInstance, deps: ModelRouteDeps): void {
   });
 
   app.get('/api/models', { preHandler: [auth, requireCap('dashboard.view')] }, async () => ({
-    items: repo.list().map((r) => ({
-      name: r.name,
-      sourceKind: r.source_kind,
-      sourceRef: JSON.parse(r.source_ref) as unknown,
-      ownerId: r.owner_id,
-      loadedAt: r.loaded_at,
-      rowCount: r.row_count,
-      columns: JSON.parse(r.columns) as unknown,
-    })),
+    items: repo.list().map((r) => {
+      const overrides = parseColumnTypeConfig(columnConfigs.get(r.name)?.columns ?? null);
+      return {
+        name: r.name,
+        sourceKind: r.source_kind,
+        sourceRef: JSON.parse(r.source_ref) as unknown,
+        ownerId: r.owner_id,
+        loadedAt: r.loaded_at,
+        rowCount: r.row_count,
+        // 列类型配置优先，未配置的列保持 DuckDB 原始类型
+        columns: mergeColumnTypes(JSON.parse(r.columns) as ColumnInfo[], overrides),
+      };
+    }),
   }));
+
+  /** 列类型配置：返回原始类型与当前配置（configType 为 null 表示使用原始类型）。 */
+  app.get(
+    '/api/models/:name/column-config',
+    { preHandler: [auth, requireCap('job')] },
+    async (req, reply) => {
+      const { name } = req.params as { name: string };
+      const row = repo.findByName(name);
+      if (!row) return reply.code(404).send({ error: '模型不存在' });
+      const overrides = parseColumnTypeConfig(columnConfigs.get(name)?.columns ?? null);
+      const columns = (JSON.parse(row.columns) as ColumnInfo[]).map((c) => ({
+        name: c.name,
+        type: c.type,
+        configType: overrides[c.name] ?? null,
+      }));
+      return { name, columns };
+    },
+  );
+
+  /** 保存列类型配置：type 为 null（或省略）表示恢复原始类型。 */
+  app.put(
+    '/api/models/:name/column-config',
+    { preHandler: [auth, requireCap('job')] },
+    async (req, reply) => {
+      const { name } = req.params as { name: string };
+      const row = repo.findByName(name);
+      if (!row) return reply.code(404).send({ error: '模型不存在' });
+
+      const body = (req.body ?? {}) as { columns?: unknown };
+      if (!Array.isArray(body.columns)) return reply.code(400).send({ error: 'columns 必须是数组' });
+
+      const known = new Set((JSON.parse(row.columns) as ColumnInfo[]).map((c) => c.name));
+      const seen = new Set<string>();
+      const items: StoredColumnType[] = [];
+      for (const item of body.columns) {
+        if (!item || typeof item !== 'object') {
+          return reply.code(400).send({ error: '列配置格式不合法' });
+        }
+        const { name: colName, type } = item as Record<string, unknown>;
+        if (typeof colName !== 'string' || !known.has(colName)) {
+          return reply.code(400).send({ error: `未知列：${String(colName)}` });
+        }
+        if (seen.has(colName)) return reply.code(400).send({ error: `列「${colName}」重复` });
+        seen.add(colName);
+        // 空值表示使用原始类型（不保存）
+        if (type === null || type === undefined || type === '') continue;
+        if (typeof type !== 'string' || !LOGICAL_COLUMN_TYPES.includes(type as LogicalColumnType)) {
+          return reply.code(400).send({ error: `不支持的类型：${String(type)}` });
+        }
+        items.push({ name: colName, type: type as LogicalColumnType });
+      }
+
+      if (items.length === 0) columnConfigs.remove(name);
+      else columnConfigs.save(name, JSON.stringify(items));
+
+      deps.audit.record({
+        userId: req.auth!.userId,
+        action: 'update',
+        resource: 'model',
+        resourceName: name,
+        description: `更新了数据模型「${name}」的列类型配置（${items.length} 列）`,
+      });
+      return { ok: true, count: items.length };
+    },
+  );
 
   app.post('/api/models/query', { preHandler: [auth, requireCap('dashboard.view')] }, async (req, reply) => {
     const body = (req.body ?? {}) as { name?: unknown; limit?: unknown };

@@ -49,5 +49,6 @@ export {
   loadExcelInto,
   loadSqlServerInto,
 } from './engine/model.js';
+export { materializeRows } from './engine/ingest.js';
 export type { ModelCsvConfig, ModelExcelConfig, ModelSqlServerConfig } from './engine/model.js';
 export type { NodeContext, NodeResult, NodeExecutor } from './nodes/context.js';

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
+import { ApiClientError } from '../api.js';
 import { useAuth } from '../auth.js';
 import { Button } from '../components/ui/button.js';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card.js';
@@ -23,8 +24,12 @@ export function LoginPage() {
     try {
       await login(username, password);
       navigate('/workflows', { replace: true });
-    } catch {
-      setError('用户名或密码错误');
+    } catch (err) {
+      if (err instanceof ApiClientError) {
+        setError(err.status === 401 ? '用户名或密码错误' : `登录失败：${err.detail ?? err.code}`);
+      } else {
+        setError(`无法连接到后端服务（${window.location.origin}），请确认服务已启动后重试。`);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -35,7 +40,7 @@ export function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <div className="space-y-1">
-            <CardTitle>私人中台</CardTitle>
+            <CardTitle>个人数据工作台</CardTitle>
             <CardDescription>登录以管理工作流、运行记录与系统设置。</CardDescription>
           </div>
         </CardHeader>

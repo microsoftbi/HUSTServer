@@ -53,6 +53,8 @@ export interface AuditRecorder {
 
 export interface AuditRepo extends AuditRecorder {
   list(query: AuditQuery): { items: AuditLogRow[]; total: number };
+  /** 全量导出（用于加载到数据模型），按时间正序 */
+  listAll(): AuditLogRow[];
 }
 
 export function isAuditAction(v: unknown): v is AuditAction {
@@ -119,6 +121,12 @@ export function auditRepo(db: Database, options: AuditRepoOptions = {}): AuditRe
         )
         .all(...params, limit, offset) as AuditLogRow[];
       return { items, total: c };
+    },
+
+    listAll() {
+      return db
+        .prepare('SELECT * FROM audit_logs ORDER BY created_at ASC, rowid ASC')
+        .all() as AuditLogRow[];
     },
   };
 }

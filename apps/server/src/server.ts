@@ -158,7 +158,7 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
 
   overviewRoutes(app, { db: deps.db, users, sessions });
 
-  auditRoutes(app, { audit, users, sessions });
+  auditRoutes(app, { audit, users, sessions, models: modelStore });
 
   exploreRoutes(app, { db: deps.db, config: deps.config, users, sessions, modelStore });
 
