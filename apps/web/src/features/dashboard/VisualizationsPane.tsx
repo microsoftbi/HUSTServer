@@ -24,14 +24,26 @@ import {
 } from "@bi/components/ui/select";
 import { cn } from "@bi/lib/utils";
 import { AGG_LABELS, autoTitle, CHART_TYPE_LABELS, wellLabels } from "@bi/lib/chart";
+import {
+  SLICER_TYPE_LABELS,
+  slicerOf,
+} from "@bi/lib/slicer";
+import { treemapOf } from "@bi/lib/treemap";
+import { decompositionOf } from "@bi/lib/decomposition";
 import type {
   AggregateFn,
   ChartType,
   ChartWidget,
   Column,
   Dataset,
+  DecompositionConfig,
   MapRegion,
   Measure,
+  SlicerConfig,
+  SlicerSelectionMode,
+  SlicerType,
+  TreemapColorMode,
+  TreemapConfig,
 } from "@bi/types";
 
 const CHART_TYPES = Object.keys(CHART_ICONS) as ChartType[];
@@ -79,6 +91,9 @@ export function VisualizationsPane({
     if (!widget) return;
     if (well === "dimension") setEncoding({ dimension: field });
     else if (well === "series") setEncoding({ series: field });
+    else if (widget.type === "decomposition")
+      // 分解树只使用一个度量（与 Power BI 一致）
+      setEncoding({ measures: [{ field, agg: defaultAgg(field) }] });
     else
       setEncoding({
         measures: [...widget.encoding.measures, { field, agg: defaultAgg(field) }],
@@ -99,8 +114,49 @@ export function VisualizationsPane({
     });
   }
 
+  function addFilterField(field: string) {
+    if (!widget) return;
+    const fields = widget.filterFields ?? [];
+    if (fields.includes(field)) return;
+    const next = [...fields, field];
+    const cfg = slicerOf(widget);
+    // 与 Power BI 一致：拖入第二个字段时自动切换为层次结构切片器
+    const autoHierarchy =
+      next.length > 1 && (cfg.type === "list" || cfg.type === "dropdown");
+    onChange({
+      filterFields: next,
+      ...(autoHierarchy ? { slicer: { ...cfg, type: "hierarchy" } } : {}),
+    });
+  }
+
+  function removeFilterField(field: string) {
+    if (!widget) return;
+    const next = (widget.filterFields ?? []).filter((f) => f !== field);
+    const cfg = slicerOf(widget);
+    // 层次结构只剩一个字段时回落到列表切片器
+    const backToList = next.length <= 1 && cfg.type === "hierarchy";
+    onChange({
+      filterFields: next,
+      ...(backToList ? { slicer: { ...cfg, type: "list" } } : {}),
+    });
+  }
+
+  /** 分解树：追加 / 移除「说明依据」字段 */
+  function addExplainField(field: string) {
+    if (!widget) return;
+    const fields = widget.explainBy ?? [];
+    if (fields.includes(field)) return;
+    onChange({ explainBy: [...fields, field] });
+  }
+
+  function removeExplainField(field: string) {
+    if (!widget) return;
+    onChange({ explainBy: (widget.explainBy ?? []).filter((f) => f !== field) });
+  }
+
   const columns: Column[] = dataset?.columns ?? [];
   const labels = wellLabels(widget?.type ?? "bar");
+  const isDecomp = widget?.type === "decomposition";
 
   return (
     <div
@@ -172,17 +228,30 @@ export function VisualizationsPane({
                       const Icon = CHART_ICONS[t];
                       const active = widget?.type === t;
                       const disabled = !widget && !canCreate;
+                      const isFilter = t === "filter";
                       return (
                         <button
                           key={t}
                           type="button"
-                          title={CHART_TYPE_LABELS[t]}
+                          title={
+                            isFilter
+                              ? "切片器（拖到画布）"
+                              : CHART_TYPE_LABELS[t]
+                          }
                           aria-label={CHART_TYPE_LABELS[t]}
                           aria-pressed={active}
                           disabled={disabled}
-                          onClick={() =>
-                            widget ? onChange({ type: t }) : onCreate(t)
-                          }
+                          draggable={isFilter && canCreate}
+                          onDragStart={(e) => {
+                            if (!isFilter) return;
+                            e.dataTransfer.setData("application/x-bi-visual", "filter");
+                            e.dataTransfer.effectAllowed = "copy";
+                          }}
+                          onClick={() => {
+                            // 切片器始终新建一个视觉对象，避免把已有图表改造成切片器
+                            if (isFilter || !widget) onCreate(t);
+                            else onChange({ type: t });
+                          }}
                           className={cn(
                             "flex h-8 items-center justify-center rounded border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground",
                             active && "border-primary/50 bg-primary/10 text-primary",
@@ -220,15 +289,71 @@ export function VisualizationsPane({
                       ? "选择一种图表类型以新建可视化，或点击画布中的图表进行编辑。"
                       : "请先在左侧「数据」标签中添加数据集。"}
                   </p>
-                ) : (
+                ) : widget.type === "filter" ? (
                   <div className="space-y-2.5">
                     <Well
-                      title={labels.dimension}
-                      placeholder="将字段拖到此处"
-                      field={widget.encoding.dimension}
-                      onDropField={(f) => addField(f, "dimension")}
-                      onClear={() => setEncoding({ dimension: undefined })}
-                    />
+                      title="筛选字段"
+                      placeholder="将字段拖到此处，或点击数据窗格中的字段添加"
+                      empty={(widget.filterFields ?? []).length === 0}
+                      onDropField={addFilterField}
+                    >
+                      {(widget.filterFields ?? []).map((f) => (
+                        <div
+                          key={f}
+                          className="flex items-center gap-1 rounded bg-secondary px-1.5 py-1 text-xs"
+                        >
+                          <span className="flex-1 truncate">{f}</span>
+                          <button
+                            type="button"
+                            aria-label="移除筛选字段"
+                            onClick={() => removeFilterField(f)}
+                            className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </Well>
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                      拖入一个字段即为列表/下拉切片器；拖入多个字段可切换为「层次结构」。
+                      选中值后立即过滤本页所有图表。
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {isDecomp ? (
+                      <Well
+                        title="说明依据"
+                        placeholder="将维度字段拖到此处，可添加多个"
+                        empty={(widget.explainBy ?? []).length === 0}
+                        onDropField={addExplainField}
+                      >
+                        {(widget.explainBy ?? []).map((f) => (
+                          <div
+                            key={f}
+                            className="flex items-center gap-1 rounded bg-secondary px-1.5 py-1 text-xs"
+                          >
+                            <span className="flex-1 truncate">{f}</span>
+                            <button
+                              type="button"
+                              aria-label="移除说明依据"
+                              onClick={() => removeExplainField(f)}
+                              className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </Well>
+                    ) : (
+                      <Well
+                        title={labels.dimension}
+                        placeholder="将字段拖到此处"
+                        field={widget.encoding.dimension}
+                        onDropField={(f) => addField(f, "dimension")}
+                        onClear={() => setEncoding({ dimension: undefined })}
+                      />
+                    )}
                     <Well
                       title={labels.measures}
                       placeholder="将字段拖到此处，或点击字段添加"
@@ -283,13 +408,15 @@ export function VisualizationsPane({
                         </div>
                       ))}
                     </Well>
-                    <Well
-                      title={labels.series}
-                      placeholder="将字段拖到此处（可选）"
-                      field={widget.encoding.series}
-                      onDropField={(f) => addField(f, "series")}
-                      onClear={() => setEncoding({ series: undefined })}
-                    />
+                    {isDecomp ? null : (
+                      <Well
+                        title={labels.series}
+                        placeholder="将字段拖到此处（可选）"
+                        field={widget.encoding.series}
+                        onDropField={(f) => addField(f, "series")}
+                        onClear={() => setEncoding({ series: undefined })}
+                      />
+                    )}
 
                     <Button
                       size="sm"
@@ -301,6 +428,12 @@ export function VisualizationsPane({
                       <Plus className="h-3.5 w-3.5" />
                       添加度量
                     </Button>
+                    {isDecomp ? (
+                      <p className="text-[11px] leading-relaxed text-muted-foreground">
+                        数值列作为「分析」度量，维度列作为「说明依据」。点击节点上的 + 选择拆分字段，
+                        展开状态会随视觉对象保存。
+                      </p>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -330,6 +463,10 @@ function FormatSection({
         请选择画布中的视觉对象以设置格式。
       </p>
     );
+  }
+
+  if (widget.type === "filter") {
+    return <SlicerFormat widget={widget} onChange={onChange} />;
   }
 
   return (
@@ -363,8 +500,9 @@ function FormatSection({
           disabled={
             widget.type === "table" ||
             widget.type === "kpi" ||
-            widget.type === "treemap" ||
-            widget.type === "funnel"
+            widget.type === "funnel" ||
+            widget.type === "decomposition" ||
+            (widget.type === "treemap" && !widget.encoding.series)
           }
         />
       </FormatGroup>
@@ -409,6 +547,437 @@ function FormatSection({
           />
         </FormatGroup>
       ) : null}
+      {widget.type === "treemap" ? (
+        <TreemapFormat widget={widget} onChange={onChange} />
+      ) : null}
+      {widget.type === "decomposition" ? (
+        <DecompositionFormat widget={widget} onChange={onChange} />
+      ) : null}
+    </div>
+  );
+}
+
+/** 树状图格式分区（对齐 Power BI「设置视觉对象格式 → 树状图」） */
+function TreemapFormat({
+  widget,
+  onChange,
+}: {
+  widget: ChartWidget;
+  onChange: (patch: Partial<ChartWidget>) => void;
+}) {
+  const cfg = treemapOf(widget);
+  const update = (patch: Partial<TreemapConfig>) =>
+    onChange({ treemap: { ...cfg, ...patch } });
+
+  return (
+    <div className="space-y-1.5">
+      <FormatGroup title="树状图" defaultOpen>
+        <div className="space-y-1 pb-1">
+          <Label htmlFor="fmt-treemap-color" className="text-xs text-muted-foreground">
+            配色方式
+          </Label>
+          <Select
+            value={cfg.colorMode}
+            onValueChange={(v) => update({ colorMode: v as TreemapColorMode })}
+          >
+            <SelectTrigger id="fmt-treemap-color" className="h-7 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="category" className="text-xs">
+                按类别（详细信息）
+              </SelectItem>
+              <SelectItem value="value" className="text-xs">
+                按值渐变
+              </SelectItem>
+              <SelectItem value="single" className="text-xs">
+                单色
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {cfg.colorMode !== "category" ? (
+          <ColorRow
+            id="fmt-treemap-base"
+            label="基础颜色"
+            value={cfg.baseColor}
+            onChange={(v) => update({ baseColor: v })}
+          />
+        ) : null}
+        <div className="flex items-center justify-between py-1">
+          <Label htmlFor="fmt-treemap-gap" className="text-xs font-normal">
+            分组间距
+          </Label>
+          <Input
+            id="fmt-treemap-gap"
+            type="number"
+            min={0}
+            max={8}
+            value={cfg.groupPadding}
+            onChange={(e) =>
+              update({
+                groupPadding: Math.min(8, Math.max(0, Number(e.target.value) || 0)),
+              })
+            }
+            className="h-6 w-16 text-xs"
+          />
+        </div>
+        <ToggleRow
+          id="fmt-treemap-border"
+          label="显示边框"
+          checked={cfg.showBorder}
+          onChange={(v) => update({ showBorder: v })}
+        />
+      </FormatGroup>
+
+      <FormatGroup title="数据标签" defaultOpen>
+        <ToggleRow
+          id="fmt-treemap-category-label"
+          label="显示类别标签"
+          checked={cfg.showCategoryLabels}
+          onChange={(v) => update({ showCategoryLabels: v })}
+        />
+        <ToggleRow
+          id="fmt-treemap-value-label"
+          label="显示值"
+          checked={cfg.showValueLabels}
+          onChange={(v) => update({ showValueLabels: v })}
+        />
+        <div className="flex items-center justify-between py-1">
+          <Label htmlFor="fmt-treemap-font" className="text-xs font-normal">
+            最大字号
+          </Label>
+          <Input
+            id="fmt-treemap-font"
+            type="number"
+            min={8}
+            max={24}
+            value={cfg.labelFontSize}
+            onChange={(e) =>
+              update({
+                labelFontSize: Math.min(24, Math.max(8, Number(e.target.value) || 12)),
+              })
+            }
+            className="h-6 w-16 text-xs"
+          />
+        </div>
+        <ColorRow
+          id="fmt-treemap-label-color"
+          label="标签颜色"
+          value={cfg.labelColor}
+          onChange={(v) => update({ labelColor: v })}
+        />
+      </FormatGroup>
+    </div>
+  );
+}
+
+/** 分解树格式分区（对齐 Power BI「设置视觉对象格式 → 分解树」） */
+function DecompositionFormat({
+  widget,
+  onChange,
+}: {
+  widget: ChartWidget;
+  onChange: (patch: Partial<ChartWidget>) => void;
+}) {
+  const cfg = decompositionOf(widget);
+  const update = (patch: Partial<DecompositionConfig>) =>
+    onChange({ decomposition: { ...cfg, ...patch } });
+
+  return (
+    <div className="space-y-1.5">
+      <FormatGroup title="分解树" defaultOpen>
+        <ToggleRow
+          id="fmt-decomp-bars"
+          label="显示数据条"
+          checked={cfg.showBars}
+          onChange={(v) => update({ showBars: v })}
+        />
+        {cfg.showBars ? (
+          <ColorRow
+            id="fmt-decomp-color"
+            label="数据条颜色"
+            value={cfg.baseColor}
+            onChange={(v) => update({ baseColor: v })}
+          />
+        ) : null}
+        <div className="flex items-center justify-between py-1">
+          <Label htmlFor="fmt-decomp-max" className="text-xs font-normal">
+            每级最大节点数
+          </Label>
+          <Input
+            id="fmt-decomp-max"
+            type="number"
+            min={2}
+            max={20}
+            value={cfg.maxBars}
+            onChange={(e) =>
+              update({
+                maxBars: Math.min(20, Math.max(2, Number(e.target.value) || 6)),
+              })
+            }
+            className="h-6 w-16 text-xs"
+          />
+        </div>
+        <ToggleRow
+          id="fmt-decomp-headers"
+          label="显示级别标题"
+          checked={cfg.showLevelHeaders}
+          onChange={(v) => update({ showLevelHeaders: v })}
+        />
+        <ToggleRow
+          id="fmt-decomp-connectors"
+          label="显示连接线"
+          checked={cfg.showConnectors}
+          onChange={(v) => update({ showConnectors: v })}
+        />
+        <ToggleRow
+          id="fmt-decomp-ai"
+          label="启用 AI 拆分（高值 / 低值）"
+          checked={cfg.aiSplits}
+          onChange={(v) => update({ aiSplits: v })}
+        />
+      </FormatGroup>
+
+      <FormatGroup title="数据标签" defaultOpen>
+        <ToggleRow
+          id="fmt-decomp-values"
+          label="显示值"
+          checked={cfg.showValues}
+          onChange={(v) => update({ showValues: v })}
+        />
+        <ColorRow
+          id="fmt-decomp-label-color"
+          label="标签颜色"
+          value={cfg.labelColor}
+          onChange={(v) => update({ labelColor: v })}
+        />
+        <div className="flex items-center justify-between py-1">
+          <Label htmlFor="fmt-decomp-font" className="text-xs font-normal">
+            字号
+          </Label>
+          <Input
+            id="fmt-decomp-font"
+            type="number"
+            min={8}
+            max={20}
+            value={cfg.fontSize}
+            onChange={(e) =>
+              update({
+                fontSize: Math.min(20, Math.max(8, Number(e.target.value) || 11)),
+              })
+            }
+            className="h-6 w-16 text-xs"
+          />
+        </div>
+      </FormatGroup>
+    </div>
+  );
+}
+
+/** 切片器格式分区（对齐 Power BI「设置视觉对象格式 → 切片器」） */
+function SlicerFormat({
+  widget,
+  onChange,
+}: {
+  widget: ChartWidget;
+  onChange: (patch: Partial<ChartWidget>) => void;
+}) {
+  const cfg = slicerOf(widget);
+  const fields = widget.filterFields ?? [];
+  const update = (patch: Partial<SlicerConfig>) =>
+    onChange({ slicer: { ...cfg, ...patch } });
+
+  const listLike = cfg.type === "list" || cfg.type === "dropdown";
+  const rangeLike =
+    cfg.type === "between" || cfg.type === "before" || cfg.type === "after";
+
+  return (
+    <div className="space-y-1.5">
+      <FormatGroup title="切片器" defaultOpen>
+        <div className="space-y-1 pb-1">
+          <Label htmlFor="slicer-type" className="text-xs text-muted-foreground">
+            切片器类型
+          </Label>
+          <Select
+            value={cfg.type}
+            onValueChange={(v) => update({ type: v as SlicerType })}
+          >
+            <SelectTrigger id="slicer-type" className="h-7 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(SLICER_TYPE_LABELS) as SlicerType[]).map((t) => (
+                <SelectItem key={t} value={t} className="text-xs">
+                  {SLICER_TYPE_LABELS[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1 pb-1">
+          <Label
+            htmlFor="slicer-mode"
+            className="text-xs text-muted-foreground"
+          >
+            选择模式
+          </Label>
+          <Select
+            value={cfg.selectionMode}
+            onValueChange={(v) =>
+              update({ selectionMode: v as SlicerSelectionMode })
+            }
+          >
+            <SelectTrigger id="slicer-mode" className="h-7 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="single" className="text-xs">
+                单选
+              </SelectItem>
+              <SelectItem value="multi" className="text-xs">
+                多选（⌘/Ctrl 追加）
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {cfg.type === "hierarchy" && fields.length < 2 ? (
+          <p className="pb-1 text-[11px] leading-relaxed text-muted-foreground">
+            层次结构需要两个及以上字段，请继续往「筛选字段」中拖入。
+          </p>
+        ) : null}
+        {rangeLike && fields.length !== 1 ? (
+          <p className="pb-1 text-[11px] leading-relaxed text-muted-foreground">
+            每个字段各生成一个独立的区间筛选条件。
+          </p>
+        ) : null}
+
+        {listLike ? (
+          <>
+            <ToggleRow
+              id="slicer-select-all"
+              label="显示「全选」"
+              checked={cfg.showSelectAll}
+              onChange={(v) => update({ showSelectAll: v })}
+            />
+            <ToggleRow
+              id="slicer-search"
+              label="显示搜索框"
+              checked={cfg.searchable}
+              onChange={(v) => update({ searchable: v })}
+            />
+            {cfg.type === "list" ? (
+              <ToggleRow
+                id="slicer-horizontal"
+                label="水平排列"
+                checked={cfg.horizontal}
+                onChange={(v) => update({ horizontal: v })}
+              />
+            ) : null}
+          </>
+        ) : null}
+      </FormatGroup>
+
+      <FormatGroup title="标题" defaultOpen>
+        <ToggleRow
+          id="slicer-header"
+          label="显示标题"
+          checked={cfg.showHeader}
+          onChange={(v) => update({ showHeader: v })}
+        />
+        <div className="space-y-1 pt-1">
+          <Label
+            htmlFor="slicer-header-text"
+            className="text-xs text-muted-foreground"
+          >
+            标题文本
+          </Label>
+          <Input
+            id="slicer-header-text"
+            value={cfg.headerText ?? ""}
+            onChange={(e) => update({ headerText: e.target.value })}
+            placeholder={fields.join(" / ") || "留空则显示字段名"}
+            className="h-7 text-xs"
+          />
+        </div>
+      </FormatGroup>
+
+      <FormatGroup title="值" defaultOpen>
+        <div className="flex items-center justify-between py-1">
+          <Label htmlFor="slicer-font" className="text-xs font-normal">
+            字号
+          </Label>
+          <Input
+            id="slicer-font"
+            type="number"
+            min={8}
+            max={30}
+            value={cfg.fontSize}
+            onChange={(e) =>
+              update({
+                fontSize: Math.min(30, Math.max(8, Number(e.target.value) || 12)),
+              })
+            }
+            className="h-6 w-16 text-xs"
+          />
+        </div>
+        <ColorRow
+          id="slicer-accent"
+          label="选中颜色"
+          value={cfg.accentColor}
+          onChange={(v) => update({ accentColor: v })}
+        />
+        <ColorRow
+          id="slicer-font-color"
+          label="字体颜色"
+          value={cfg.fontColor}
+          onChange={(v) => update({ fontColor: v })}
+        />
+      </FormatGroup>
+
+      <FormatGroup title="背景与边框" defaultOpen>
+        <ColorRow
+          id="slicer-bg"
+          label="背景色"
+          value={cfg.backgroundColor}
+          onChange={(v) => update({ backgroundColor: v })}
+        />
+        <ToggleRow
+          id="slicer-border"
+          label="显示边框"
+          checked={cfg.showBorder}
+          onChange={(v) => update({ showBorder: v })}
+        />
+      </FormatGroup>
+    </div>
+  );
+}
+
+function ColorRow({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between py-1">
+      <Label htmlFor={id} className="text-xs font-normal">
+        {label}
+      </Label>
+      <input
+        id={id}
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-6 w-9 cursor-pointer rounded border border-border bg-transparent p-0"
+      />
     </div>
   );
 }

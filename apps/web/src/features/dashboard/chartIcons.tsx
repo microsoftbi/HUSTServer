@@ -232,6 +232,24 @@ export const CHART_ICONS: Record<
     </Svg>
   ),
 
+  // 分解树（根节点向右逐层拆分）
+  decomposition: (p) => (
+    <Svg {...p}>
+      <path
+        d="M7 12 H10 V6 H14 M10 12 V18 H14"
+        fill="none"
+        stroke={C.gray}
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <rect x="3" y="9" width="4.5" height="6" rx="0.8" fill={C.blue} />
+      <rect x="14" y="4" width="7" height="4" rx="0.8" fill={C.orange} />
+      <rect x="14" y="10" width="5.5" height="4" rx="0.8" fill={C.violet} />
+      <rect x="14" y="16" width="7" height="4" rx="0.8" fill={C.yellow} />
+    </Svg>
+  ),
+
   // 漏斗图
   funnel: (p) => (
     <Svg {...p}>
@@ -346,6 +364,42 @@ export const CHART_ICONS: Record<
       <rect x="16.4" y="9.9" width="3.7" height="4.2" fill={C.orange} fillOpacity="0.35" />
       <rect x="10.9" y="15.9" width="3.7" height="3.2" fill={C.yellow} fillOpacity="0.5" />
       <rect x="16.4" y="15.9" width="3.7" height="3.2" fill={C.yellow} fillOpacity="0.5" />
+    </Svg>
+  ),
+
+  // 切片器（列表 + 勾选项）
+  filter: (p) => (
+    <Svg {...p}>
+      <rect
+        x="3"
+        y="4"
+        width="18"
+        height="16"
+        rx="1.6"
+        fill="none"
+        stroke={C.navy}
+        strokeWidth="1.3"
+      />
+      <rect x="5.4" y="7" width="3" height="3" rx="0.6" fill={C.blue} />
+      <path
+        d="M6.2 8.5 L7 9.4 L8.1 7.4"
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth="0.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <rect x="10" y="7.6" width="7.5" height="1.8" rx="0.9" fill={C.gray} />
+      <rect x="5.4" y="12" width="3" height="3" rx="0.6" fill={C.orange} />
+      <path
+        d="M6.2 13.5 L7 14.4 L8.1 12.4"
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth="0.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <rect x="10" y="12.6" width="7.5" height="1.8" rx="0.9" fill={C.gray} />
     </Svg>
   ),
 };

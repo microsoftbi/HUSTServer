@@ -1,18 +1,27 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { GripVertical, LayoutDashboard, Trash2 } from "lucide-react";
 import { ChartRenderer } from "./ChartRenderer";
+import { SlicerWidgetView } from "./SlicerWidgetView";
 import { cn } from "@bi/lib/utils";
 import { autoTitle } from "@bi/lib/chart";
 import {
   clampRect,
+  MIN_FILTER_SIZE,
+  MIN_WIDGET_SIZE,
   resizeRect,
   snapMove,
   snapResize,
   type Rect,
   type ResizeDir,
 } from "@bi/lib/canvas";
-import type { ChartWidget, Dataset, WidgetLayout } from "@bi/types";
-import type { HighlightSelection } from "@bi/lib/highlight";
+import type {
+  ChartType,
+  ChartWidget,
+  Dataset,
+  SlicerConfig,
+  WidgetLayout,
+} from "@bi/types";
+import type { HighlightSelection, ValueFilter } from "@bi/lib/highlight";
 
 interface ReportCanvasProps {
   widgets: ChartWidget[];
@@ -25,6 +34,8 @@ interface ReportCanvasProps {
   readOnly?: boolean;
   /** 当前交叉筛选状态：源视觉对象变暗未选项，同数据集其它图表按选中值过滤 */
   highlight?: HighlightSelection | null;
+  /** 仪表板级筛选器取值：所有图表统一按字段=值过滤 */
+  filters?: ValueFilter[] | null;
   /** 图元点击回调（sourceId 为触发高亮的视觉对象） */
   onPointClick?: (
     sourceId: string,
@@ -32,6 +43,12 @@ interface ReportCanvasProps {
     value: string,
     additive: boolean,
   ) => void;
+  /** 从可视化画廊拖放视觉对象到画布（x/y 为画布内坐标） */
+  onDropVisual?: (type: ChartType, x: number, y: number) => void;
+  /** 切片器选择变化（编辑与浏览模式下都即时生效） */
+  onSlicerChange?: (widgetId: string, slicer: SlicerConfig) => void;
+  /** 视觉对象自身配置变更（如分解树的展开状态） */
+  onWidgetChange?: (widgetId: string, patch: Partial<ChartWidget>) => void;
 }
 
 interface DragState {
@@ -76,7 +93,11 @@ export function ReportCanvas({
   onRemove,
   readOnly = false,
   highlight = null,
+  filters = null,
   onPointClick,
+  onDropVisual,
+  onSlicerChange,
+  onWidgetChange,
 }: ReportCanvasProps) {
   const innerRef = useRef<HTMLDivElement>(null);
   const [pageW, setPageW] = useState(1200);
@@ -208,6 +229,9 @@ export function ReportCanvas({
         .map((w) => w.layout);
       const dx = e.clientX - d.startX;
       const dy = e.clientY - d.startY;
+      // 切片器允许缩到 20×20；其它视觉对象保持默认下限
+      const activeWidget = widgetsRef.current.find((w) => w.id === d.id);
+      const min = activeWidget?.type === "filter" ? MIN_FILTER_SIZE : MIN_WIDGET_SIZE;
 
       if (d.mode === "move") {
         const raw: Rect = {
@@ -216,14 +240,14 @@ export function ReportCanvas({
           w: d.origin.w,
           h: d.origin.h,
         };
-        const snapped = snapMove(clampRect(raw, pw, ph), others, pw, ph);
+        const snapped = snapMove(clampRect(raw, pw, ph, min), others, pw, ph);
         previewRef.current = snapped.rect;
         setPreview(snapped.rect);
         setGuides({ v: snapped.vLines, h: snapped.hLines });
       } else {
-        const base = clampRect(resizeRect(d.origin, d.mode, dx, dy), pw, ph);
-        const snapped = snapResize(base, d.mode, others, pw, ph);
-        const finalRect = clampRect(snapped.rect, pw, ph);
+        const base = clampRect(resizeRect(d.origin, d.mode, dx, dy, min), pw, ph, min);
+        const snapped = snapResize(base, d.mode, others, pw, ph, min);
+        const finalRect = clampRect(snapped.rect, pw, ph, min);
         previewRef.current = finalRect;
         setPreview(finalRect);
         setGuides({ v: snapped.vLines, h: snapped.hLines });
@@ -282,6 +306,21 @@ export function ReportCanvas({
         if (readOnly) return;
         if (e.target === e.currentTarget) onSelect(null);
       }}
+      onDragOver={(e) => {
+        if (readOnly || !onDropVisual) return;
+        if (!e.dataTransfer.types.includes("application/x-bi-visual")) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+      }}
+      onDrop={(e) => {
+        if (readOnly || !onDropVisual) return;
+        const type = e.dataTransfer.getData("application/x-bi-visual");
+        if (!type) return;
+        e.preventDefault();
+        const rect = innerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        onDropVisual(type as ChartType, e.clientX - rect.left, e.clientY - rect.top);
+      }}
     >
       {widgets.length === 0 ? (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
@@ -307,7 +346,9 @@ export function ReportCanvas({
             ? { field: highlight.field, values: highlight.values }
             : null;
         const showTitle = w.showTitle ?? true;
-        const title = w.title.trim() || autoTitle(w.encoding);
+        // 切片器自带标题栏，画布层不再叠加标题
+        const isFilter = w.type === "filter";
+        const title = isFilter ? "" : w.title.trim() || autoTitle(w.encoding);
         return (
           <div
             key={w.id}
@@ -315,6 +356,7 @@ export function ReportCanvas({
             onClick={readOnly ? undefined : () => onSelect(w.id)}
             className={cn(
               "group absolute flex touch-none select-none flex-col rounded-md border bg-background shadow-sm",
+              isFilter && "border-transparent bg-transparent shadow-none",
               isSelected ? "z-10 ring-2 ring-[#2563eb]" : "z-0",
               isDragging && "z-30 opacity-90 shadow-xl",
             )}
@@ -358,19 +400,40 @@ export function ReportCanvas({
               </div>
             )}
 
-            <div className={cn("min-h-0 flex-1 overflow-hidden p-2", showTitle && title && "pt-6")}>
-              <ChartRenderer
-                widget={w}
-                dataset={dataset}
-                highlight={highlight}
-                crossFilter={crossFilter}
-                onPointClick={
-                  onPointClick
-                    ? (field, value, additive) =>
-                        onPointClick(w.id, field, value, additive)
-                    : undefined
-                }
-              />
+            <div
+              className={cn(
+                "min-h-0 flex-1 overflow-hidden",
+                isFilter ? "p-0" : "p-2",
+                !isFilter && showTitle && title && "pt-6",
+              )}
+            >
+              {w.type === "filter" ? (
+                <SlicerWidgetView
+                  widget={w}
+                  dataset={dataset}
+                  compact={rect.w < 96 || rect.h < 52}
+                  onChange={(slicer) => onSlicerChange?.(w.id, slicer)}
+                />
+              ) : (
+                <ChartRenderer
+                  widget={w}
+                  dataset={dataset}
+                  highlight={highlight}
+                  crossFilter={crossFilter}
+                  filters={filters}
+                  onPointClick={
+                    onPointClick
+                      ? (field, value, additive) =>
+                          onPointClick(w.id, field, value, additive)
+                      : undefined
+                  }
+                  onWidgetChange={
+                    onWidgetChange
+                      ? (patch) => onWidgetChange(w.id, patch)
+                      : undefined
+                  }
+                />
+              )}
             </div>
 
             {isSelected
@@ -396,3 +459,4 @@ export function ReportCanvas({
     </div>
   );
 }
+

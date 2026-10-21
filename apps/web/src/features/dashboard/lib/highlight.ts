@@ -26,6 +26,86 @@ export function filterDataset(
   return rows.length === dataset.rows.length ? dataset : { ...dataset, rows };
 }
 
+/** 仪表板级筛选条件（切片器生成）：多值 / 数值区间 / 日期区间 */
+export type ValueFilter =
+  | { kind: "values"; field: string; values: string[] }
+  | { kind: "range"; field: string; min?: number; max?: number }
+  | { kind: "dateRange"; field: string; from?: number; to?: number };
+
+function toNumber(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function toEpoch(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string" && v.trim() !== "") {
+    const t = Date.parse(v);
+    return Number.isNaN(t) ? null : t;
+  }
+  return null;
+}
+
+function filterByNumberRange(
+  dataset: Dataset,
+  field: string,
+  min?: number,
+  max?: number,
+): Dataset {
+  const idx = dataset.columns.findIndex((c) => c.name === field);
+  if (idx < 0) return dataset;
+  const rows = dataset.rows.filter((row) => {
+    const n = toNumber(row[idx]);
+    if (n === null) return false;
+    if (min !== undefined && n < min) return false;
+    if (max !== undefined && n > max) return false;
+    return true;
+  });
+  return rows.length === dataset.rows.length ? dataset : { ...dataset, rows };
+}
+
+function filterByDateRange(
+  dataset: Dataset,
+  field: string,
+  from?: number,
+  to?: number,
+): Dataset {
+  const idx = dataset.columns.findIndex((c) => c.name === field);
+  if (idx < 0) return dataset;
+  const rows = dataset.rows.filter((row) => {
+    const t = toEpoch(row[idx]);
+    if (t === null) return false;
+    if (from !== undefined && t < from) return false;
+    if (to !== undefined && t > to) return false;
+    return true;
+  });
+  return rows.length === dataset.rows.length ? dataset : { ...dataset, rows };
+}
+
+/**
+ * 依次应用多个筛选条件（AND）。
+ * 字段不存在或条件为空时自动跳过，其余与交叉筛选共用同一套标签归一化逻辑。
+ */
+export function applyValueFilters(
+  dataset: Dataset,
+  filters: ValueFilter[] | null | undefined,
+): Dataset {
+  if (!filters || filters.length === 0) return dataset;
+  return filters.reduce((ds, f) => {
+    if (f.kind === "values") {
+      return filterDataset(ds, { field: f.field, values: f.values });
+    }
+    if (f.kind === "range") {
+      return filterByNumberRange(ds, f.field, f.min, f.max);
+    }
+    return filterByDateRange(ds, f.field, f.from, f.to);
+  }, dataset);
+}
+
 export interface HighlightSelection {
   /** 参与高亮的维度字段名 */
   field: string;

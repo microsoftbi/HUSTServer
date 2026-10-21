@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Toaster, toast } from 'sonner';
-import { ArrowLeft, Database, LayoutDashboard, Pencil, Save } from 'lucide-react';
+import { ArrowLeft, Database, Eye, LayoutDashboard, Pencil, Save } from 'lucide-react';
 import { api, ApiClientError } from '../../api.js';
 import { useAuth } from '../../auth.js';
 import { Button } from '../../components/ui/button.js';
@@ -161,11 +161,21 @@ export function DashboardEditorPage({ readOnly = false }: { readOnly?: boolean }
             </Link>
           </Button>
         )}
-        {canEdit && (
-          <Button className="ml-auto" disabled={saving || !canEdit} onClick={() => void save()}>
-            <Save />
-            {saving ? '保存中…' : '保存'}
-          </Button>
+        {!readOnly && id && (
+          <div className="ml-auto flex items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/dashboards/${id}/preview`}>
+                <Eye />
+                预览
+              </Link>
+            </Button>
+            {canEdit && (
+              <Button disabled={saving} onClick={() => void save()}>
+                <Save />
+                {saving ? '保存中…' : '保存'}
+              </Button>
+            )}
+          </div>
         )}
       </header>
       {errorEntries.length > 0 && (

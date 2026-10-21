@@ -19,7 +19,6 @@ import {
   Scatter,
   ScatterChart,
   Tooltip,
-  Treemap,
   XAxis,
   YAxis,
 } from "recharts";
@@ -29,12 +28,16 @@ import { colorAt, normalizeToPercent } from "@bi/lib/chart";
 import { DataTable } from "@bi/components/DataTable";
 import { MapChart } from "./MapChart";
 import { PivotTable } from "./PivotTable";
+import { TreemapChart } from "./TreemapChart";
+import { DecompositionTree } from "./DecompositionTree";
 import { formatCell } from "@bi/lib/format";
 import {
+  applyValueFilters,
   cellOpacity,
   filterDataset,
   type CrossFilter,
   type HighlightSelection,
+  type ValueFilter,
 } from "@bi/lib/highlight";
 import type { MouseEvent } from "react";
 
@@ -45,8 +48,12 @@ interface ChartRendererProps {
   highlight?: HighlightSelection | null;
   /** 来自其它视觉对象的交叉筛选条件（源视觉对象自身不传） */
   crossFilter?: CrossFilter | null;
+  /** 仪表板级筛选器取值：命中字段的行会被保留 */
+  filters?: ValueFilter[] | null;
   /** 点击图元回调：field 为分组字段，value 为标签值，additive 表示 ⌘/Ctrl 多选 */
   onPointClick?: (field: string, value: string, additive: boolean) => void;
+  /** 视觉对象自身配置变更（分解树的展开状态需要回写并落库） */
+  onWidgetChange?: (patch: Partial<ChartWidget>) => void;
 }
 
 export function ChartRenderer({
@@ -54,7 +61,9 @@ export function ChartRenderer({
   dataset,
   highlight = null,
   crossFilter = null,
+  filters = null,
   onPointClick,
+  onWidgetChange,
 }: ChartRendererProps) {
   if (!dataset) {
     return (
@@ -72,8 +81,9 @@ export function ChartRenderer({
     );
   }
 
-  // 交叉筛选：按其它视觉对象选中的维度值过滤行，再重新聚合
-  const agg = aggregate(filterDataset(dataset, crossFilter), widget.encoding);
+  // 仪表板筛选器先过滤行，交叉筛选再叠加，最后重新聚合
+  const filtered = filterDataset(applyValueFilters(dataset, filters), crossFilter);
+  const agg = aggregate(filtered, widget.encoding);
   const keys = agg.series.length > 0 ? agg.series : agg.measureKeys;
   const showLegend = widget.showLegend ?? true;
 
@@ -140,6 +150,29 @@ export function ChartRenderer({
     );
   }
 
+  // 树状图：自绘 SVG（Squarified 布局 + 两层分组），不经过 Recharts
+  if (widget.type === "treemap") {
+    return (
+      <TreemapChart
+        widget={widget}
+        dataset={filtered}
+        highlight={highlight}
+        onPointClick={onPointClick}
+      />
+    );
+  }
+
+  // 分解树：自绘列式树（按维度逐层拆分），不经过 Recharts
+  if (widget.type === "decomposition") {
+    return (
+      <DecompositionTree
+        widget={widget}
+        dataset={filtered}
+        onChange={onWidgetChange}
+      />
+    );
+  }
+
   const type = widget.type;
 
   // 数据透视表：自绘交叉表，不经过 Recharts
@@ -168,7 +201,7 @@ export function ChartRenderer({
 
   const categoryKey = agg.dimensionKey;
   const valueKey = keys[0];
-  /** 单值类图表（树状图 / 漏斗图 / 径向条形图）的 {name, value} 数据 */
+  /** 单值类图表（漏斗图 / 径向条形图）的 {name, value} 数据 */
   const namedData = agg.data.map((d) => ({
     name: String(d[categoryKey] ?? ""),
     value: typeof d[valueKey] === "number" ? d[valueKey] : 0,
@@ -404,20 +437,6 @@ export function ChartRenderer({
             <Tooltip />
             <Scatter data={agg.data} fill={colorAt(0)} />
           </ScatterChart>
-        );
-      case "treemap":
-        return (
-          <Treemap
-            data={namedData}
-            dataKey="value"
-            nameKey="name"
-            stroke="#fff"
-            isAnimationActive={false}
-          >
-            {namedData.map((d, i) => (
-              <Cell key={i} {...pointProps(categoryKey, d.name, colorAt(i))} />
-            ))}
-          </Treemap>
         );
       case "funnel":
         return (

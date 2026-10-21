@@ -34,12 +34,14 @@ export const CHART_TYPE_LABELS: Record<ChartType, string> = {
   donut: "环形图",
   scatter: "散点图",
   treemap: "树状图",
+  decomposition: "分解树",
   funnel: "漏斗图",
   radialBar: "径向条形图",
   table: "表格",
   kpi: "数值卡",
   map: "填充地图",
   matrix: "数据透视表",
+  filter: "切片器",
 };
 
 /** 字段槽位名称（按图表类型对齐 Power BI 命名） */
@@ -58,6 +60,8 @@ export function wellLabels(type: ChartType): WellLabels {
     case "funnel":
     case "radialBar":
       return { dimension: "类别", series: "详细级别（可选）", measures: "值" };
+    case "decomposition":
+      return { dimension: "说明依据", series: "详细级别（可选）", measures: "分析" };
     case "table":
       return { dimension: "列", series: "详细级别（可选）", measures: "值" };
     case "kpi":

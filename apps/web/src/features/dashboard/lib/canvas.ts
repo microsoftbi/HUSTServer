@@ -10,6 +10,16 @@ export const SNAP_THRESHOLD = 6;
 export const MIN_WIDGET_W = 160;
 export const MIN_WIDGET_H = 100;
 
+export interface SizeLimit {
+  w: number;
+  h: number;
+}
+
+/** 普通图表的最小尺寸 */
+export const MIN_WIDGET_SIZE: SizeLimit = { w: MIN_WIDGET_W, h: MIN_WIDGET_H };
+/** 切片器允许缩到 20×20（小尺寸切片器只显示图标） */
+export const MIN_FILTER_SIZE: SizeLimit = { w: 20, h: 20 };
+
 export type Rect = WidgetLayout;
 
 /** 8 个缩放方向：n/s/e/w 为边，ne/nw/se/sw 为角 */
@@ -102,19 +112,20 @@ export function resizeRect(
   dir: ResizeDir,
   dx: number,
   dy: number,
+  min: SizeLimit = MIN_WIDGET_SIZE,
 ): Rect {
   let { x, y, w, h } = rect;
   const right = x + w;
   const bottom = y + h;
 
-  if (dir.includes("e")) w = Math.max(MIN_WIDGET_W, w + dx);
-  if (dir.includes("s")) h = Math.max(MIN_WIDGET_H, h + dy);
+  if (dir.includes("e")) w = Math.max(min.w, w + dx);
+  if (dir.includes("s")) h = Math.max(min.h, h + dy);
   if (dir.includes("w")) {
-    w = Math.max(MIN_WIDGET_W, w - dx);
+    w = Math.max(min.w, w - dx);
     x = right - w;
   }
   if (dir.includes("n")) {
-    h = Math.max(MIN_WIDGET_H, h - dy);
+    h = Math.max(min.h, h - dy);
     y = bottom - h;
   }
   return { x, y, w, h };
@@ -127,6 +138,7 @@ export function snapResize(
   others: Rect[],
   pageW: number,
   pageH: number,
+  min: SizeLimit = MIN_WIDGET_SIZE,
 ): SnapResult {
   const result: Rect = { ...rect };
   const vLines: number[] = [];
@@ -137,11 +149,11 @@ export function snapResize(
     const edge = dir.includes("e") ? result.x + result.w : result.x;
     const { delta, lines } = snapAxis([edge], candidates);
     if (dir.includes("e")) {
-      if (result.w + delta >= MIN_WIDGET_W) {
+      if (result.w + delta >= min.w) {
         result.w += delta;
         vLines.push(...lines);
       }
-    } else if (result.w - delta >= MIN_WIDGET_W) {
+    } else if (result.w - delta >= min.w) {
       result.x += delta;
       result.w -= delta;
       vLines.push(...lines);
@@ -153,11 +165,11 @@ export function snapResize(
     const edge = dir.includes("s") ? result.y + result.h : result.y;
     const { delta, lines } = snapAxis([edge], candidates);
     if (dir.includes("s")) {
-      if (result.h + delta >= MIN_WIDGET_H) {
+      if (result.h + delta >= min.h) {
         result.h += delta;
         hLines.push(...lines);
       }
-    } else if (result.h - delta >= MIN_WIDGET_H) {
+    } else if (result.h - delta >= min.h) {
       result.y += delta;
       result.h -= delta;
       hLines.push(...lines);
@@ -168,9 +180,14 @@ export function snapResize(
 }
 
 /** 将矩形夹紧到页面范围内，并保证不小于最小尺寸 */
-export function clampRect(rect: Rect, pageW: number, pageH: number): Rect {
-  const w = clamp(rect.w, MIN_WIDGET_W, Math.max(MIN_WIDGET_W, pageW));
-  const h = clamp(rect.h, MIN_WIDGET_H, Math.max(MIN_WIDGET_H, pageH));
+export function clampRect(
+  rect: Rect,
+  pageW: number,
+  pageH: number,
+  min: SizeLimit = MIN_WIDGET_SIZE,
+): Rect {
+  const w = clamp(rect.w, min.w, Math.max(min.w, pageW));
+  const h = clamp(rect.h, min.h, Math.max(min.h, pageH));
   const x = clamp(rect.x, 0, Math.max(0, pageW - w));
   const y = clamp(rect.y, 0, Math.max(0, pageH - h));
   return { x, y, w, h };

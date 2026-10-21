@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LayoutDashboard, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@bi/components/ui/button";
@@ -19,11 +19,16 @@ import { useDatasetStore } from "@bi/stores/datasetStore";
 import { cn } from "@bi/lib/utils";
 import { uid } from "@bi/lib/utils";
 import type { ChartType, ChartWidget, Column } from "@bi/types";
-import { toggleSelection, type HighlightSelection } from "@bi/lib/highlight";
+import { toggleSelection, type HighlightSelection, type ValueFilter } from "@bi/lib/highlight";
+import { defaultSlicer, slicerFilters, slicerOf } from "@bi/lib/slicer";
+import { defaultDecomposition } from "@bi/lib/decomposition";
 
 /** 新建视觉对象的默认像素尺寸与级联偏移 */
 const DEFAULT_WIDGET_W = 420;
 const DEFAULT_WIDGET_H = 280;
+/** 切片器视觉对象的默认尺寸（扁平条状，便于并列摆放） */
+const FILTER_WIDGET_W = 260;
+const FILTER_WIDGET_H = 200;
 const CASCADE_STEP = 28;
 const PAGE_MARGIN = 24;
 
@@ -52,6 +57,20 @@ export function DashboardView({
   const [browseDatasetId, setBrowseDatasetId] = useState<string>("");
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
+
+  /**
+   * 切片器筛选条件：来自所有切片器视觉对象的选择状态，
+   * 统一作用于本页所有图表（与 Power BI 的切片器交互一致）。
+   */
+  const activeValueFilters = useMemo<ValueFilter[]>(() => {
+    const out: ValueFilter[] = [];
+    for (const w of widgets) {
+      if (w.type !== "filter") continue;
+      const ds = datasets.find((d) => d.id === w.datasetId);
+      out.push(...slicerFilters(w, ds));
+    }
+    return out;
+  }, [widgets, datasets]);
 
   const selected = widgets.find((w) => w.id === selectedId) ?? null;
   const selectedDataset = datasets.find((d) => d.id === selected?.datasetId);
@@ -98,21 +117,26 @@ export function DashboardView({
   function createWidget(type: ChartType = "bar"): ChartWidget | null {
     const ds = browseDataset ?? datasets[0];
     if (!ds) return null;
+    const isFilter = type === "filter";
     // 级联摆放，避免新视觉对象完全重叠
     const step = (widgets.length % 5) * CASCADE_STEP;
     const widget: ChartWidget = {
       id: uid("w"),
       type,
-      // 标题留空 → 画布按字段自动生成（Power BI 风格），不使用数据源名称
-      title: "",
+      // 普通图表标题留空 → 画布按字段自动生成（Power BI 风格）
+      title: isFilter ? "切片器" : "",
       datasetId: ds.id,
       // 字段留空，由用户自行拖拽
       encoding: { measures: [] },
+      ...(isFilter ? { filterFields: [], slicer: defaultSlicer() } : {}),
+      ...(type === "decomposition"
+        ? { explainBy: [], decomposition: defaultDecomposition() }
+        : {}),
       layout: {
         x: PAGE_MARGIN + step,
         y: PAGE_MARGIN + step,
-        w: DEFAULT_WIDGET_W,
-        h: DEFAULT_WIDGET_H,
+        w: isFilter ? FILTER_WIDGET_W : DEFAULT_WIDGET_W,
+        h: isFilter ? FILTER_WIDGET_H : DEFAULT_WIDGET_H,
       },
     };
     addWidget(widget);
@@ -121,22 +145,80 @@ export function DashboardView({
   }
 
   function handleCreate(type: ChartType = "bar") {
-    if (!createWidget(type)) {
+    const widget = createWidget(type);
+    if (!widget) {
       toast.error("请先在左侧「数据」标签中添加数据集");
       return;
     }
-    toast.success("已新建图表，可在右侧拖入字段");
+    toast.success(
+      type === "filter"
+        ? "已新建切片器，可在右侧「字段」中拖入数据列"
+        : "已新建图表，可在右侧拖入字段",
+    );
+  }
+
+  /** 从可视化画廊拖放：在落点位置创建视觉对象 */
+  function handleDropVisual(type: ChartType, x: number, y: number) {
+    const widget = createWidget(type);
+    if (!widget) {
+      toast.error("请先在左侧「数据」标签中添加数据集");
+      return;
+    }
+    const { w, h } = widget.layout;
+    updateWidget(widget.id, {
+      layout: {
+        x: Math.max(PAGE_MARGIN, Math.round(x - w / 2)),
+        y: Math.max(PAGE_MARGIN, Math.round(y - h / 2)),
+        w,
+        h,
+      },
+    });
   }
 
   /** 数据面板点击字段：数值列进度量，文本列优先作维度/系列 */
   function handlePickField(col: Column) {
     let target = selected;
-    if (!target || target.datasetId !== browseDataset?.id) {
+    if (!target) {
+      target = createWidget();
+      if (!target) return;
+    }
+    // 选中切片器时，点击字段即把它加入筛选字段
+    if (target.type === "filter") {
+      const fields = target.filterFields ?? [];
+      if (!fields.includes(col.name)) {
+        const next = [...fields, col.name];
+        const cfg = slicerOf(target);
+        // 第二个字段起自动切换为层次结构切片器（对齐 Power BI）
+        const autoHierarchy =
+          next.length > 1 && (cfg.type === "list" || cfg.type === "dropdown");
+        updateWidget(target.id, {
+          filterFields: next,
+          ...(autoHierarchy ? { slicer: { ...cfg, type: "hierarchy" } } : {}),
+        });
+      }
+      return;
+    }
+    if (target.datasetId !== browseDataset?.id) {
       target = createWidget();
       if (!target) return;
     }
     const enc = target.encoding;
+    // 分解树：文本列作为「说明依据」，数值列作为「分析」度量
+    if (target.type === "decomposition" && col.type !== "number") {
+      const fields = target.explainBy ?? [];
+      if (!fields.includes(col.name)) {
+        updateWidget(target.id, { explainBy: [...fields, col.name] });
+      }
+      return;
+    }
     if (col.type === "number") {
+      // 分解树只使用一个度量
+      if (target.type === "decomposition") {
+        updateWidget(target.id, {
+          encoding: { ...enc, measures: [{ field: col.name, agg: "sum" }] },
+        });
+        return;
+      }
       updateWidget(target.id, {
         encoding: { ...enc, measures: [...enc.measures, { field: col.name, agg: "sum" }] },
       });
@@ -157,7 +239,16 @@ export function DashboardView({
     const ds = datasets.find((d) => d.id === id);
     if (!ds) return;
     // 字段留空，由用户自行拖拽
-    updateWidget(selected.id, { datasetId: id, encoding: { measures: [] } });
+    updateWidget(selected.id, {
+      datasetId: id,
+      encoding: { measures: [] },
+      ...(selected.type === "filter"
+        ? { filterFields: [], slicer: defaultSlicer() }
+        : {}),
+      ...(selected.type === "decomposition"
+        ? { explainBy: [], decomposition: defaultDecomposition() }
+        : {}),
+    });
   }
 
   function handleRename() {
@@ -267,7 +358,11 @@ export function DashboardView({
                 removeWidget(id);
               }}
               highlight={highlight}
+              filters={activeValueFilters}
               onPointClick={handlePointClick}
+              onDropVisual={readOnly ? undefined : handleDropVisual}
+              onSlicerChange={(id, slicer) => updateWidget(id, { slicer })}
+              onWidgetChange={(id, patch) => updateWidget(id, patch)}
               readOnly={readOnly}
             />
           </div>
