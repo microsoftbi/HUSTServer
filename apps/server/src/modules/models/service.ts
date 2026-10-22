@@ -290,7 +290,7 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
   let session: DuckSession | null = null;
   async function conn(): Promise<DuckConnection> {
     if (!session) session = await openModelDb(config.modelDbFile);
-    return session.connection;
+    return session!.connection;
   }
 
   async function doLoad(cfg: LoadModelConfig, ownerId: string | null): Promise<LoadResult> {
