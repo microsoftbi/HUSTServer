@@ -33,7 +33,7 @@ HUSTServer/
 
 - **前端层**：React 19 控制台，路由与按钮都按「能力」门禁；画布编辑由独立包提供，该包逐字节复用 HUSTERYX 的设计器并裁剪掉运行态，通过 `DesignerAdapter` 注入「保存发布 / 文件上传 / 结构探测」等平台能力，包内不依赖路由和平台 API。
 - **服务层**：Fastify 5，提供 REST API 与 SSE 实时日志，承担会话认证、能力授权、Cron 调度、工作流运行编排、Job 步骤编排、连接密码加密、数据模型管理，生产模式下同时静态托管前端产物并做 SPA 回退。
-- **执行引擎**：HUSTERYX 后端引擎的移植，DuckDB 负责节点间的列式计算，mssql 负责读写 SQL Server，13 种节点按拓扑序执行。
+- **执行引擎**：HUSTERYX 后端引擎的移植，DuckDB 负责节点间的列式计算，mssql 负责读写 SQL Server，22 种节点按拓扑序执行。
 - **存储**：SQLite 单文件承载全部元数据；DuckDB 单文件承载物化后的数据模型；上传文件、运行输出与溢出数据落在数据目录。
 
 ```mermaid
@@ -54,7 +54,7 @@ flowchart LR
         Duck[("DuckDB<br/>models.duckdb")]
     end
 
-    Engine["执行引擎<br/>13 种节点按拓扑序执行"]
+    Engine["执行引擎<br/>22 种节点按拓扑序执行"]
     SQL[("SQL Server")]
 
     Server -->|"静态托管 · SPA 回退"| Web
@@ -79,13 +79,13 @@ flowchart LR
 
 ## 二、模仿Alteryx的工作流
 
-工作流没有模仿SSIS的编排与调度，而是Alteryx，这个工具在做小规模处理的时候用起来还是很舒服的，它的设计就是一张可拖拽各种工具的画布。目前节点固定 13 种：
+工作流没有模仿SSIS的编排与调度，而是Alteryx，这个工具在做小规模处理的时候用起来还是很舒服的，它的设计就是一张可拖拽各种工具的画布。目前节点固定 22 种：
 
 | 类别 | 节点                                        |
 | -- | ----------------------------------------- |
 | 输入 | CSV、Excel、SQL Server                      |
-| 转换 | Select、Filter、Join、Union、Aggregation、Sort |
-| 输出 | CSV、Excel、SQL Server、Browser              |
+| 转换 | Select、Filter、Join、Union、Aggregation、Sort、Formula、Unique、Sample、Data Cleansing、Running Total、Text to Columns、Cross Tab、Transpose |
+| 输出 | CSV、Excel、SQL Server、Browser、Data Model |
 
 引擎按工作流里的设计顺序执行，节点之间用 DuckDB 传递数据流。设计器支持拖拽连线、**成环检测**、端口约束和节点配置面板；从「新建画布」可以零搭建，从列表或详情可以编辑既有工作流，**保存即发布**。
 

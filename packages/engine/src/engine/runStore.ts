@@ -10,6 +10,7 @@ import type {
   Workflow,
 } from '../types.js';
 import { closeSession, createSession, type DuckSession } from './duckdb.js';
+import type { ModelWriteHook } from '../nodes/context.js';
 
 export interface NodeResultState {
   status: NodeRunStatus;
@@ -39,6 +40,8 @@ export interface RunContext {
   cacheToken?: string;
   /** 复用缓存运行：这些节点直接沿用缓存结果，跳过执行。 */
   skipNodeIds?: Set<string>;
+  /** 宿主注入的「写出数据模型」能力。 */
+  writeModel?: ModelWriteHook;
   /** 已被钉住（缓存），不随 TTL 回收。 */
   pinned?: boolean;
 }
@@ -59,6 +62,8 @@ export interface CreateRunOptions {
   freezeToken?: string;
   /** 复用已有缓存：跳过缓存节点并共享其会话。 */
   reuseToken?: string;
+  /** 宿主注入的「写出数据模型」能力。 */
+  writeModel?: ModelWriteHook;
 }
 
 /** 复用缓存时令牌已失效（后端重启或已取消缓存）。 */
@@ -128,6 +133,7 @@ export async function createRun(
       lastAccess: now,
       ownsSession: false,
       skipNodeIds: new Set(cache.cachedNodeIds),
+      ...(options.writeModel ? { writeModel: options.writeModel } : {}),
     };
     for (const node of workflow.nodes) {
       const cached = cache.results.get(node.id);
@@ -157,6 +163,7 @@ export async function createRun(
     lastAccess: now,
     ownsSession: true,
     ...(options?.freezeToken ? { freeze: true, cacheToken: options.freezeToken } : {}),
+    ...(options?.writeModel ? { writeModel: options.writeModel } : {}),
   };
   for (const node of workflow.nodes) {
     ctx.nodeStatus.set(node.id, 'pending');

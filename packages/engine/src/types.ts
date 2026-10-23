@@ -13,6 +13,15 @@ export type NodeKind =
   | 'union'
   | 'aggregation'
   | 'sort'
+  | 'formula'
+  | 'unique'
+  | 'sample'
+  | 'cleansing'
+  | 'runningTotal'
+  | 'textToColumns'
+  | 'crossTab'
+  | 'transpose'
+  | 'dataModel'
   | 'outputCsv'
   | 'outputExcel'
   | 'outputSqlServer'
@@ -28,6 +37,15 @@ export const NODE_KINDS: NodeKind[] = [
   'union',
   'aggregation',
   'sort',
+  'formula',
+  'unique',
+  'sample',
+  'cleansing',
+  'runningTotal',
+  'textToColumns',
+  'crossTab',
+  'transpose',
+  'dataModel',
   'outputCsv',
   'outputExcel',
   'outputSqlServer',
@@ -185,10 +203,133 @@ export interface SortConfig {
   sorts: SortItem[];
 }
 
+/** Formula 输出列的数据类型（对齐 Alteryx 的常用类型，映射到 DuckDB）。 */
+export type FormulaDataType = 'VARCHAR' | 'BIGINT' | 'DOUBLE' | 'BOOLEAN' | 'DATE' | 'TIMESTAMP';
+
+export interface FormulaItem {
+  /** 输出列名：与现有列同名即覆盖该列，否则追加新列。 */
+  field: string;
+  dataType: FormulaDataType;
+  /** 字符串字段的宽度；DuckDB 不强制截断，仅作声明。 */
+  size?: number;
+  expression: string;
+}
+
+export interface FormulaConfig {
+  /** 按数组顺序依次计算，后面的表达式可以引用前面新建的列。 */
+  formulas: FormulaItem[];
+}
+
+export interface UniqueConfig {
+  /** 判断唯一值的字段；U 输出每组首行，D 输出每组其余行。 */
+  fields: string[];
+}
+
+/** 抽样方式：前 N 行 / 后 N 行 / 跳过前 N 行 / 每 N 行首行 / 随机 1/N / 前 N%。 */
+export type SampleMode = 'first' | 'last' | 'skip' | 'every' | 'random' | 'percent';
+
+export interface SampleConfig {
+  mode: SampleMode;
+  n: number;
+  /** 按列分组后每组各取 N 行；为空表示全表。 */
+  groupBy?: string[];
+}
+
+/** null 判定方式：any=含 null 即算，all=整行/整列都为 null 才算。 */
+export type NullRemovalMode = 'any' | 'all';
+
+export interface CleansingConfig {
+  /** 参与字符清理的字段；为空表示全部字段。 */
+  fields: string[];
+  removeNullRows: boolean;
+  nullRowMode: NullRemovalMode;
+  removeNullColumns: boolean;
+  nullColumnMode: NullRemovalMode;
+  /** 字符串 null 替换为空白值。 */
+  replaceNullString: boolean;
+  /** 数值 null 替换为 0。 */
+  replaceNullNumber: boolean;
+  /** 去除前导和尾随空格。 */
+  trimWhitespace: boolean;
+  /** 制表符 / 换行符 / 重复空格压缩为单个空格。 */
+  reduceWhitespace: boolean;
+  /** 去除所有空格。 */
+  removeAllWhitespace: boolean;
+  removeLetters: boolean;
+  removeNumbers: boolean;
+  removePunctuation: boolean;
+  caseMode: 'none' | 'upper' | 'lower' | 'title';
+}
+
+/** Running Total 的单个累计项。 */
+export interface RunningTotalItem {
+  /** 参与累计的数值字段。 */
+  field: string;
+  /** 新列名；为空时用 RunningTotal_<字段>。 */
+  outputName?: string;
+  /** 覆盖原列（保持列位置），而不是追加新列。 */
+  replaceExisting?: boolean;
+}
+
+export interface RunningTotalConfig {
+  /** 分组字段：每组内重新开始累计（对应 Alteryx 的 Group By）。 */
+  groupBy: string[];
+  items: RunningTotalItem[];
+}
+
+/** Text to Columns 输出形态：拆成多列 或 拆成多行。 */
+export type TextToColumnsMode = 'columns' | 'rows';
+
+export interface TextToColumnsConfig {
+  /** 要拆分的字段。 */
+  field: string;
+  /** 分隔符，支持多字符。 */
+  delimiter: string;
+  mode: TextToColumnsMode;
+  /** 拆分后的根名称，默认与原字段同名，新列为 <根名称>1、<根名称>2… */
+  rootName?: string;
+  /** 忽略空分段（Alteryx 的 Skip empty fields）。 */
+  skipEmpty?: boolean;
+  /** 拆分为列时的列数；0 / 空表示自动按最大分段数。 */
+  maxColumns?: number;
+}
+
+/** Cross Tab 的取值合并方式（对应 Alteryx 的 Aggregation Method）。 */
+export type CrossTabMethod = 'first' | 'last' | 'sum' | 'count' | 'min' | 'max' | 'concat';
+
+export interface CrossTabConfig {
+  /** 分组字段，输出时每个组合一行；为空则汇成一行。 */
+  groupBy: string[];
+  /** 表头字段：其取值成为新列名。 */
+  headerField: string;
+  /** 值字段：填入交叉单元格。 */
+  valueField: string;
+  method: CrossTabMethod;
+  /** 新列名前缀（可选）。 */
+  prefix?: string;
+}
+
+export interface TransposeConfig {
+  /** 保持不变的键字段，输出时每行重复。 */
+  keyFields: string[];
+  /** 转成行的数据字段。 */
+  dataFields: string[];
+}
+
 export interface OutputCsvConfig {
   path: string;
   delimiter?: string;
   hasHeader?: boolean;
+}
+
+/** Data Model 输出的同名处理方式。 */
+export type DataModelDuplicateMode = 'overwrite' | 'error';
+
+export interface DataModelOutputConfig {
+  /** 目标数据模型名（同时是模型库中的表名）。 */
+  modelName: string;
+  /** 同名模型已存在时：覆盖，或报错终止本次运行。 */
+  onDuplicate: DataModelDuplicateMode;
 }
 
 export interface OutputExcelConfig {

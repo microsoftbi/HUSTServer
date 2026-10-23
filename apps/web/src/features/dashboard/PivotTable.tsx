@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { buildPivot } from "@bi/lib/pivot";
 import { formatCell } from "@bi/lib/format";
+import type { FieldFormat } from "@bi/types";
 import { cellOpacity, type HighlightSelection } from "@bi/lib/highlight";
 
 interface PivotTableProps {
@@ -14,6 +15,8 @@ interface PivotTableProps {
   showTotals?: boolean;
   /** 当前交叉高亮状态 */
   highlight?: HighlightSelection | null;
+  /** 字段级数值格式（key 为列名） */
+  formats?: Record<string, FieldFormat>;
   /** 点击行回调：field 为行字段，value 为行标签 */
   onPointClick?: (field: string, value: string, additive: boolean) => void;
 }
@@ -25,6 +28,7 @@ export function PivotTable({
   columnKeys,
   showTotals = true,
   highlight = null,
+  formats,
   onPointClick,
 }: PivotTableProps) {
   const pivot = useMemo(
@@ -95,12 +99,12 @@ export function PivotTable({
                   key={ci}
                   className={`${bodyCell} text-right tabular-nums`}
                 >
-                  {formatCell(v)}
+                  {formatCell(v, formats?.[pivot.columns[ci]])}
                 </td>
               ))}
               {showTotals ? (
                 <td className={`${bodyCell} text-right font-medium tabular-nums`}>
-                  {formatCell(row.total)}
+                  {formatCell(row.total, formats?.[pivot.columns[0]])}
                 </td>
               ) : null}
             </tr>
@@ -119,11 +123,11 @@ export function PivotTable({
                   key={i}
                   className={`${headCell} text-right tabular-nums`}
                 >
-                  {formatCell(v)}
+                  {formatCell(v, formats?.[pivot.columns[i]])}
                 </td>
               ))}
               <td className={`${headCell} text-right font-semibold tabular-nums`}>
-                {formatCell(pivot.grandTotal)}
+                {formatCell(pivot.grandTotal, formats?.[pivot.columns[0]])}
               </td>
             </tr>
           </tfoot>

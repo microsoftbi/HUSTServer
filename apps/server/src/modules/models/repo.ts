@@ -1,6 +1,6 @@
 import type { Database } from 'better-sqlite3';
 
-export type ModelSourceKind = 'csv' | 'excel' | 'sqlserver' | 'audit';
+export type ModelSourceKind = 'csv' | 'excel' | 'sqlserver' | 'workflow' | 'audit';
 
 export interface DataModelRow {
   name: string;

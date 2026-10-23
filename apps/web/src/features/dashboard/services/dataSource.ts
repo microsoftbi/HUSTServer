@@ -78,5 +78,5 @@ export async function hydrateDataset(saved: SavedDataset): Promise<Dataset> {
       : saved.def.kind === 'model'
         ? await loadModelDataset(saved.name, saved.def.modelName)
         : await loadFileDataset(saved.name, saved.def.resourcePath);
-  return { ...ds, id: saved.id };
+  return { ...ds, id: saved.id, formats: saved.formats };
 }

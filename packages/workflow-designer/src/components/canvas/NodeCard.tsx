@@ -1,6 +1,7 @@
 import { Handle, Position, type NodeProps, type NodeTypes } from '@xyflow/react';
 import { AlertTriangle, CheckCircle2, Loader2, Lock } from 'lucide-react';
 import { CATEGORY_ACCENT, getNodeMeta } from '@/lib/nodeMeta';
+import { getNodeConfigIssues } from '@/lib/nodeValidation';
 import { formatInt } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { NodeRunStatus, WorkflowNode } from '@/types';
@@ -37,6 +38,8 @@ export function NodeCard({ data, selected }: NodeProps) {
   /** 运行时尚未执行（或已被跳过）的节点：整体置灰，表示「未参与 / 未生效」。
    *  「运行至此」时，范围外的节点不属于本次运行，保持原样。 */
   const dimmed = runActive && inScope && (status === 'pending' || status === 'skipped');
+  /** 必要属性未配置完成时的提示项（叹号角标 + 悬停说明）。 */
+  const issues = getNodeConfigIssues(node.kind, node.config);
 
   return (
     <div
@@ -54,6 +57,14 @@ export function NodeCard({ data, selected }: NodeProps) {
           title="已缓存冻结，不可修改"
         >
           <Lock className="size-2.5" />
+        </div>
+      )}
+      {issues.length > 0 && (
+        <div
+          className="absolute -bottom-1.5 -right-1.5 z-10 flex size-4 items-center justify-center rounded-full bg-[var(--warning)] text-[9px] font-bold leading-none text-black shadow"
+          title={`配置未完成：${issues.join('、')}`}
+        >
+          !
         </div>
       )}
       <div className={cn('h-0.5 w-full rounded-t-sm', CATEGORY_ACCENT[meta.category])} />

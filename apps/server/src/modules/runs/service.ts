@@ -1,4 +1,4 @@
-import { createRun, executeWorkflow, type Workflow, type WorkflowEdge, type WorkflowNode } from '@hustserver/engine';
+import { createRun, executeWorkflow, type ModelWriteHook, type Workflow, type WorkflowEdge, type WorkflowNode } from '@hustserver/engine';
 import type { Database } from 'better-sqlite3';
 import { join, resolve, sep } from 'node:path';
 import type { AppConfig } from '../../config.js';
@@ -29,6 +29,8 @@ export interface RunServiceDeps {
   config: AppConfig;
   recorder: Recorder;
   executor?: RunExecutor;
+  /** 供 Data Model 输出节点写出模型（由模型库注入）。 */
+  writeModel?: ModelWriteHook;
   concurrency?: number;
 }
 
@@ -54,27 +56,26 @@ export interface RunService {
 }
 
 /** 默认执行器：走 vendored 引擎（createRun + executeWorkflow）。 */
-const defaultExecutor: RunExecutor = async ({
-  workflow,
-  onEngineRunId,
-  targetNodeId,
-  freezeToken,
-  reuseToken,
-}) => {
-  const ctx = await createRun(
-    workflow,
-    targetNodeId,
-    freezeToken ? { freezeToken } : reuseToken ? { reuseToken } : undefined,
-  );
-  onEngineRunId(ctx.runId);
-  await executeWorkflow(ctx.runId);
-  // 引擎在节点失败时只置状态、不抛异常；若不在此显式抛出，
-  // worker 会把真实失败误记为 success 并跳过重试。
-  if (ctx.status === 'error') {
-    const failed = [...ctx.nodeResults.values()].find((result) => result.status === 'error');
-    throw new Error(failed?.error ?? '工作流执行失败');
-  }
-};
+function makeDefaultExecutor(writeModel?: ModelWriteHook): RunExecutor {
+  return async ({ workflow, onEngineRunId, targetNodeId, freezeToken, reuseToken }) => {
+    const ctx = await createRun(
+      workflow,
+      targetNodeId,
+      {
+        ...(freezeToken ? { freezeToken } : reuseToken ? { reuseToken } : {}),
+        ...(writeModel ? { writeModel } : {}),
+      },
+    );
+    onEngineRunId(ctx.runId);
+    await executeWorkflow(ctx.runId);
+    // 引擎在节点失败时只置状态、不抛异常；若不在此显式抛出，
+    // worker 会把真实失败误记为 success 并跳过重试。
+    if (ctx.status === 'error') {
+      const failed = [...ctx.nodeResults.values()].find((result) => result.status === 'error');
+      throw new Error(failed?.error ?? '工作流执行失败');
+    }
+  };
+}
 
 /** 把共享目录内的相对/绝对引用解析为绝对路径，越界即拒绝。 */
 export function resolveServerPath(sharedDirs: string[], rel: string): string {
@@ -106,7 +107,7 @@ export function createRunService(deps: RunServiceDeps): RunService {
   const mappings = pathMappingsRepo(db);
   const connections = connectionsRepo(db);
   const workflowConnections = workflowConnectionsRepo(db);
-  const executor = deps.executor ?? defaultExecutor;
+  const executor = deps.executor ?? makeDefaultExecutor(deps.writeModel);
   const sem = createSemaphore(deps.concurrency ?? config.maxConcurrentRuns);
 
   type RunParams = Pick<RunExecutorInput, 'targetNodeId' | 'freezeToken' | 'reuseToken'>;

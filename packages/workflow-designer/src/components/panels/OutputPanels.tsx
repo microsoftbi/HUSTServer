@@ -13,7 +13,14 @@ import { Switch } from '@/components/ui/switch';
 import { useDesignerHost } from '@/context';
 import { Field, Section, useNodeConfig, type PanelProps } from '@/components/panels/fields';
 import { SqlConnectionPicker } from '@/components/panels/SqlConnectionPicker';
-import type { OutputCsvConfig, OutputExcelConfig, OutputSqlServerConfig, SqlObjectRef } from '@/types';
+import type {
+  DataModelDuplicateMode,
+  DataModelOutputConfig,
+  OutputCsvConfig,
+  OutputExcelConfig,
+  OutputSqlServerConfig,
+  SqlObjectRef,
+} from '@/types';
 
 /** 目标表建议列表的 datalist id（同一时刻只渲染一个面板，固定 id 即可）。 */
 const TARGET_TABLE_LIST_ID = 'output-sql-target-tables';
@@ -86,6 +93,57 @@ export function OutputExcelPanel({ node }: PanelProps) {
           className="h-8 text-xs"
         />
       </Field>
+    </div>
+  );
+}
+
+/* ----------------------------- Data Model 输出 ----------------------------- */
+
+export function OutputDataModelPanel({ node }: PanelProps) {
+  const [config, patch] = useNodeConfig<DataModelOutputConfig>(node);
+  const modelName = (config.modelName ?? '').trim();
+  const invalid = modelName.length > 0 && !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(modelName);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Field
+        label="数据模型名称"
+        hint="写入后可在「数据模型」页查看，也可作为仪表板的数据集。"
+      >
+        <Input
+          value={config.modelName ?? ''}
+          onChange={(event) => patch({ modelName: event.target.value })}
+          placeholder="例如 sales_summary"
+          className="h-8 text-xs"
+        />
+        {invalid && (
+          <p className="text-xs text-destructive">
+            需以字母或下划线开头，只能包含字母、数字、下划线，最长 64 位
+          </p>
+        )}
+      </Field>
+
+      <Field
+        label="同名模型已存在时"
+        hint="工作流每次运行都会写入；定时调度时建议明确选择行为。"
+      >
+        <Select
+          value={config.onDuplicate ?? 'overwrite'}
+          onValueChange={(value) => patch({ onDuplicate: value as DataModelDuplicateMode })}
+        >
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="overwrite">覆盖已有模型</SelectItem>
+            <SelectItem value="error">停止并报错</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+
+      <p className="text-[10px] leading-relaxed text-muted-foreground">
+        选择「停止并报错」时，同名模型已存在会让本次运行在此节点失败，已有模型保持原样。
+      </p>
     </div>
   );
 }

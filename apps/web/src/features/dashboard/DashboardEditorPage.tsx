@@ -48,7 +48,9 @@ export function DashboardEditorPage({ readOnly = false }: { readOnly?: boolean }
       const dash = useDashboardStore.getState();
       const data = useDatasetStore.getState();
       const merged = new Map<string, SavedDataset>((loadedRef.current?.datasets ?? []).map((d) => [d.id, d]));
-      for (const ds of data.datasets) merged.set(ds.id, { id: ds.id, name: ds.name, def: ds.def });
+      for (const ds of data.datasets) {
+        merged.set(ds.id, { id: ds.id, name: ds.name, def: ds.def, formats: ds.formats });
+      }
       const payload: DashboardPayload = {
         version: 2,
         dashboards: dash.dashboards,

@@ -192,3 +192,88 @@ export function clampRect(
   const y = clamp(rect.y, 0, Math.max(0, pageH - h));
   return { x, y, w, h };
 }
+
+/** 对齐与分布模式（对齐 Power BI 的「格式 → 对齐」工具条） */
+export type AlignMode =
+  | "left"
+  | "hcenter"
+  | "right"
+  | "top"
+  | "vcenter"
+  | "bottom"
+  | "distributeH"
+  | "distributeV"
+  | "matchW"
+  | "matchH";
+
+/**
+ * 多选对齐 / 分布。
+ * 对齐以外接矩形为基准（与 Power BI 一致：左对齐贴最左边缘）；
+ * 等宽 / 等高以第一个矩形为基准。返回顺序与入参一致。
+ */
+export function alignRects(rects: Rect[], mode: AlignMode): Rect[] {
+  if (rects.length < 2) return rects.map((r) => ({ ...r }));
+  const out = rects.map((r) => ({ ...r }));
+  const minX = Math.min(...out.map((r) => r.x));
+  const maxX = Math.max(...out.map((r) => r.x + r.w));
+  const minY = Math.min(...out.map((r) => r.y));
+  const maxY = Math.max(...out.map((r) => r.y + r.h));
+
+  switch (mode) {
+    case "left":
+      for (const r of out) r.x = minX;
+      break;
+    case "right":
+      for (const r of out) r.x = maxX - r.w;
+      break;
+    case "hcenter": {
+      const center = (minX + maxX) / 2;
+      for (const r of out) r.x = center - r.w / 2;
+      break;
+    }
+    case "top":
+      for (const r of out) r.y = minY;
+      break;
+    case "bottom":
+      for (const r of out) r.y = maxY - r.h;
+      break;
+    case "vcenter": {
+      const center = (minY + maxY) / 2;
+      for (const r of out) r.y = center - r.h / 2;
+      break;
+    }
+    case "distributeH": {
+      const sorted = [...out].sort((a, b) => a.x - b.x);
+      const total = sorted.reduce((s, r) => s + r.w, 0);
+      const gap = (maxX - minX - total) / (sorted.length - 1);
+      let cursor = minX;
+      for (const r of sorted) {
+        r.x = cursor;
+        cursor += r.w + gap;
+      }
+      break;
+    }
+    case "distributeV": {
+      const sorted = [...out].sort((a, b) => a.y - b.y);
+      const total = sorted.reduce((s, r) => s + r.h, 0);
+      const gap = (maxY - minY - total) / (sorted.length - 1);
+      let cursor = minY;
+      for (const r of sorted) {
+        r.y = cursor;
+        cursor += r.h + gap;
+      }
+      break;
+    }
+    case "matchW": {
+      const w = out[0].w;
+      for (const r of out) r.w = w;
+      break;
+    }
+    case "matchH": {
+      const h = out[0].h;
+      for (const r of out) r.h = h;
+      break;
+    }
+  }
+  return out;
+}

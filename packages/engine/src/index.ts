@@ -51,4 +51,11 @@ export {
 } from './engine/model.js';
 export { materializeRows } from './engine/ingest.js';
 export type { ModelCsvConfig, ModelExcelConfig, ModelSqlServerConfig } from './engine/model.js';
-export type { NodeContext, NodeResult, NodeExecutor } from './nodes/context.js';
+export type {
+  ModelWriteHook,
+  ModelWriteRequest,
+  ModelWriteResult,
+  NodeContext,
+  NodeExecutor,
+  NodeResult,
+} from './nodes/context.js';

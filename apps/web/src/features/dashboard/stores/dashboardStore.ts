@@ -9,6 +9,8 @@ interface DashboardState {
   setActive: (id: string) => void;
   addDashboard: (name: string) => void;
   renameDashboard: (id: string, name: string) => void;
+  /** 更新仪表板自身的配置（页面尺寸、背景等） */
+  updateDashboard: (id: string, patch: Partial<Dashboard>) => void;
   removeDashboard: (id: string) => void;
   addWidget: (widget: ChartWidget) => void;
   updateWidget: (id: string, patch: Partial<ChartWidget>) => void;
@@ -41,6 +43,11 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   renameDashboard: (id, name) =>
     set((s) => ({
       dashboards: s.dashboards.map((d) => (d.id === id ? { ...d, name } : d)),
+    })),
+
+  updateDashboard: (id, patch) =>
+    set((s) => ({
+      dashboards: s.dashboards.map((d) => (d.id === id ? { ...d, ...patch } : d)),
     })),
 
   removeDashboard: (id) =>

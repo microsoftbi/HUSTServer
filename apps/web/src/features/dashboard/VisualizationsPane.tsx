@@ -15,6 +15,7 @@ import { Button } from "@bi/components/ui/button";
 import { Input } from "@bi/components/ui/input";
 import { Label } from "@bi/components/ui/label";
 import { Switch } from "@bi/components/ui/switch";
+import { Textarea } from "@bi/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -30,12 +31,16 @@ import {
 } from "@bi/lib/slicer";
 import { treemapOf } from "@bi/lib/treemap";
 import { decompositionOf } from "@bi/lib/decomposition";
+import { isDecoration } from "@bi/lib/decoration";
+import { decorationOf } from "@bi/lib/decoration";
+import { DEFAULT_WIDGET_STYLE, styleOf } from "@bi/lib/style";
 import type {
   AggregateFn,
   ChartType,
   ChartWidget,
   Column,
   Dataset,
+  DecorationConfig,
   DecompositionConfig,
   MapRegion,
   Measure,
@@ -44,6 +49,8 @@ import type {
   SlicerType,
   TreemapColorMode,
   TreemapConfig,
+  WidgetShadow,
+  WidgetStyle,
 } from "@bi/types";
 
 const CHART_TYPES = Object.keys(CHART_ICONS) as ChartType[];
@@ -227,8 +234,10 @@ export function VisualizationsPane({
                     {CHART_TYPES.map((t) => {
                       const Icon = CHART_ICONS[t];
                       const active = widget?.type === t;
-                      const disabled = !widget && !canCreate;
                       const isFilter = t === "filter";
+                      // 装饰元素不依赖数据集，始终可新建
+                      const isDecor = isDecoration(t);
+                      const disabled = !widget && !canCreate && !isDecor;
                       return (
                         <button
                           key={t}
@@ -236,20 +245,22 @@ export function VisualizationsPane({
                           title={
                             isFilter
                               ? "切片器（拖到画布）"
-                              : CHART_TYPE_LABELS[t]
+                              : isDecor
+                                ? `${CHART_TYPE_LABELS[t]}（拖到画布）`
+                                : CHART_TYPE_LABELS[t]
                           }
                           aria-label={CHART_TYPE_LABELS[t]}
                           aria-pressed={active}
                           disabled={disabled}
-                          draggable={isFilter && canCreate}
+                          draggable={(isFilter || isDecor) && canCreate}
                           onDragStart={(e) => {
-                            if (!isFilter) return;
-                            e.dataTransfer.setData("application/x-bi-visual", "filter");
+                            if (!isFilter && !isDecor) return;
+                            e.dataTransfer.setData("application/x-bi-visual", t);
                             e.dataTransfer.effectAllowed = "copy";
                           }}
                           onClick={() => {
-                            // 切片器始终新建一个视觉对象，避免把已有图表改造成切片器
-                            if (isFilter || !widget) onCreate(t);
+                            // 切片器 / 装饰元素始终新建，避免把已有图表改造掉
+                            if (isFilter || isDecor || !widget) onCreate(t);
                             else onChange({ type: t });
                           }}
                           className={cn(
@@ -288,6 +299,10 @@ export function VisualizationsPane({
                     {canCreate
                       ? "选择一种图表类型以新建可视化，或点击画布中的图表进行编辑。"
                       : "请先在左侧「数据」标签中添加数据集。"}
+                  </p>
+                ) : isDecoration(widget.type) ? (
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    装饰元素不绑定数据字段，在「设置视觉对象格式」中调整内容与外观。
                   </p>
                 ) : widget.type === "filter" ? (
                   <div className="space-y-2.5">
@@ -469,43 +484,308 @@ function FormatSection({
     return <SlicerFormat widget={widget} onChange={onChange} />;
   }
 
+  const isDecor = isDecoration(widget.type);
+  const st = styleOf(widget);
+  const setStyle = (patch: Partial<WidgetStyle>) =>
+    onChange({ style: { ...st, ...patch } });
+  const deco = decorationOf(widget);
+  const setDeco = (patch: Partial<DecorationConfig>) =>
+    onChange({ decoration: { ...deco, ...patch } });
+
   return (
     <div className="space-y-1.5">
-      <FormatGroup title="标题" defaultOpen>
-        <ToggleRow
-          id="fmt-title"
-          label="显示标题"
-          checked={widget.showTitle ?? true}
-          onChange={(checked) => onChange({ showTitle: checked })}
-        />
-        <div className="space-y-1 pt-1">
-          <Label htmlFor="fmt-title-text" className="text-xs text-muted-foreground">
-            标题文本
-          </Label>
-          <Input
-            id="fmt-title-text"
-            value={widget.title}
-            onChange={(e) => onChange({ title: e.target.value })}
-            placeholder={autoTitle(widget.encoding) || "留空则按字段自动生成"}
-            className="h-7 text-xs"
+      {!isDecor ? (
+        <FormatGroup title="标题" defaultOpen>
+          <ToggleRow
+            id="fmt-title"
+            label="显示标题"
+            checked={widget.showTitle ?? true}
+            onChange={(checked) => onChange({ showTitle: checked })}
           />
-        </div>
-      </FormatGroup>
-      <FormatGroup title="图例" defaultOpen>
-        <ToggleRow
-          id="fmt-legend"
-          label="显示图例"
-          checked={widget.showLegend ?? true}
-          onChange={(checked) => onChange({ showLegend: checked })}
-          disabled={
-            widget.type === "table" ||
-            widget.type === "kpi" ||
-            widget.type === "funnel" ||
-            widget.type === "decomposition" ||
-            (widget.type === "treemap" && !widget.encoding.series)
-          }
+          <div className="space-y-1 pt-1">
+            <Label htmlFor="fmt-title-text" className="text-xs text-muted-foreground">
+              标题文本
+            </Label>
+            <Input
+              id="fmt-title-text"
+              value={widget.title}
+              onChange={(e) => onChange({ title: e.target.value })}
+              placeholder={autoTitle(widget.encoding) || "留空则按字段自动生成"}
+              className="h-7 text-xs"
+            />
+          </div>
+          <NumberRow
+            id="fmt-title-size"
+            label="字号"
+            min={8}
+            max={32}
+            value={st.titleFontSize}
+            onChange={(v) => setStyle({ titleFontSize: v })}
+          />
+          <ColorRow
+            id="fmt-title-color"
+            label="颜色"
+            value={st.titleColor}
+            onChange={(v) => setStyle({ titleColor: v })}
+          />
+          <div className="flex items-center justify-between py-1">
+            <Label htmlFor="fmt-title-align" className="text-xs font-normal">
+              对齐
+            </Label>
+            <Select
+              value={st.titleAlign}
+              onValueChange={(v) =>
+                setStyle({ titleAlign: v as WidgetStyle["titleAlign"] })
+              }
+            >
+              <SelectTrigger id="fmt-title-align" className="h-6 w-20 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="left" className="text-xs">
+                  左
+                </SelectItem>
+                <SelectItem value="center" className="text-xs">
+                  中
+                </SelectItem>
+                <SelectItem value="right" className="text-xs">
+                  右
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </FormatGroup>
+      ) : null}
+
+      {widget.type === "text" ? (
+        <FormatGroup title="文本" defaultOpen>
+          <div className="space-y-1 pb-1">
+            <Label htmlFor="fmt-decor-text" className="text-xs text-muted-foreground">
+              内容
+            </Label>
+            <Textarea
+              id="fmt-decor-text"
+              value={deco.text}
+              onChange={(e) => setDeco({ text: e.target.value })}
+              rows={3}
+              className="text-xs"
+            />
+          </div>
+          <NumberRow
+            id="fmt-decor-font"
+            label="字号"
+            min={8}
+            max={72}
+            value={deco.fontSize}
+            onChange={(v) => setDeco({ fontSize: v })}
+          />
+          <ToggleRow
+            id="fmt-decor-bold"
+            label="加粗"
+            checked={deco.bold}
+            onChange={(v) => setDeco({ bold: v })}
+          />
+          <ColorRow
+            id="fmt-decor-color"
+            label="颜色"
+            value={deco.color}
+            onChange={(v) => setDeco({ color: v })}
+          />
+          <SelectRow
+            id="fmt-decor-align"
+            label="水平对齐"
+            value={deco.align}
+            options={[
+              { value: "left", label: "左" },
+              { value: "center", label: "中" },
+              { value: "right", label: "右" },
+            ]}
+            onChange={(v) => setDeco({ align: v as WidgetStyle["titleAlign"] })}
+          />
+          <SelectRow
+            id="fmt-decor-valign"
+            label="垂直对齐"
+            value={deco.verticalAlign}
+            options={[
+              { value: "top", label: "上" },
+              { value: "middle", label: "中" },
+              { value: "bottom", label: "下" },
+            ]}
+            onChange={(v) =>
+              setDeco({ verticalAlign: v as DecorationConfig["verticalAlign"] })
+            }
+          />
+        </FormatGroup>
+      ) : null}
+
+      {widget.type === "image" ? (
+        <FormatGroup title="图像" defaultOpen>
+          <div className="space-y-1 pb-1">
+            <Label htmlFor="fmt-decor-image" className="text-xs text-muted-foreground">
+              图片地址
+            </Label>
+            <Input
+              id="fmt-decor-image"
+              value={deco.imageUrl}
+              onChange={(e) => setDeco({ imageUrl: e.target.value })}
+              placeholder="https://… 或 data:image/…"
+              className="h-7 text-xs"
+            />
+          </div>
+          <SelectRow
+            id="fmt-decor-fit"
+            label="填充方式"
+            value={deco.imageFit}
+            options={[
+              { value: "contain", label: "适应" },
+              { value: "cover", label: "填充" },
+              { value: "fill", label: "拉伸" },
+            ]}
+            onChange={(v) =>
+              setDeco({ imageFit: v as DecorationConfig["imageFit"] })
+            }
+          />
+        </FormatGroup>
+      ) : null}
+
+      {widget.type === "shape" ? (
+        <FormatGroup title="形状" defaultOpen>
+          <SelectRow
+            id="fmt-decor-shape"
+            label="形状"
+            value={deco.shape}
+            options={[
+              { value: "rect", label: "矩形" },
+              { value: "ellipse", label: "椭圆" },
+              { value: "line", label: "线条" },
+            ]}
+            onChange={(v) => setDeco({ shape: v as DecorationConfig["shape"] })}
+          />
+          {deco.shape !== "line" ? (
+            <ColorRow
+              id="fmt-decor-fill"
+              label="填充颜色"
+              value={deco.fill}
+              onChange={(v) => setDeco({ fill: v })}
+              clearable
+            />
+          ) : null}
+          <ColorRow
+            id="fmt-decor-stroke"
+            label="边框颜色"
+            value={deco.stroke}
+            onChange={(v) => setDeco({ stroke: v })}
+          />
+          <NumberRow
+            id="fmt-decor-stroke-w"
+            label="边框宽度"
+            min={0}
+            max={12}
+            value={deco.strokeWidth}
+            onChange={(v) => setDeco({ strokeWidth: v })}
+          />
+          {deco.shape === "rect" ? (
+            <NumberRow
+              id="fmt-decor-radius"
+              label="圆角"
+              min={0}
+              max={64}
+              value={deco.radius}
+              onChange={(v) => setDeco({ radius: v })}
+            />
+          ) : null}
+        </FormatGroup>
+      ) : null}
+
+      <FormatGroup title="常规" defaultOpen={isDecor}>
+        <ColorRow
+          id="fmt-bg"
+          label="背景色"
+          value={st.background}
+          onChange={(v) => setStyle({ background: v })}
+          clearable
+          fallback="#ffffff"
+        />
+        <NumberRow
+          id="fmt-bg-opacity"
+          label="背景不透明度"
+          min={0}
+          max={100}
+          value={st.backgroundOpacity}
+          onChange={(v) => setStyle({ backgroundOpacity: v })}
+        />
+        <NumberRow
+          id="fmt-padding"
+          label="内边距"
+          min={0}
+          max={48}
+          value={st.padding}
+          onChange={(v) => setStyle({ padding: v })}
         />
       </FormatGroup>
+
+      <FormatGroup title="效果">
+        <ColorRow
+          id="fmt-border"
+          label="边框颜色"
+          value={st.borderColor}
+          onChange={(v) => setStyle({ borderColor: v })}
+        />
+        <NumberRow
+          id="fmt-border-w"
+          label="边框宽度"
+          min={0}
+          max={12}
+          value={st.borderWidth}
+          onChange={(v) => setStyle({ borderWidth: v })}
+        />
+        <NumberRow
+          id="fmt-radius"
+          label="圆角"
+          min={0}
+          max={48}
+          value={st.borderRadius}
+          onChange={(v) => setStyle({ borderRadius: v })}
+        />
+        <SelectRow
+          id="fmt-shadow"
+          label="阴影"
+          value={st.shadow}
+          options={[
+            { value: "none", label: "无" },
+            { value: "sm", label: "小" },
+            { value: "md", label: "中" },
+            { value: "lg", label: "大" },
+          ]}
+          onChange={(v) => setStyle({ shadow: v as WidgetShadow })}
+        />
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 w-full justify-start px-1 text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => onChange({ style: { ...DEFAULT_WIDGET_STYLE } })}
+        >
+          恢复默认外观
+        </Button>
+      </FormatGroup>
+
+      {!isDecor ? (
+        <FormatGroup title="图例" defaultOpen>
+          <ToggleRow
+            id="fmt-legend"
+            label="显示图例"
+            checked={widget.showLegend ?? true}
+            onChange={(checked) => onChange({ showLegend: checked })}
+            disabled={
+              widget.type === "table" ||
+              widget.type === "kpi" ||
+              widget.type === "funnel" ||
+              widget.type === "decomposition" ||
+              (widget.type === "treemap" && !widget.encoding.series)
+            }
+          />
+        </FormatGroup>
+      ) : null}
       {widget.type === "map" ? (
         <FormatGroup title="地图" defaultOpen>
           <div className="space-y-1 pt-1">
@@ -960,10 +1240,92 @@ function ColorRow({
   label,
   value,
   onChange,
+  clearable,
+  fallback = "#ffffff",
 }: {
   id: string;
   label: string;
   value: string;
+  onChange: (value: string) => void;
+  /** 允许清空（清空后由渲染层回退到默认值） */
+  clearable?: boolean;
+  /** 空值时的取色器展示色 */
+  fallback?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between py-1">
+      <Label htmlFor={id} className="text-xs font-normal">
+        {label}
+      </Label>
+      <div className="flex items-center gap-1">
+        {clearable && value ? (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+            title="清除"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        ) : null}
+        <input
+          id={id}
+          type="color"
+          value={value || fallback}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-6 w-9 cursor-pointer rounded border border-border bg-transparent p-0"
+        />
+      </div>
+    </div>
+  );
+}
+
+function NumberRow({
+  id,
+  label,
+  min,
+  max,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  min: number;
+  max: number;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between py-1">
+      <Label htmlFor={id} className="text-xs font-normal">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        type="number"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) =>
+          onChange(Math.min(max, Math.max(min, Number(e.target.value) || min)))
+        }
+        className="h-6 w-16 text-xs"
+      />
+    </div>
+  );
+}
+
+function SelectRow({
+  id,
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
   onChange: (value: string) => void;
 }) {
   return (
@@ -971,13 +1333,18 @@ function ColorRow({
       <Label htmlFor={id} className="text-xs font-normal">
         {label}
       </Label>
-      <input
-        id={id}
-        type="color"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-6 w-9 cursor-pointer rounded border border-border bg-transparent p-0"
-      />
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id={id} className="h-6 w-20 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o.value} value={o.value} className="text-xs">
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

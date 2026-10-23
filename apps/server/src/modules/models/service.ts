@@ -72,6 +72,14 @@ export interface LoadRowsConfig {
   sourceRef: Record<string, unknown>;
 }
 
+/** 从 Parquet 文件导入模型（Data Model 输出节点使用）。 */
+export interface ImportParquetConfig {
+  modelName: string;
+  parquetPath: string;
+  /** 额外的来源信息，写入 data_models.source_ref。 */
+  sourceRef?: Record<string, unknown>;
+}
+
 export interface LoadResult {
   rowCount: number;
   columns: ColumnInfo[];
@@ -81,6 +89,8 @@ export interface ModelStore {
   load(cfg: LoadModelConfig, ownerId: string | null): Promise<LoadResult>;
   /** 把内存中的行数据整体替换为同名模型 */
   loadRows(cfg: LoadRowsConfig, ownerId: string | null): Promise<LoadResult>;
+  /** 从 Parquet 文件整体替换为同名模型（Data Model 输出节点使用） */
+  importParquet(cfg: ImportParquetConfig): Promise<LoadResult>;
   query(name: string, limit?: number): Promise<QueryResult>;
   /** 数据探索：在模型库上执行只读 SQL（调用方须先做只读校验） */
   rawQuery(sqlText: string, limit?: number): Promise<QueryResult>;
@@ -389,6 +399,38 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
     return { rowCount, columns };
   }
 
+  async function doImportParquet(cfg: ImportParquetConfig): Promise<LoadResult> {
+    if (!MODEL_NAME_RE.test(cfg.modelName)) {
+      throw new Error(`数据模型名称不合法：${cfg.modelName}`);
+    }
+    const connection = await conn();
+    const staging = `__stg_${nanoid(8)}`;
+    let rowCount = 0;
+    let columns: ColumnInfo[] = [];
+    try {
+      await connection.run(
+        `CREATE TABLE ${quoteIdent(staging)} AS
+         SELECT * FROM read_parquet(${sqlLiteral(cfg.parquetPath)})`,
+      );
+      columns = await describeTable(connection, staging);
+      rowCount = await countRows(connection, staging);
+      await promoteStagingTable(connection, cfg.modelName, staging);
+    } catch (err) {
+      await dropTable(connection, staging).catch(() => undefined);
+      throw err;
+    }
+    repo.upsert({
+      name: cfg.modelName,
+      sourceKind: 'workflow',
+      sourceRef: JSON.stringify(cfg.sourceRef ?? {}),
+      ownerId: null,
+      loadedAt: Date.now(),
+      rowCount,
+      columns: JSON.stringify(columns),
+    });
+    return { rowCount, columns };
+  }
+
   async function doQuery(name: string, limit?: number): Promise<QueryResult> {
     const connection = await conn();
     const cap = Math.min(Math.max(Number(limit) || DEFAULT_LIMIT, 1), MAX_LIMIT);
@@ -578,6 +620,7 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
   return {
     load: (cfg, ownerId) => sem.run(() => doLoad(cfg, ownerId)),
     loadRows: (cfg, ownerId) => sem.run(() => doLoadRows(cfg, ownerId)),
+    importParquet: (cfg) => sem.run(() => doImportParquet(cfg)),
     query: (name, limit) => sem.run(() => doQuery(name, limit)),
     rawQuery: (sqlText, limit) => sem.run(() => doRawQuery(sqlText, limit)),
     pivot: (req) => sem.run(() => doPivot(req)),

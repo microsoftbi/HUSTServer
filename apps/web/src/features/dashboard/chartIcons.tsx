@@ -402,4 +402,78 @@ export const CHART_ICONS: Record<
       <rect x="10" y="12.6" width="7.5" height="1.8" rx="0.9" fill={C.gray} />
     </Svg>
   ),
+
+  // 文本框（T 字排版块）
+  text: (p) => (
+    <Svg {...p}>
+      <rect
+        x="3"
+        y="4"
+        width="18"
+        height="16"
+        rx="1.6"
+        fill="none"
+        stroke={C.gray}
+        strokeWidth="1.2"
+        strokeDasharray="2.2 1.8"
+      />
+      <rect x="6" y="7.5" width="12" height="2.1" rx="1" fill={C.navy} />
+      <rect x="6" y="11.4" width="12" height="1.6" rx="0.8" fill={C.blue} fillOpacity="0.7" />
+      <rect x="6" y="14.6" width="7.5" height="1.6" rx="0.8" fill={C.blue} fillOpacity="0.45" />
+    </Svg>
+  ),
+
+  // 图像（山峦 + 太阳）
+  image: (p) => (
+    <Svg {...p}>
+      <rect
+        x="3"
+        y="4"
+        width="18"
+        height="16"
+        rx="1.8"
+        fill="none"
+        stroke={C.navy}
+        strokeWidth="1.3"
+      />
+      <circle cx="8.2" cy="9" r="1.9" fill={C.yellow} />
+      <path d="M4.2 17.6 L9.6 11.4 L13.2 15.4 L15.8 12.6 L19.8 17.6 Z" fill={C.blue} fillOpacity="0.75" />
+    </Svg>
+  ),
+
+  // 形状（矩形 + 椭圆 + 线段）
+  shape: (p) => (
+    <Svg {...p}>
+      <rect
+        x="3"
+        y="4"
+        width="11"
+        height="9"
+        rx="1.4"
+        fill={C.blue}
+        fillOpacity="0.25"
+        stroke={C.blue}
+        strokeWidth="1.3"
+      />
+      <ellipse
+        cx="16.4"
+        cy="13.2"
+        rx="4.2"
+        ry="3.4"
+        fill={C.orange}
+        fillOpacity="0.25"
+        stroke={C.orange}
+        strokeWidth="1.3"
+      />
+      <line
+        x1="3.6"
+        y1="19.4"
+        x2="20.4"
+        y2="19.4"
+        stroke={C.gray}
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </Svg>
+  ),
 };

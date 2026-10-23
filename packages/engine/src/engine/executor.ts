@@ -133,6 +133,7 @@ async function runNode(
     connection: ctx.session.connection,
     outputTable,
     outputTableFor: (handle) => tableNameForNode(node.id, handle),
+    ...(ctx.writeModel ? { writeModel: ctx.writeModel } : {}),
     log: (level, message) => publishLog(ctx, level, message, node.id),
   };
 

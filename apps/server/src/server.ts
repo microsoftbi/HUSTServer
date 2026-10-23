@@ -2,6 +2,7 @@ import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Database } from 'better-sqlite3';
+import type { ModelWriteHook } from '@hustserver/engine';
 import type { AppConfig } from './config.js';
 import { auditRepo } from './modules/audit/repo.js';
 import { auditRoutes } from './modules/audit/routes.js';
@@ -16,6 +17,7 @@ import { jobsRepo } from './modules/jobs/repo.js';
 import { jobRoutes } from './modules/jobs/routes.js';
 import { createJobService, type JobService } from './modules/jobs/service.js';
 import { modelRoutes } from './modules/models/routes.js';
+import { dataModelsRepo } from './modules/models/repo.js';
 import { createModelStore, type ModelStore } from './modules/models/service.js';
 import { overviewRoutes } from './modules/overview/routes.js';
 import { createRecorder, type Recorder } from './modules/runs/recorder.js';
@@ -70,8 +72,6 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
   });
 
   const recorder = deps.overrides?.recorder ?? createRecorder(deps.db);
-  const runService =
-    deps.overrides?.runService ?? createRunService({ db: deps.db, config: deps.config, recorder });
 
   const modelStore =
     deps.overrides?.modelStore ?? createModelStore({ db: deps.db, config: deps.config });
@@ -81,6 +81,24 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
       modelStore.close();
     });
   }
+
+  /** Data Model 输出节点：把引擎写出的 Parquet 落到模型库，并按配置处理重名。 */
+  const writeModel: ModelWriteHook = async ({ modelName, onDuplicate, parquetPath }) => {
+    const existed = dataModelsRepo(deps.db).findByName(modelName) !== null;
+    if (existed && onDuplicate === 'error') {
+      throw new Error(`数据模型「${modelName}」已存在，按配置终止运行`);
+    }
+    const result = await modelStore.importParquet({
+      modelName,
+      parquetPath,
+      sourceRef: { parquetPath },
+    });
+    return { rowCount: result.rowCount, replaced: existed };
+  };
+
+  const runService =
+    deps.overrides?.runService ??
+    createRunService({ db: deps.db, config: deps.config, recorder, writeModel });
 
   const scheduler =
     deps.overrides?.scheduler ??

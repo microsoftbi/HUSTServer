@@ -4,7 +4,7 @@
 
 ## 功能总览
 
-- 上传、托管并运行 `.htyx` 工作流；**Web 工作流设计器**浏览器内拖拽搭建（13 种节点，保存即发布）
+- 上传、托管并运行 `.htyx` 工作流；**Web 工作流设计器**浏览器内拖拽搭建（22 种节点，保存即发布）
 - **Job 编排**：把「运行工作流 / 运行 SQL / 加载成模型」编排为有序步骤，每步可设失败策略（中止 / 继续）
 - 手动运行 + Cron 调度，工作流节点级状态与实时日志（SSE）；**Job 日志**页汇总全部 Job 的最近一次运行
 - **仪表板**：数据集可来自资源库文件（CSV / Excel）、SQL 查询或**数据模型**，拖拽搭建图表与报表；对所有具备查看能力的用户可见
@@ -49,7 +49,7 @@
 
 ### Web 工作流设计器
 
-内置完整画布设计器（复用 HUSTERYX 前端）：支持 **13 种节点**（CSV / Excel / SQL Server 输入，Select / Filter / Join / Union / Aggregation / Sort 转换，CSV / Excel / SQL Server / Browser 输出），拖拽连线、成环检测与端口约束、节点配置面板编辑；既可从「新建画布」从零搭建，也可从列表 / 详情进入编辑既有工作流，保存即发布到平台。
+内置完整画布设计器（复用 HUSTERYX 前端）：支持 **22 种节点**（CSV / Excel / SQL Server 输入，Select / Filter / Join / Union / Aggregation / Sort / Formula / Unique / Sample / Data Cleansing / Running Total / Text to Columns / Cross Tab / Transpose 转换，CSV / Excel / SQL Server / Browser / Data Model 输出），拖拽连线、成环检测与端口约束、节点配置面板编辑；既可从「新建画布」从零搭建，也可从列表 / 详情进入编辑既有工作流，保存即发布到平台。
 
 ![Web 工作流设计器](docs/images/designer.png)
 
@@ -165,7 +165,7 @@ HUSTServer/
 
 - **前端层**：`apps/web`（React 19 控制台）负责认证、工作区（工作流 / Job / 数据连接 / 资源库 / 数据模型）、仪表板编辑器与运行观测，路由与操作按**能力**（`RequireCap`）门禁；画布编辑能力由独立包 `packages/workflow-designer` 提供——该包逐字节复用 HUSTERYX 前端设计器并裁剪运行态，通过 `DesignerAdapter` 适配器注入平台能力（保存发布、文件上传、结构探测），包内不依赖路由与平台 API。
 - **服务层**：`apps/server`（Fastify 5）提供 REST API 与 SSE 实时日志，承担会话认证与**基于能力的授权（RBAC）**、node-cron 调度、工作流运行编排（并发控制、失败重试、日志保留清理）与 **Job 步骤编排**、连接密码加密、**数据模型管理**（staging 原子替换 + 单写者串行），生产模式下同时静态托管前端产物（SPA 回退）。
-- **执行引擎**：`packages/engine` 是 HUSTERYX 后端引擎的移植（基线 `39451d8`），基于 DuckDB 计算与 mssql 驱动，将 13 种节点（CSV / Excel / SQL Server 输入，Select / Filter / Join / Union / Aggregation / Sort 转换，CSV / Excel / SQL Server / Browser 输出）按拓扑顺序执行；同时提供**数据模型加载**能力，把 CSV / Excel / SQL Server 数据物化进持久 DuckDB 单文件。
+- **执行引擎**：`packages/engine` 是 HUSTERYX 后端引擎的移植（基线 `39451d8`），基于 DuckDB 计算与 mssql 驱动，将 22 种节点（CSV / Excel / SQL Server 输入，Select / Filter / Join / Union / Aggregation / Sort / Formula / Unique / Sample / Data Cleansing / Running Total / Text to Columns / Cross Tab / Transpose 转换，CSV / Excel / SQL Server / Browser / Data Model 输出）按拓扑顺序执行；同时提供**数据模型加载**能力，把 CSV / Excel / SQL Server 数据物化进持久 DuckDB 单文件。
 - **存储**：SQLite 单文件承载全部元数据（用户与角色、会话、登录日志、工作流 payload、Job、仪表板、连接密文、运行与日志）；**DuckDB 单文件（`models.duckdb`）承载物化后的数据模型**；上传的数据文件、运行输出与溢出数据落在 `HUSTSERVER_DATA_DIR` 文件目录。
 
 ```mermaid
@@ -189,7 +189,7 @@ flowchart LR
         Duck[("DuckDB 单文件<br/>models.duckdb<br/>数据模型")]
     end
 
-    Engine["执行引擎<br/>packages/engine<br/>DuckDB + mssql<br/>13 种节点按拓扑序执行"]
+    Engine["执行引擎<br/>packages/engine<br/>DuckDB + mssql<br/>22 种节点按拓扑序执行"]
     SQL[("SQL Server")]
 
     Server -->|"静态托管 web/dist · SPA 回退"| Web

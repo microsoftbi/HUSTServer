@@ -16,9 +16,22 @@ import {
 } from '@/components/panels/TransformPanels';
 import {
   OutputCsvPanel,
+  OutputDataModelPanel,
   OutputExcelPanel,
   OutputSqlServerPanel,
 } from '@/components/panels/OutputPanels';
+import {
+  CleansingPanel,
+  FormulaPanel,
+  SamplePanel,
+  UniquePanel,
+} from '@/components/panels/PrepPanels';
+import {
+  CrossTabPanel,
+  RunningTotalPanel,
+  TextToColumnsPanel,
+  TransposePanel,
+} from '@/components/panels/PivotPanels';
 import { CATEGORY_ACCENT, getNodeMeta } from '@/lib/nodeMeta';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { cn } from '@/lib/utils';
@@ -44,6 +57,24 @@ function ConfigForm({ node }: { node: WorkflowNode }) {
       return <AggregationPanel node={node} />;
     case 'sort':
       return <SortPanel node={node} />;
+    case 'formula':
+      return <FormulaPanel node={node} />;
+    case 'unique':
+      return <UniquePanel node={node} />;
+    case 'sample':
+      return <SamplePanel node={node} />;
+    case 'cleansing':
+      return <CleansingPanel node={node} />;
+    case 'runningTotal':
+      return <RunningTotalPanel node={node} />;
+    case 'textToColumns':
+      return <TextToColumnsPanel node={node} />;
+    case 'crossTab':
+      return <CrossTabPanel node={node} />;
+    case 'transpose':
+      return <TransposePanel node={node} />;
+    case 'dataModel':
+      return <OutputDataModelPanel node={node} />;
     case 'outputCsv':
       return <OutputCsvPanel node={node} />;
     case 'outputExcel':

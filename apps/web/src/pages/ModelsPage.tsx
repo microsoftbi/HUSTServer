@@ -32,7 +32,7 @@ interface ModelColumn {
 
 interface ModelItem {
   name: string;
-  sourceKind: 'csv' | 'excel' | 'sqlserver' | 'audit';
+  sourceKind: 'csv' | 'excel' | 'sqlserver' | 'workflow' | 'audit';
   sourceRef: {
     resourcePath?: string;
     format?: string;
@@ -69,12 +69,14 @@ const SOURCE_LABEL: Record<ModelItem['sourceKind'], string> = {
   csv: 'CSV 文件',
   excel: 'Excel 文件',
   sqlserver: 'SQL Server',
+  workflow: '工作流输出',
   audit: '系统审计',
 };
 
 function sourceText(m: ModelItem): string {
   if (m.sourceKind === 'sqlserver') return m.sourceRef.object ?? m.sourceRef.query ?? '—';
   if (m.sourceKind === 'audit') return '审计日志';
+  if (m.sourceKind === 'workflow') return 'Data Model 节点';
   return m.sourceRef.resourcePath ?? '—';
 }
 

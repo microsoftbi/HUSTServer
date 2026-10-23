@@ -78,6 +78,8 @@ export function DecompositionTree({
   const config = useMemo(() => decompositionOf(widget), [widget.decomposition]);
   const explainBy = widget.explainBy ?? [];
   const measure = widget.encoding.measures[0];
+  /** 度量字段的数值格式 */
+  const valueFormat = dataset.formats?.[measure?.field ?? ""];
 
   const root = useMemo(
     () =>
@@ -233,7 +235,7 @@ export function DecompositionTree({
                 const nameOnBar =
                   barW >= 8 + textWidth(name, config.fontSize) + 6;
                 const valueText = config.showValues
-                  ? fitLabel(formatCell(box.node.value), 44, config.fontSize)
+                  ? fitLabel(formatCell(box.node.value, valueFormat), 44, config.fontSize)
                   : "";
                 const valueOnBar =
                   barW >= box.w - 22 - textWidth(valueText, config.fontSize);
@@ -427,7 +429,7 @@ export function DecompositionTree({
           <div className="mt-1 flex items-center justify-between gap-2">
             <span className="text-muted-foreground">值</span>
             <span className="font-medium tabular-nums">
-              {formatCell(hover.node.value)}
+              {formatCell(hover.node.value, valueFormat)}
             </span>
           </div>
           <div className="flex items-center justify-between gap-2">

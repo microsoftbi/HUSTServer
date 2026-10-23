@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import type { MapRegion } from "@bi/types";
+import type { FieldFormat, MapRegion } from "@bi/types";
 import {
   buildRegionIndex,
   createFitProjection,
@@ -29,6 +29,8 @@ interface MapChartProps {
   showLegend?: boolean;
   /** 当前交叉高亮状态 */
   highlight?: HighlightSelection | null;
+  /** 度量字段的数值格式 */
+  valueFormat?: FieldFormat | null;
   /** 点击区域回调：使用数据标签（非地理名） */
   onPointClick?: (field: string, value: string, additive: boolean) => void;
 }
@@ -60,6 +62,7 @@ export function MapChart({
   region,
   showLegend = true,
   highlight = null,
+  valueFormat = null,
   onPointClick,
 }: MapChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -225,14 +228,14 @@ export function MapChart({
 
           {showLegend ? (
             <div className="pointer-events-none absolute bottom-1 left-1/2 flex -translate-x-1/2 items-center gap-2 text-[11px] text-muted-foreground">
-              <span className="tabular-nums">{formatCell(min)}</span>
+              <span className="tabular-nums">{formatCell(min, valueFormat)}</span>
               <div
                 className="h-2 w-32 rounded-sm"
                 style={{
                   background: `linear-gradient(90deg, ${MAP_COLOR_STOPS.join(", ")})`,
                 }}
               />
-              <span className="tabular-nums">{formatCell(max)}</span>
+              <span className="tabular-nums">{formatCell(max, valueFormat)}</span>
             </div>
           ) : null}
 
@@ -242,7 +245,7 @@ export function MapChart({
               style={{ left: hover.x + 12, top: hover.y + 12 }}
             >
               <div className="font-medium">{hover.name || "未知区域"}</div>
-              <div className="text-muted-foreground">{formatCell(hover.value)}</div>
+              <div className="text-muted-foreground">{formatCell(hover.value, valueFormat)}</div>
             </div>
           ) : null}
         </>

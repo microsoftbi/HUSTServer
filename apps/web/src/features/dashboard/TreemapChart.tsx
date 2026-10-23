@@ -78,6 +78,8 @@ export function TreemapChart({
   }, []);
 
   const config = useMemo(() => treemapOf(widget), [widget.treemap]);
+  /** 度量字段的数值格式 */
+  const valueFormat = dataset.formats?.[widget.encoding.measures[0]?.field ?? ""];
   const groups = useMemo(
     () => buildTreemapGroups(dataset, widget.encoding),
     [dataset, widget.encoding],
@@ -219,7 +221,7 @@ export function TreemapChart({
           `g-${groupIndex}`,
           rect,
           group.name,
-          formatCell(leaf?.value ?? group.value),
+          formatCell(leaf?.value ?? group.value, valueFormat),
           config.labelColor,
           config.labelFontSize,
         );
@@ -286,7 +288,7 @@ export function TreemapChart({
           key,
           child.rect,
           leaf.name,
-          formatCell(leaf.value),
+          formatCell(leaf.value, valueFormat),
           config.labelColor,
           config.labelFontSize,
         );
@@ -303,6 +305,7 @@ export function TreemapChart({
     showLegend,
     detailColorIndex,
     maxLeafValue,
+    valueFormat,
   ]);
 
   if (groups.length === 0) {
@@ -460,7 +463,7 @@ export function TreemapChart({
           <div className="mt-1 flex items-center justify-between gap-2">
             <span className="text-muted-foreground">值</span>
             <span className="font-medium tabular-nums">
-              {formatCell(hover.value)}
+              {formatCell(hover.value, valueFormat)}
             </span>
           </div>
           <div className="flex items-center justify-between gap-2">

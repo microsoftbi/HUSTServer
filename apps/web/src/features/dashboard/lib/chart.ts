@@ -42,6 +42,9 @@ export const CHART_TYPE_LABELS: Record<ChartType, string> = {
   map: "填充地图",
   matrix: "数据透视表",
   filter: "切片器",
+  text: "文本框",
+  image: "图像",
+  shape: "形状",
 };
 
 /** 字段槽位名称（按图表类型对齐 Power BI 命名） */

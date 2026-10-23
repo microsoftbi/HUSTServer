@@ -89,7 +89,23 @@
 
 ### 2.3 用 Web 工作流设计器搭建
 
-从列表的 `新建画布`（或详情页/列表的 `编辑画布`）进入设计器。设计器支持 **13 种节点**：CSV / Excel / SQL Server 输入，Select / Filter / Join / Union / Aggregation / Sort 转换，CSV / Excel / SQL Server / Browser 输出；支持拖拽连线、成环检测与端口约束、节点配置面板编辑。
+从列表的 `新建画布`（或详情页/列表的 `编辑画布`）进入设计器。设计器支持 **22 种节点**：CSV / Excel / SQL Server 输入，Select / Filter / Join / Union / Aggregation / Sort / Formula / Unique / Sample / Data Cleansing / Running Total / Text to Columns / Cross Tab / Transpose 转换，CSV / Excel / SQL Server / Browser / Data Model 输出；支持拖拽连线、成环检测与端口约束、节点配置面板编辑。
+
+其中四个 Alteryx 风格的准备节点：
+
+- **Formula**：多条表达式按顺序计算，可覆盖现有列或新增列；选择输出列后填写 SQL 表达式（如 `amount * 1.1`、`CASE WHEN ... END`），并指定输出类型与字符串宽度。
+- **Unique**：勾选用于判断唯一值的字段，`U` 锚点输出每组首行、`D` 锚点输出每组其余重复行，输出按唯一值字段排序。
+- **Sample**：支持前 N 行 / 后 N 行 / 跳过前 N 行 / 每 N 行取首行 / 随机 1/N / 前 N%，可选按列分组后每组各取 N 行。
+- **Data Cleansing**：可移除 null 行与 null 列，按字段清理（替换 null、去前导尾随空格、压缩空白、去除字母 / 数字 / 标点）、并统一大小写。
+
+另有四个拆分重组类节点：
+
+- **Running Total**：选择数值字段做累计求和，可勾选「覆盖原列」或指定新列名；指定分组字段后每组内单独累计（对应 Alteryx 的 Group By）。累计顺序即记录进入节点的顺序，需要固定顺序时先接 Sort。
+- **Text to Columns**：按分隔符把单个字段拆成多列（新列名 `<根名称>1/<根名称>2…`，列数可留 0 自动检测）或多行；支持忽略空分段。
+- **Cross Tab**：把表头字段的不同取值转成列、值字段填入单元格；可选分组字段，同一单元格多条记录按 First / Last / Sum / Count / Min / Max / Concatenate 合并。
+- **Transpose**：把选定的数据列转成行，输出「键字段 + Name + Value」；多个数据字段类型不一致时 Value 统一为字符串。
+
+输出侧除 CSV / Excel / SQL Server / Browser 外，另有 **Data Model** 节点：把上游结果整体写成本系统的数据模型。填写「数据模型名称」（以字母或下划线开头，仅含字母、数字、下划线，最长 64 位），并选择同名模型已存在时的行为 —— **覆盖已有模型** 或 **停止并报错**。写入成功后模型会立刻出现在「数据模型」页，可作为仪表板数据集使用；选择「停止并报错」时本次运行在该节点失败，已有模型保持原样。
 
 - 新建画布：默认名 `未命名工作流`。
 - **保存即发布**：点设计器内的保存按钮把画布写回平台；新建时首次保存后地址栏会变为编辑态路由。

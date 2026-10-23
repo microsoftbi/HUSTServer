@@ -6,6 +6,19 @@ export interface Column {
   type: ColumnType;
 }
 
+/** 数值显示单位：按数量级折算后再拼接后缀 */
+export type NumberUnit = 'none' | 'thousand' | 'tenThousand' | 'million' | 'hundredMillion';
+
+/** 字段级数值格式（对应 Power BI 的列 / 度量值格式设置） */
+export interface FieldFormat {
+  /** 小数位；-1 表示自动（最多 6 位并去掉浮点尾差） */
+  decimals: number;
+  /** 是否使用千分位分隔 */
+  thousands: boolean;
+  /** 显示单位 */
+  unit: NumberUnit;
+}
+
 export type ChartType =
   | 'bar'
   | 'stackedBar'
@@ -28,7 +41,11 @@ export type ChartType =
   | 'map'
   | 'matrix'
   /** 切片器视觉对象：本身不画图，直接承载值选择与筛选 */
-  | 'filter';
+  | 'filter'
+  /** 装饰元素：不绑定数据集，只承载文本 / 图片 / 形状 */
+  | 'text'
+  | 'image'
+  | 'shape';
 
 /** 切片器类型（对齐 Power BI 切片器的可用样式） */
 export type SlicerType =
@@ -149,6 +166,64 @@ export interface WidgetLayout {
   h: number;
 }
 
+export type WidgetShadow = 'none' | 'sm' | 'md' | 'lg';
+export type TextAlign = 'left' | 'center' | 'right';
+export type VerticalAlign = 'top' | 'middle' | 'bottom';
+
+/**
+ * 视觉对象的通用外观（对齐 Power BI「设置视觉对象格式 → 常规 / 效果」）。
+ * 未配置时按默认值渲染，因此旧数据无需迁移。
+ */
+export interface WidgetStyle {
+  /** 背景填充色（空字符串表示不填充） */
+  background: string;
+  /** 背景不透明度（0-100） */
+  backgroundOpacity: number;
+  borderColor: string;
+  borderWidth: number;
+  borderRadius: number;
+  /** 内容内边距（像素） */
+  padding: number;
+  shadow: WidgetShadow;
+  titleFontSize: number;
+  titleColor: string;
+  titleAlign: TextAlign;
+}
+
+/** 装饰元素（文本框 / 图像 / 形状）的配置 */
+export interface DecorationConfig {
+  /** 文本框内容 */
+  text: string;
+  fontSize: number;
+  bold: boolean;
+  color: string;
+  align: TextAlign;
+  verticalAlign: VerticalAlign;
+  /** 图像地址（http(s) 或 data URI） */
+  imageUrl: string;
+  imageFit: 'contain' | 'cover' | 'fill';
+  shape: 'rect' | 'ellipse' | 'line';
+  fill: string;
+  stroke: string;
+  strokeWidth: number;
+  /** 圆角（矩形生效） */
+  radius: number;
+}
+
+/** 报表页设置（对齐 Power BI 的「页面设置 / 画布设置」） */
+export interface PageConfig {
+  /** 画布宽度；0 表示适应容器宽度 */
+  width: number;
+  /** 画布高度；0 表示随内容自动增高 */
+  height: number;
+  /** 报表页背景色 */
+  background: string;
+  /** 报表页背景图片地址 */
+  backgroundImage: string;
+  /** 画布外壁纸色（空字符串使用默认灰色） */
+  wallpaper: string;
+}
+
 export interface ChartWidget {
   id: string;
   type: ChartType;
@@ -156,6 +231,10 @@ export interface ChartWidget {
   datasetId: string;
   encoding: WidgetEncoding;
   layout: WidgetLayout;
+  /** 通用外观：背景、边框、圆角、阴影、标题样式 */
+  style?: WidgetStyle;
+  /** 装饰元素（text / image / shape）的内容配置 */
+  decoration?: DecorationConfig;
   showTitle?: boolean;
   showLegend?: boolean;
   mapRegion?: MapRegion;
@@ -176,6 +255,8 @@ export interface Dashboard {
   id: string;
   name: string;
   widgets: ChartWidget[];
+  /** 页面设置：画布尺寸、背景与壁纸 */
+  page?: PageConfig;
 }
 
 export interface QueryColumn {
@@ -201,6 +282,8 @@ export interface SavedDataset {
   id: string;
   name: string;
   def: DatasetDef;
+  /** 字段级数值格式：列名 → 格式 */
+  formats?: Record<string, FieldFormat>;
 }
 
 /** 运行时数据集：在 tinybi 的 Dataset 上多带 def，便于回写定义。 */
@@ -212,6 +295,8 @@ export interface Dataset {
   rows: CellValue[][];
   createdAt: string;
   def: DatasetDef;
+  /** 字段级数值格式：列名 → 格式 */
+  formats?: Record<string, FieldFormat>;
 }
 
 /** 落库的 JSON 结构。 */

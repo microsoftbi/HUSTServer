@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Database, FileSpreadsheet, Plus, Table2, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Database, FileSpreadsheet, Plus, SlidersHorizontal, Table2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@bi/components/ui/button';
 import { Badge } from '@bi/components/ui/badge';
@@ -7,6 +7,7 @@ import { ScrollArea } from '@bi/components/ui/scroll-area';
 import { Separator } from '@bi/components/ui/separator';
 import { Input } from '@bi/components/ui/input';
 import { Label } from '@bi/components/ui/label';
+import { Switch } from '@bi/components/ui/switch';
 import { DataTable } from '@bi/components/DataTable';
 import {
   Dialog,
@@ -31,7 +32,13 @@ import { api, ApiClientError } from '../../api.js';
 import { cn } from '@bi/lib/utils';
 import { loadFileDataset, loadModelDataset, querySqlDataset } from '@bi/services/dataSource';
 import { useDatasetStore } from '@bi/stores/datasetStore';
-import type { Dataset, DatasetSource } from '@bi/types';
+import {
+  DECIMAL_OPTIONS,
+  DEFAULT_FIELD_FORMAT,
+  UNIT_OPTIONS,
+  formatNumber,
+} from '@bi/lib/format';
+import type { Dataset, DatasetSource, FieldFormat } from '@bi/types';
 
 const SOURCE_LABEL: Record<DatasetSource, string> = {
   csv: 'CSV',
@@ -80,6 +87,7 @@ export function DataView() {
   const removeDataset = useDatasetStore((s) => s.removeDataset);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addMode, setAddMode] = useState<AddMode | null>(null);
+  const [formatOpen, setFormatOpen] = useState(false);
 
   const selected =
     datasets.find((d) => d.id === selectedId) ?? datasets[0] ?? null;
@@ -192,9 +200,18 @@ export function DataView() {
               <span className="text-xs text-muted-foreground">
                 {selected.rows.length} 行 · {selected.columns.length} 列
               </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="ml-auto h-7 gap-1.5 text-xs"
+                onClick={() => setFormatOpen(true)}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                字段格式
+              </Button>
             </div>
             <div className="min-h-0 flex-1">
-              <DataTable columns={selected.columns} rows={selected.rows} />
+              <DataTable columns={selected.columns} rows={selected.rows} formats={selected.formats} />
             </div>
           </>
         ) : (
@@ -214,6 +231,14 @@ export function DataView() {
           toast.success(`已添加数据集「${ds.name}」`);
         }}
       />
+
+      {selected ? (
+        <FieldFormatDialog
+          dataset={selected}
+          open={formatOpen}
+          onClose={() => setFormatOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -511,6 +536,171 @@ function AddDatasetDialog({ mode, onClose, onAdded }: AddDatasetDialogProps) {
         ) : (
           <p className="text-sm text-muted-foreground">选择来源并载入后在此预览结果。</p>
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface FieldFormatDialogProps {
+  dataset: Dataset;
+  open: boolean;
+  onClose: () => void;
+}
+
+/** 字段级数值格式设置：小数位、千分位、显示单位（对应 Power BI 的列/度量值格式） */
+function FieldFormatDialog({ dataset, open, onClose }: FieldFormatDialogProps) {
+  const updateDataset = useDatasetStore((s) => s.updateDataset);
+  const numericColumns = useMemo(
+    () => dataset.columns.filter((c) => c.type === 'number'),
+    [dataset.columns],
+  );
+  const [field, setField] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setField((prev) =>
+      numericColumns.some((c) => c.name === prev) ? prev : (numericColumns[0]?.name ?? ''),
+    );
+  }, [open, dataset.id, numericColumns]);
+
+  const format = (field && dataset.formats?.[field]) || DEFAULT_FIELD_FORMAT;
+
+  const sample = useMemo(() => {
+    const index = dataset.columns.findIndex((c) => c.name === field);
+    if (index < 0) return undefined;
+    for (const row of dataset.rows) {
+      const value = row[index];
+      if (typeof value === 'number') return value;
+    }
+    return undefined;
+  }, [dataset.columns, dataset.rows, field]);
+
+  function patch(next: Partial<FieldFormat>) {
+    if (!field) return;
+    updateDataset(dataset.id, {
+      formats: { ...dataset.formats, [field]: { ...format, ...next } },
+    });
+  }
+
+  function reset() {
+    if (!field || !dataset.formats?.[field]) return;
+    const next = { ...dataset.formats };
+    delete next[field];
+    updateDataset(dataset.id, { formats: next });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => (o ? undefined : onClose())}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>字段格式 · {dataset.name}</DialogTitle>
+        </DialogHeader>
+
+        {numericColumns.length === 0 ? (
+          <p className="text-sm text-muted-foreground">该数据集没有数值字段可配置。</p>
+        ) : (
+          <div className="flex gap-4">
+            <aside className="w-44 shrink-0">
+              <ScrollArea className="h-64 rounded-md border">
+                <ul className="space-y-0.5 p-1">
+                  {numericColumns.map((c) => (
+                    <li key={c.name}>
+                      <button
+                        type="button"
+                        onClick={() => setField(c.name)}
+                        className={cn(
+                          'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent',
+                          c.name === field && 'bg-accent font-medium',
+                        )}
+                      >
+                        <span className="flex-1 truncate">{c.name}</span>
+                        {dataset.formats?.[c.name] ? (
+                          <span className="shrink-0 text-[10px] text-muted-foreground">
+                            已设置
+                          </span>
+                        ) : null}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </ScrollArea>
+            </aside>
+
+            <section className="min-w-0 flex-1 space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">小数位数</Label>
+                <Select
+                  value={String(format.decimals)}
+                  onValueChange={(v) => patch({ decimals: Number(v) })}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DECIMAL_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">显示单位</Label>
+                <Select
+                  value={format.unit}
+                  onValueChange={(v) => patch({ unit: v as FieldFormat['unit'] })}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UNIT_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between py-0.5">
+                <Label htmlFor="field-thousands" className="text-xs">
+                  使用千分位
+                </Label>
+                <Switch
+                  id="field-thousands"
+                  checked={format.thousands}
+                  onCheckedChange={(v) => patch({ thousands: v })}
+                />
+              </div>
+
+              <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs">
+                <span className="text-muted-foreground">预览：</span>
+                <span className="font-medium tabular-nums">
+                  {formatNumber(sample ?? 1234567.89, format)}
+                </span>
+              </div>
+
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                disabled={!dataset.formats?.[field]}
+                onClick={reset}
+              >
+                恢复默认
+              </Button>
+            </section>
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <Button size="sm" onClick={onClose}>
+            完成
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

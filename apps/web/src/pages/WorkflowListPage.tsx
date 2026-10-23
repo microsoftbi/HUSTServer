@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Pencil, Plug, Trash2, Workflow } from 'lucide-react';
+import { Pencil, Trash2, Workflow } from 'lucide-react';
 import { api } from '../api.js';
 import { Button } from '../components/ui/button.js';
 import { Card } from '../components/ui/card.js';
@@ -75,12 +75,6 @@ export function WorkflowListPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
-                      <Button asChild variant="ghost" size="sm">
-                        <Link to={`/workflows/${w.id}/connections`}>
-                          <Plug />
-                          数据连接
-                        </Link>
-                      </Button>
                       <Button asChild variant="ghost" size="sm">
                         <Link to={`/workflows/${w.id}/designer`}>
                           <Pencil />

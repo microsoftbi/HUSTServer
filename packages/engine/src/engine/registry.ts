@@ -9,6 +9,15 @@ import { join } from '../nodes/join.js';
 import { union } from '../nodes/union.js';
 import { aggregation } from '../nodes/aggregation.js';
 import { sort } from '../nodes/sort.js';
+import { formula } from '../nodes/formula.js';
+import { unique } from '../nodes/unique.js';
+import { sample } from '../nodes/sample.js';
+import { cleansing } from '../nodes/cleansing.js';
+import { runningTotal } from '../nodes/runningTotal.js';
+import { textToColumns } from '../nodes/textToColumns.js';
+import { crossTab } from '../nodes/crossTab.js';
+import { transpose } from '../nodes/transpose.js';
+import { dataModel } from '../nodes/dataModel.js';
 import { outputCsv } from '../nodes/outputCsv.js';
 import { outputExcel } from '../nodes/outputExcel.js';
 import { outputSqlServer } from '../nodes/outputSqlServer.js';
@@ -25,6 +34,15 @@ export const nodeRegistry: Record<NodeKind, NodeExecutor> = {
   union,
   aggregation,
   sort,
+  formula,
+  unique,
+  sample,
+  cleansing,
+  runningTotal,
+  textToColumns,
+  crossTab,
+  transpose,
+  dataModel,
   outputCsv,
   outputExcel,
   outputSqlServer,

@@ -22,15 +22,18 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { ChartWidget, Dataset } from "@bi/types";
-import { aggregate } from "@bi/lib/aggregate";
+import type { PieLabelRenderProps } from "recharts";
+import type { ChartWidget, Dataset, FieldFormat } from "@bi/types";
+import { aggregate, measureKey } from "@bi/lib/aggregate";
 import { colorAt, normalizeToPercent } from "@bi/lib/chart";
 import { DataTable } from "@bi/components/DataTable";
+import { DecorationView } from "./DecorationView";
+import { isDecoration } from "@bi/lib/decoration";
 import { MapChart } from "./MapChart";
 import { PivotTable } from "./PivotTable";
 import { TreemapChart } from "./TreemapChart";
 import { DecompositionTree } from "./DecompositionTree";
-import { formatCell } from "@bi/lib/format";
+import { formatCell, formatNumber } from "@bi/lib/format";
 import {
   applyValueFilters,
   cellOpacity,
@@ -65,6 +68,11 @@ export function ChartRenderer({
   onPointClick,
   onWidgetChange,
 }: ChartRendererProps) {
+  // 装饰元素不依赖数据集，需在「数据集丢失 / 未配置度量」判断之前分流
+  if (isDecoration(widget.type)) {
+    return <DecorationView widget={widget} onChange={onWidgetChange} />;
+  }
+
   if (!dataset) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -87,6 +95,24 @@ export function ChartRenderer({
   const keys = agg.series.length > 0 ? agg.series : agg.measureKeys;
   const showLegend = widget.showLegend ?? true;
 
+  /**
+   * 聚合 key → 原始字段名：无系列分组时 key 为 `sum(字段)`，
+   * 系列分组时 key 为系列值、度量统一取首个。字段格式以列名为 key 存储。
+   */
+  const measureFieldOf = (key: string) => {
+    const measures = widget.encoding.measures;
+    if (agg.series.length > 0) return measures[0]?.field ?? key;
+    return measures.find((m) => measureKey(m) === key)?.field ?? key;
+  };
+  /** 按聚合 key 取字段级数值格式 */
+  const formatOf = (key: string) => dataset.formats?.[measureFieldOf(key)];
+  /** 聚合 key → 格式映射（表格 / 透视表的列名即聚合 key） */
+  const keyFormats: Record<string, FieldFormat> = {};
+  for (const k of Object.keys(agg.data[0] ?? {})) {
+    const f = formatOf(k);
+    if (f) keyFormats[k] = f;
+  }
+
   if (agg.data.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -100,7 +126,13 @@ export function ChartRenderer({
     const columns = Object.keys(agg.data[0]).map((name) => ({ name }));
     const rows = agg.data.map((d) => columns.map((c) => d[c.name]));
     return (
-      <DataTable columns={columns} rows={rows} searchable={false} pageSize={100} />
+      <DataTable
+        columns={columns}
+        rows={rows}
+        formats={keyFormats}
+        searchable={false}
+        pageSize={100}
+      />
     );
   }
 
@@ -118,7 +150,7 @@ export function ChartRenderer({
                 className="text-3xl font-bold tabular-nums"
                 style={{ color: colorAt(i) }}
               >
-                {formatCell(total)}
+                {formatCell(total, formatOf(k))}
               </div>
               <div className="mt-1 text-xs text-muted-foreground">{k}</div>
             </div>
@@ -145,6 +177,7 @@ export function ChartRenderer({
         region={widget.mapRegion}
         showLegend={showLegend}
         highlight={highlight}
+        valueFormat={formatOf(keys[0])}
         onPointClick={onPointClick}
       />
     );
@@ -191,6 +224,7 @@ export function ChartRenderer({
         columnKeys={keys}
         showTotals={widget.showTotals ?? true}
         highlight={highlight}
+        formats={keyFormats}
         onPointClick={onPointClick}
       />
     );
@@ -201,6 +235,18 @@ export function ChartRenderer({
 
   const categoryKey = agg.dimensionKey;
   const valueKey = keys[0];
+  /** 数值轴刻度：按首个度量的格式显示 */
+  const tickFormat = (v: number | string) => formatNumber(Number(v), formatOf(valueKey));
+  /** Tooltip 数值：按系列名匹配字段格式（多系列笛卡尔图） */
+  const tooltipFormat = (value: unknown, name: unknown) =>
+    typeof value === "number"
+      ? formatCell(value, formatOf(String(name)))
+      : String(value ?? "");
+  /** Tooltip 数值：单值图（饼图 / 漏斗 / 径向）按首个度量格式 */
+  const singleTooltipFormat = (value: unknown) =>
+    typeof value === "number"
+      ? formatNumber(value, formatOf(valueKey))
+      : String(value ?? "");
   /** 单值类图表（漏斗图 / 径向条形图）的 {name, value} 数据 */
   const namedData = agg.data.map((d) => ({
     name: String(d[categoryKey] ?? ""),
@@ -215,8 +261,8 @@ export function ChartRenderer({
         tick={{ fontSize: 11 }}
         interval="preserveStartEnd"
       />
-      <YAxis tick={{ fontSize: 11 }} width={48} />
-      <Tooltip />
+      <YAxis tick={{ fontSize: 11 }} width={48} tickFormatter={tickFormat} />
+      <Tooltip formatter={tooltipFormat} />
       {showLegend ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null}
     </>
   );
@@ -224,14 +270,14 @@ export function ChartRenderer({
   const horizontalAxes = (
     <>
       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-      <XAxis type="number" tick={{ fontSize: 11 }} />
+      <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={tickFormat} />
       <YAxis
         type="category"
         dataKey={categoryKey}
         tick={{ fontSize: 11 }}
         width={72}
       />
-      <Tooltip />
+      <Tooltip formatter={tooltipFormat} />
       {showLegend ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null}
     </>
   );
@@ -402,7 +448,7 @@ export function ChartRenderer({
       case "donut":
         return (
           <PieChart>
-            <Tooltip />
+            <Tooltip formatter={singleTooltipFormat} />
             {showLegend ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null}
             <Pie
               data={agg.data}
@@ -412,7 +458,9 @@ export function ChartRenderer({
               cy="50%"
               innerRadius={type === "donut" ? "45%" : 0}
               outerRadius="70%"
-              label
+              label={(p: PieLabelRenderProps) =>
+                formatNumber(Number(p.value), formatOf(valueKey))
+              }
             >
               {agg.data.map((row, i) => (
                 <Cell
@@ -433,15 +481,21 @@ export function ChartRenderer({
               tick={{ fontSize: 11 }}
               name={categoryKey}
             />
-            <YAxis dataKey={valueKey} type="number" tick={{ fontSize: 11 }} width={48} />
-            <Tooltip />
+            <YAxis
+              dataKey={valueKey}
+              type="number"
+              tick={{ fontSize: 11 }}
+              width={48}
+              tickFormatter={tickFormat}
+            />
+            <Tooltip formatter={singleTooltipFormat} />
             <Scatter data={agg.data} fill={colorAt(0)} />
           </ScatterChart>
         );
       case "funnel":
         return (
           <FunnelChart>
-            <Tooltip />
+            <Tooltip formatter={singleTooltipFormat} />
             <Funnel
               data={namedData}
               dataKey="value"
@@ -468,7 +522,7 @@ export function ChartRenderer({
                 <Cell key={i} {...pointProps(categoryKey, d.name, colorAt(i))} />
               ))}
             </RadialBar>
-            <Tooltip />
+            <Tooltip formatter={singleTooltipFormat} />
             {showLegend ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null}
           </RadialBarChart>
         );

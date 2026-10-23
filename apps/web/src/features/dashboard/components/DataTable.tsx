@@ -7,7 +7,7 @@ import {
   ChevronRight,
   Search,
 } from "lucide-react";
-import type { CellValue } from "@bi/types";
+import type { CellValue, FieldFormat } from "@bi/types";
 import { formatCell } from "@bi/lib/format";
 import { filterRows, paginate, sortRows, type SortState } from "@bi/lib/datatable";
 import { Input } from "@bi/components/ui/input";
@@ -25,6 +25,8 @@ interface DataTableProps {
   pageSize?: number;
   /** 是否显示搜索框（小表格可关闭） */
   searchable?: boolean;
+  /** 字段级数值格式：列名 → 格式 */
+  formats?: Record<string, FieldFormat>;
   className?: string;
 }
 
@@ -34,6 +36,7 @@ export function DataTable({
   rows,
   pageSize = 50,
   searchable = true,
+  formats,
   className,
 }: DataTableProps) {
   const [query, setQuery] = useState("");
@@ -135,12 +138,12 @@ export function DataTable({
                 <td className="border-b border-r px-2 py-1.5 text-right text-xs text-muted-foreground">
                   {startIndex + ri}
                 </td>
-                {columns.map((_, ci) => (
+                {columns.map((col, ci) => (
                   <td
                     key={ci}
                     className="max-w-[320px] truncate whitespace-nowrap border-b border-r px-3 py-1.5"
                   >
-                    {formatCell(row[ci] ?? null)}
+                    {formatCell(row[ci] ?? null, formats?.[col.name])}
                   </td>
                 ))}
               </tr>

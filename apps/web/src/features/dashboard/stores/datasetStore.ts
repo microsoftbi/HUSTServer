@@ -7,6 +7,8 @@ interface DatasetStoreState {
   errors: Record<string, string>;
   setDatasets: (datasets: Dataset[]) => void;
   addDataset: (dataset: Dataset) => void;
+  /** 局部更新运行时数据集（如字段格式），不影响取数结果 */
+  updateDataset: (id: string, patch: Partial<Dataset>) => void;
   removeDataset: (id: string) => void;
   setError: (id: string, message: string) => void;
   clearError: (id: string) => void;
@@ -20,6 +22,10 @@ export const useDatasetStore = create<DatasetStoreState>((set) => ({
   // 同 id 覆盖：hydrate 重试成功后回填同一份数据集
   addDataset: (dataset) =>
     set((s) => ({ datasets: [...s.datasets.filter((d) => d.id !== dataset.id), dataset] })),
+  updateDataset: (id, patch) =>
+    set((s) => ({
+      datasets: s.datasets.map((d) => (d.id === id ? { ...d, ...patch } : d)),
+    })),
   removeDataset: (id) =>
     set((s) => ({ datasets: s.datasets.filter((d) => d.id !== id) })),
   setError: (id, message) => set((s) => ({ errors: { ...s.errors, [id]: message } })),

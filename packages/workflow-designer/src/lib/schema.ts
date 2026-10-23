@@ -2,9 +2,14 @@ import type {
   AggregationConfig,
   AggregationFn,
   ColumnMeta,
+  CrossTabConfig,
+  FormulaConfig,
   JoinConfig,
   NodeKind,
+  RunningTotalConfig,
   SelectConfig,
+  TextToColumnsConfig,
+  TransposeConfig,
   UnionConfig,
   UnionMatchMode,
   WorkflowEdge,
@@ -18,6 +23,15 @@ const INPUT_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
   'inputCsv',
   'inputExcel',
   'inputSqlServer',
+]);
+
+/**
+ * 输出列数取决于数据本身的节点：静态推导不可靠，
+ * 有上次运行结果（`base` 中的 nodeColumns）时优先采用。
+ */
+const RUNTIME_SCHEMA_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
+  'textToColumns',
+  'crossTab',
 ]);
 
 export function isInputKind(kind: NodeKind): boolean {
@@ -95,7 +109,12 @@ export function deriveNodeColumns(
     if (!node || visiting.has(nodeId)) return [];
     visiting.add(nodeId);
 
-    const known = isInputKind(node.kind) ? base[nodeId] : undefined;
+    const runtime = RUNTIME_SCHEMA_KINDS.has(node.kind) ? base[nodeId] : undefined;
+    const known = isInputKind(node.kind)
+      ? base[nodeId]
+      : runtime && runtime.length > 0
+        ? runtime
+        : undefined;
     const columns = known ?? derive(node, edges, resolve);
 
     visiting.delete(nodeId);
@@ -129,7 +148,97 @@ function derive(
     /* 行级转换：列结构原样透传 */
     case 'filter':
     case 'sort':
+    case 'sample':
+    case 'cleansing':
+    /* 输出节点无下游，仅用于连线校验 */
+    case 'dataModel':
       return upstream('in');
+
+    /* Unique 的 U / D 两个锚点列结构一致，仅行不同 */
+    case 'unique':
+      return upstream('in');
+
+    /* Running Total：覆盖项转为 DOUBLE，新增项追加 RunningTotal_<字段> */
+    case 'runningTotal': {
+      const cols = upstream('in').map((c) => ({ ...c }));
+      const cfg = node.config as unknown as Partial<RunningTotalConfig>;
+      for (const item of cfg.items ?? []) {
+        const field = item?.field;
+        if (!field) continue;
+        if (item.replaceExisting) {
+          const hit = cols.find((c) => c.name === field);
+          if (hit) hit.type = 'DOUBLE';
+        } else {
+          cols.push({
+            name: item.outputName?.trim() || `RunningTotal_${field}`,
+            type: 'DOUBLE',
+          });
+        }
+      }
+      return cols;
+    }
+
+    /* Text to Columns：原字段被替换；拆列且未指定列数时列数只能运行后得知 */
+    case 'textToColumns': {
+      const cols = upstream('in');
+      const cfg = node.config as unknown as Partial<TextToColumnsConfig>;
+      const field = cfg.field?.trim();
+      if (!field) return cols;
+      if (cfg.mode === 'rows') {
+        return cols.map((c) => (c.name === field ? { name: c.name, type: 'VARCHAR' } : c));
+      }
+      const out = cols.filter((c) => c.name !== field);
+      const count = Math.trunc(Number(cfg.maxColumns ?? 0));
+      if (count > 0) {
+        const root = cfg.rootName?.trim() || field;
+        for (let index = 1; index <= count; index += 1) {
+          out.push({ name: `${root}${index}`, type: 'VARCHAR' });
+        }
+      }
+      return out;
+    }
+
+    /* Cross Tab：分组字段固定，由表头值生成的新列需要运行后才可见 */
+    case 'crossTab': {
+      const cols = upstream('in');
+      const cfg = node.config as unknown as Partial<CrossTabConfig>;
+      const types = lookup(cols);
+      return (cfg.groupBy ?? [])
+        .filter((f) => f && f.length > 0)
+        .map((f) => ({ name: f, type: types.get(f) ?? 'unknown' }));
+    }
+
+    /* Transpose：键字段 + Name + Value */
+    case 'transpose': {
+      const cols = upstream('in');
+      const cfg = node.config as unknown as Partial<TransposeConfig>;
+      const types = lookup(cols);
+      const keys = (cfg.keyFields ?? [])
+        .filter((f) => f && f.length > 0)
+        .map((f) => ({ name: f, type: types.get(f) ?? 'unknown' }));
+      const dataFields = (cfg.dataFields ?? []).filter((f) => f && f.length > 0);
+      const dataTypes = new Set(dataFields.map((f) => types.get(f) ?? 'VARCHAR'));
+      const valueType = dataTypes.size === 1 ? [...dataTypes][0] : 'VARCHAR';
+      return [
+        ...keys,
+        { name: 'Name', type: 'VARCHAR' },
+        { name: 'Value', type: valueType },
+      ];
+    }
+
+    case 'formula': {
+      const cols = upstream('in').map((c) => ({ ...c }));
+      const cfg = node.config as unknown as Partial<FormulaConfig>;
+      for (const item of cfg.formulas ?? []) {
+        const name = item.field?.trim();
+        if (!name) continue;
+        const type = item.dataType ?? 'VARCHAR';
+        const hit = cols.find((c) => c.name === name);
+        if (hit) hit.type = type;
+        else cols.push({ name, type });
+      }
+      return cols;
+    }
 
     case 'select': {
       const cols = upstream('in');
