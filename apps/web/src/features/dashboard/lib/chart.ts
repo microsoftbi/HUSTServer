@@ -45,6 +45,7 @@ export const CHART_TYPE_LABELS: Record<ChartType, string> = {
   text: "文本框",
   image: "图像",
   shape: "形状",
+  button: "按钮",
 };
 
 /** 字段槽位名称（按图表类型对齐 Power BI 命名） */

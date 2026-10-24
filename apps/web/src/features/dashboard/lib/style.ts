@@ -69,6 +69,9 @@ export const DEFAULT_PAGE: PageConfig = {
   background: "#ffffff",
   backgroundImage: "",
   wallpaper: "",
+  gridlines: false,
+  lockObjects: false,
+  pageFit: "actual",
 };
 
 export function pageOf(dashboard: Dashboard | undefined): PageConfig {

@@ -56,6 +56,8 @@ export function DashboardEditorPage({ readOnly = false }: { readOnly?: boolean }
         dashboards: dash.dashboards,
         activeId: dash.activeId,
         datasets: [...merged.values()],
+        filters: dash.reportFilters,
+        syncSlicers: dash.syncSlicers,
       };
       await api.put(`/api/dashboards/${id}`, { body: { payload } });
       loadedRef.current = payload;
@@ -83,6 +85,8 @@ export function DashboardEditorPage({ readOnly = false }: { readOnly?: boolean }
         loadedRef.current = row.payload;
         useDashboardStore.getState().setDashboards(row.payload.dashboards);
         useDashboardStore.getState().setActive(row.payload.activeId);
+        useDashboardStore.getState().setReportFilters(row.payload.filters ?? []);
+        useDashboardStore.getState().setSyncSlicers(!!row.payload.syncSlicers);
         await Promise.all(
           row.payload.datasets.map(async (saved) => {
             try {
@@ -228,7 +232,7 @@ export function DashboardEditorPage({ readOnly = false }: { readOnly?: boolean }
             </nav>
           </TooltipProvider>
         )}
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 min-w-0 flex-1">
           {readOnly ? (
             <DashboardView readOnly />
           ) : view === 'dashboard' ? (

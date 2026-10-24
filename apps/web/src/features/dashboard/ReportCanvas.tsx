@@ -18,13 +18,16 @@ import {
   type SizeLimit,
 } from "@bi/lib/canvas";
 import type {
+  ButtonAction,
   ChartType,
   ChartWidget,
   Dataset,
+  FilterCondition,
   SlicerConfig,
   WidgetLayout,
 } from "@bi/types";
 import type { HighlightSelection, ValueFilter } from "@bi/lib/highlight";
+import { conditionFilters } from "@bi/lib/filter";
 
 interface ReportCanvasProps {
   widgets: ChartWidget[];
@@ -38,10 +41,16 @@ interface ReportCanvasProps {
   onRemove: (id: string) => void;
   /** 只读预览：不可拖动 / 缩放 / 删除，也不显示选中框与操作按钮 */
   readOnly?: boolean;
+  /** 锁定对象：不可拖动 / 缩放，但仍可选中（视图 → 锁定对象） */
+  locked?: boolean;
   /** 当前交叉筛选状态：源视觉对象变暗未选项，同数据集其它图表按选中值过滤 */
   highlight?: HighlightSelection | null;
   /** 仪表板级筛选器取值：所有图表统一按字段=值过滤 */
   filters?: ValueFilter[] | null;
+  /** 此页上的筛选器（按数据集归属，所有视觉对象生效） */
+  pageFilters?: FilterCondition[] | null;
+  /** 所有页面上的筛选器（报表级，优先于页面级生效） */
+  reportFilters?: FilterCondition[] | null;
   /** 图元点击回调（sourceId 为触发高亮的视觉对象） */
   onPointClick?: (
     sourceId: string,
@@ -55,10 +64,14 @@ interface ReportCanvasProps {
   onSlicerChange?: (widgetId: string, slicer: SlicerConfig) => void;
   /** 视觉对象自身配置变更（如分解树的展开状态、文本框内容） */
   onWidgetChange?: (widgetId: string, patch: Partial<ChartWidget>) => void;
+  /** 按钮类装饰元素的点击动作 */
+  onButtonAction?: (action: ButtonAction) => void;
   /** 固定画布宽度（页面设置）；0 / 未设置时适应容器宽度 */
   pageWidth?: number;
   /** 固定画布高度（页面设置）；0 / 未设置时随内容自动增高 */
   pageHeight?: number;
+  /** 页面视图缩放倍数：指针位移与拖放坐标需按此换算回画布坐标 */
+  zoom?: number;
 }
 
 interface DragState {
@@ -103,17 +116,27 @@ export function ReportCanvas({
   onLayoutMany,
   onRemove,
   readOnly = false,
+  locked = false,
   highlight = null,
   filters = null,
+  pageFilters = null,
+  reportFilters = null,
   onPointClick,
   onDropVisual,
   onSlicerChange,
   onWidgetChange,
+  onButtonAction,
   pageWidth = 0,
   pageHeight = 0,
+  zoom = 1,
 }: ReportCanvasProps) {
   const innerRef = useRef<HTMLDivElement>(null);
   const [measuredW, setMeasuredW] = useState(1200);
+  /** 缩放倍数供 window 事件读取（避免重订阅） */
+  const zoomRef = useRef(zoom);
+  useEffect(() => {
+    zoomRef.current = zoom || 1;
+  }, [zoom]);
 
   const autoH = useMemo(() => {
     const maxBottom = widgets.reduce((m, w) => Math.max(m, w.layout.y + w.layout.h), 0);
@@ -123,6 +146,9 @@ export function ReportCanvas({
   // 页面设置优先：固定宽/高时不再随容器与内容变化
   const pageW = pageWidth > 0 ? pageWidth : measuredW;
   const pageH = pageHeight > 0 ? pageHeight : autoH;
+
+  /** 隐藏的视觉对象（选择窗格中可取消隐藏）不参与渲染 */
+  const visibleWidgets = widgets.filter((w) => !w.hidden);
 
   /** 触发交叉筛选的视觉对象所属数据集：仅同数据集内的其它图表参与过滤 */
   const sourceDatasetId = useMemo(() => {
@@ -218,10 +244,12 @@ export function ReportCanvas({
 
   const handleWidgetPointerDown = useCallback(
     (e: React.PointerEvent, widget: ChartWidget) => {
+      // 锁定对象：不开始拖动，点击选中仍由 onClick 处理
+      if (locked) return;
       if ((e.target as HTMLElement).closest(INTERACTIVE_SELECTOR)) return;
       beginDrag(widget, "move", e);
     },
-    [beginDrag],
+    [beginDrag, locked],
   );
 
   const handleResizePointerDown = useCallback(
@@ -261,8 +289,8 @@ export function ReportCanvas({
       const others = widgetsRef.current
         .filter((w) => !movingIds.has(w.id))
         .map((w) => w.layout);
-      const dx = e.clientX - d.startX;
-      const dy = e.clientY - d.startY;
+      const dx = (e.clientX - d.startX) / zoomRef.current;
+      const dy = (e.clientY - d.startY) / zoomRef.current;
       const min = sizeLimitOf(widgetsRef.current.find((w) => w.id === d.id));
 
       if (d.mode === "move") {
@@ -376,10 +404,14 @@ export function ReportCanvas({
         e.preventDefault();
         const rect = innerRef.current?.getBoundingClientRect();
         if (!rect) return;
-        onDropVisual(type as ChartType, e.clientX - rect.left, e.clientY - rect.top);
+        onDropVisual(
+          type as ChartType,
+          (e.clientX - rect.left) / zoomRef.current,
+          (e.clientY - rect.top) / zoomRef.current,
+        );
       }}
     >
-      {widgets.length === 0 ? (
+      {visibleWidgets.length === 0 ? (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
           <LayoutDashboard className="h-10 w-10" />
           <p className="text-sm">
@@ -392,7 +424,7 @@ export function ReportCanvas({
         </div>
       ) : null}
 
-      {widgets.map((w) => {
+      {visibleWidgets.map((w) => {
         const dataset = datasets.find((d) => d.id === w.datasetId);
         const isSelected = !readOnly && selectedIds.includes(w.id);
         const rect = preview?.[w.id] ?? w.layout;
@@ -402,6 +434,13 @@ export function ReportCanvas({
           highlight && dataset && highlight.sourceId !== w.id && dataset.id === sourceDatasetId
             ? { field: highlight.field, values: highlight.values }
             : null;
+        // 切片器 / 此页 / 此视觉对象 三类筛选条件叠加后统一传给渲染器
+        const widgetFilters: ValueFilter[] = [
+          ...(filters ?? []),
+          ...conditionFilters(reportFilters, dataset),
+          ...conditionFilters(pageFilters, dataset),
+          ...conditionFilters(w.filters, dataset),
+        ];
         // 切片器自带标题栏、装饰元素自带内容，画布层不再叠加标题
         const isFilter = w.type === "filter";
         const isDecor = isDecoration(w.type);
@@ -413,6 +452,7 @@ export function ReportCanvas({
         return (
           <div
             key={w.id}
+            tabIndex={w.tabOrder != null ? w.tabOrder : undefined}
             onPointerDown={readOnly ? undefined : (e) => handleWidgetPointerDown(e, w)}
             onClick={
               readOnly
@@ -463,9 +503,11 @@ export function ReportCanvas({
                   isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
                 )}
               >
-                <span className="flex h-6 w-5 cursor-grab items-center justify-center text-muted-foreground">
-                  <GripVertical className="h-3.5 w-3.5" />
-                </span>
+                {!locked ? (
+                  <span className="flex h-6 w-5 cursor-grab items-center justify-center text-muted-foreground">
+                    <GripVertical className="h-3.5 w-3.5" />
+                  </span>
+                ) : null}
                 <button
                   type="button"
                   data-no-drag
@@ -515,7 +557,7 @@ export function ReportCanvas({
                   dataset={dataset}
                   highlight={highlight}
                   crossFilter={crossFilter}
-                  filters={filters}
+                  filters={widgetFilters}
                   onPointClick={
                     onPointClick
                       ? (field, value, additive) =>
@@ -527,11 +569,12 @@ export function ReportCanvas({
                       ? (patch) => onWidgetChange(w.id, patch)
                       : undefined
                   }
+                  onButtonAction={onButtonAction}
                 />
               )}
             </div>
 
-            {isSelected
+            {isSelected && !locked
               ? RESIZE_DIRS.map((dir) => (
                   <span
                     key={dir}

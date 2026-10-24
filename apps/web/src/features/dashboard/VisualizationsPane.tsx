@@ -31,11 +31,13 @@ import {
 } from "@bi/lib/slicer";
 import { treemapOf } from "@bi/lib/treemap";
 import { decompositionOf } from "@bi/lib/decomposition";
-import { isDecoration } from "@bi/lib/decoration";
+import { BUTTON_ACTIONS, isDecoration } from "@bi/lib/decoration";
 import { decorationOf } from "@bi/lib/decoration";
+import { SHAPE_GROUPS } from "@bi/lib/shapes";
 import { DEFAULT_WIDGET_STYLE, styleOf } from "@bi/lib/style";
 import type {
   AggregateFn,
+  ButtonAction,
   ChartType,
   ChartWidget,
   Column,
@@ -557,7 +559,7 @@ function FormatSection({
         </FormatGroup>
       ) : null}
 
-      {widget.type === "text" ? (
+      {widget.type === "text" || widget.type === "button" ? (
         <FormatGroup title="文本" defaultOpen>
           <div className="space-y-1 pb-1">
             <Label htmlFor="fmt-decor-text" className="text-xs text-muted-foreground">
@@ -648,19 +650,28 @@ function FormatSection({
         </FormatGroup>
       ) : null}
 
-      {widget.type === "shape" ? (
-        <FormatGroup title="形状" defaultOpen>
-          <SelectRow
-            id="fmt-decor-shape"
-            label="形状"
-            value={deco.shape}
-            options={[
-              { value: "rect", label: "矩形" },
-              { value: "ellipse", label: "椭圆" },
-              { value: "line", label: "线条" },
-            ]}
-            onChange={(v) => setDeco({ shape: v as DecorationConfig["shape"] })}
-          />
+      {widget.type === "shape" || widget.type === "button" ? (
+        <FormatGroup title={widget.type === "button" ? "按钮" : "形状"} defaultOpen>
+          {widget.type === "button" ? (
+            <SelectRow
+              id="fmt-decor-action"
+              label="动作"
+              value={deco.action}
+              options={BUTTON_ACTIONS.map((a) => ({ value: a.key, label: a.label }))}
+              onChange={(v) => setDeco({ action: v as ButtonAction })}
+            />
+          ) : null}
+          {widget.type === "shape" ? (
+            <SelectRow
+              id="fmt-decor-shape"
+              label="形状"
+              value={deco.shape}
+              options={SHAPE_GROUPS.flatMap((g) =>
+                g.items.map((i) => ({ value: i.key, label: `${g.label} / ${i.label}` })),
+              )}
+              onChange={(v) => setDeco({ shape: v as DecorationConfig["shape"] })}
+            />
+          ) : null}
           {deco.shape !== "line" ? (
             <ColorRow
               id="fmt-decor-fill"

@@ -441,6 +441,30 @@ export const CHART_ICONS: Record<
     </Svg>
   ),
 
+  // 按钮（圆角矩形 + 鼠标指针）
+  button: (p) => (
+    <Svg {...p}>
+      <rect
+        x="2.6"
+        y="6"
+        width="14"
+        height="8"
+        rx="2"
+        fill={C.blue}
+        fillOpacity="0.22"
+        stroke={C.blue}
+        strokeWidth="1.3"
+      />
+      <path
+        d="M15.6 12.2 21 14.4l-2.2 1 1.2 2.2-1.4.8-1.2-2.2-1.8 1.6z"
+        fill={C.gray}
+        fillOpacity="0.9"
+        stroke={C.gray}
+        strokeWidth="1"
+      />
+    </Svg>
+  ),
+
   // 形状（矩形 + 椭圆 + 线段）
   shape: (p) => (
     <Svg {...p}>

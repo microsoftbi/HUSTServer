@@ -42,10 +42,11 @@ export type ChartType =
   | 'matrix'
   /** 切片器视觉对象：本身不画图，直接承载值选择与筛选 */
   | 'filter'
-  /** 装饰元素：不绑定数据集，只承载文本 / 图片 / 形状 */
+  /** 装饰元素：不绑定数据集，只承载文本 / 图片 / 形状 / 按钮 */
   | 'text'
   | 'image'
-  | 'shape';
+  | 'shape'
+  | 'button';
 
 /** 切片器类型（对齐 Power BI 切片器的可用样式） */
 export type SlicerType =
@@ -190,10 +191,51 @@ export interface WidgetStyle {
   titleAlign: TextAlign;
 }
 
-/** 装饰元素（文本框 / 图像 / 形状）的配置 */
+/** 按钮动作（对齐 Power BI「插入 → 按钮」下拉里的动作类型） */
+export type ButtonAction =
+  | 'back'
+  | 'next'
+  | 'reset'
+  | 'stepBack'
+  | 'info'
+  | 'help'
+  | 'qa'
+  | 'bookmark'
+  | 'blank'
+  | 'applySlicers'
+  | 'clearSlicers'
+  | 'navigator';
+
+/** 形状种类（分组与顺序对齐 Power BI「插入 → 形状」） */
+export type ShapeKind =
+  | 'rect'
+  | 'roundRect'
+  | 'snipRect'
+  | 'diamond'
+  | 'parallelogram'
+  | 'ellipse'
+  | 'triangle'
+  | 'rightTriangle'
+  | 'trapezoid'
+  | 'pentagon'
+  | 'hexagon'
+  | 'octagon'
+  | 'heart'
+  | 'cross'
+  | 'line'
+  | 'arrowLeftRight'
+  | 'arrowRight'
+  | 'arrowUp'
+  | 'arrowDown'
+  | 'bendArrow'
+  | 'chevron';
+
+/** 装饰元素（文本框 / 图像 / 形状 / 按钮）的配置 */
 export interface DecorationConfig {
-  /** 文本框内容 */
+  /** 文本框内容；按钮上显示的文字 */
   text: string;
+  /** 按钮动作（仅 button 生效） */
+  action: ButtonAction;
   fontSize: number;
   bold: boolean;
   color: string;
@@ -202,13 +244,20 @@ export interface DecorationConfig {
   /** 图像地址（http(s) 或 data URI） */
   imageUrl: string;
   imageFit: 'contain' | 'cover' | 'fill';
-  shape: 'rect' | 'ellipse' | 'line';
+  /** 形状种类 */
+  shape: ShapeKind;
   fill: string;
   stroke: string;
   strokeWidth: number;
   /** 圆角（矩形生效） */
   radius: number;
 }
+
+/** 页面视图缩放模式（对齐 Power BI「视图 → 页面视图」） */
+export type PageViewFit = 'page' | 'width' | 'actual';
+
+/** 筛选器卡片的筛选方式（对齐 Power BI 的筛选器类型） */
+export type FilterMode = 'basic' | 'range' | 'topN';
 
 /** 报表页设置（对齐 Power BI 的「页面设置 / 画布设置」） */
 export interface PageConfig {
@@ -222,6 +271,34 @@ export interface PageConfig {
   backgroundImage: string;
   /** 画布外壁纸色（空字符串使用默认灰色） */
   wallpaper: string;
+  /** 视图 → 网格线：编辑时在页面上叠加对齐网格 */
+  gridlines?: boolean;
+  /** 视图 → 锁定对象：禁止拖动与缩放视觉对象 */
+  lockObjects?: boolean;
+  /** 视图 → 页面视图：适应页面 / 适应宽度 / 实际大小 */
+  pageFit?: PageViewFit;
+}
+
+/** 筛选器窗格中的一张筛选器卡片（对齐 Power BI 的筛选器条件） */
+export interface FilterCondition {
+  id: string;
+  /** 归属数据集：只作用于该数据集上的视觉对象 */
+  datasetId: string;
+  field: string;
+  /** 勾选要保留的值（标签归一化后）；空数组表示「全部」，即不筛选 */
+  values: string[];
+  /** 筛选方式：基本（值列表） / 区间 / 前 N 项 */
+  mode?: FilterMode;
+  /** 区间筛选的下限（数字或日期字符串） */
+  min?: string;
+  /** 区间筛选的上限 */
+  max?: string;
+  /** 前 N 项筛选的 N */
+  n?: number;
+  /** 锁定：禁止在筛选器窗格中修改该筛选器 */
+  locked?: boolean;
+  /** 隐藏：仍生效，但默认不在筛选器窗格中显示 */
+  hidden?: boolean;
 }
 
 export interface ChartWidget {
@@ -231,6 +308,8 @@ export interface ChartWidget {
   datasetId: string;
   encoding: WidgetEncoding;
   layout: WidgetLayout;
+  /** 仅本视觉对象生效的筛选器条件（此视觉对象上的筛选器） */
+  filters?: FilterCondition[];
   /** 通用外观：背景、边框、圆角、阴影、标题样式 */
   style?: WidgetStyle;
   /** 装饰元素（text / image / shape）的内容配置 */
@@ -249,6 +328,24 @@ export interface ChartWidget {
   filterFields?: string[];
   /** 仅切片器使用：外观与交互配置 */
   slicer?: SlicerConfig;
+  /** 视图 → 选择窗格：隐藏视觉对象（保留在列表中，画布与展示均不渲染） */
+  hidden?: boolean;
+  /** 视图 → 选择窗格 → Tab 顺序：键盘导航顺序（越小越靠前） */
+  tabOrder?: number;
+}
+
+/** 书签保存的页面状态快照（对齐 Power BI 书签：筛选器 / 视觉对象可见性 / 切片器状态） */
+export interface BookmarkState {
+  filters: FilterCondition[];
+  widgets: Array<{ id: string; hidden?: boolean; tabOrder?: number }>;
+  /** 切片器视觉对象 id → 选择状态 */
+  slicers: Record<string, SlicerState>;
+}
+
+export interface Bookmark {
+  id: string;
+  name: string;
+  state: BookmarkState;
 }
 
 export interface Dashboard {
@@ -257,6 +354,10 @@ export interface Dashboard {
   widgets: ChartWidget[];
   /** 页面设置：画布尺寸、背景与壁纸 */
   page?: PageConfig;
+  /** 本页所有视觉对象生效的筛选器条件（此页上的筛选器） */
+  filters?: FilterCondition[];
+  /** 视图 → 书签：保存的页面状态 */
+  bookmarks?: Bookmark[];
 }
 
 export interface QueryColumn {
@@ -305,4 +406,8 @@ export interface DashboardPayload {
   dashboards: Dashboard[];
   activeId: string;
   datasets: SavedDataset[];
+  /** 报表级筛选器：作用于所有页面（所有页面上的筛选器） */
+  filters?: FilterCondition[];
+  /** 视图 → 同步切片器：相同字段的切片器跨页联动 */
+  syncSlicers?: boolean;
 }

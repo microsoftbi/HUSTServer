@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import {
   AlignHorizontalJustifyCenter,
   AlignHorizontalJustifyEnd,
@@ -8,14 +9,24 @@ import {
   AlignVerticalJustifyEnd,
   AlignVerticalJustifyStart,
   AlignVerticalSpaceAround,
-  LayoutDashboard,
+  Bookmark as BookmarkIcon,
+  ChevronDown,
+  Image,
+  Filter,
+  Layers,
+  Maximize,
   Pencil,
   Play,
   Plus,
+  Scan,
   Settings2,
+  SquareDashed,
   StretchHorizontal,
   StretchVertical,
+  Shapes,
   Trash2,
+  Type,
+  Workflow,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@bi/components/ui/button";
@@ -35,7 +46,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@bi/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@bi/components/ui/dropdown-menu";
 import { ReportCanvas } from "./ReportCanvas";
+import { CHART_ICONS } from "./chartIcons";
+import { ShapePath, SHAPE_GROUPS } from "@bi/lib/shapes";
+import { SelectionPane } from "./SelectionPane";
+import { FiltersPane } from "./FiltersPane";
+import { BookmarksPane } from "./BookmarksPane";
 import { FieldsPane } from "./FieldsPane";
 import { VisualizationsPane } from "./VisualizationsPane";
 import { useDashboardStore } from "@bi/stores/dashboardStore";
@@ -43,10 +65,16 @@ import { useDatasetStore } from "@bi/stores/datasetStore";
 import { cn } from "@bi/lib/utils";
 import { uid } from "@bi/lib/utils";
 import type {
+  Bookmark,
+  ButtonAction,
   ChartType,
   ChartWidget,
   Column,
+  FilterCondition,
   PageConfig,
+  PageViewFit,
+  SlicerConfig,
+  ShapeKind,
   WidgetLayout,
 } from "@bi/types";
 import { toggleSelection, type HighlightSelection, type ValueFilter } from "@bi/lib/highlight";
@@ -54,7 +82,7 @@ import { defaultSlicer, slicerFilters, slicerOf } from "@bi/lib/slicer";
 import { defaultDecomposition } from "@bi/lib/decomposition";
 import { alignRects, type AlignMode } from "@bi/lib/canvas";
 import { DEFAULT_WIDGET_STYLE, PAGE_PRESETS, matchPreset, pageOf } from "@bi/lib/style";
-import { DEFAULT_DECORATION, defaultDecoration, isDecoration } from "@bi/lib/decoration";
+import { BUTTON_ACTIONS, BUTTON_LABELS, defaultDecoration, isDecoration } from "@bi/lib/decoration";
 
 /** 新建视觉对象的默认像素尺寸与级联偏移 */
 const DEFAULT_WIDGET_W = 420;
@@ -63,11 +91,14 @@ const DEFAULT_WIDGET_H = 280;
 const FILTER_WIDGET_W = 260;
 const FILTER_WIDGET_H = 200;
 const CASCADE_STEP = 28;
+/** 未设置页面尺寸时的默认画布宽度（对齐 Power BI 默认 1280×720 页面） */
+const DEFAULT_PAGE_W = 1280;
 const PAGE_MARGIN = 24;
 
 /** 装饰元素的默认尺寸（文本框扁平、图像与形状偏方） */
 const DECOR_SIZE: Record<string, { w: number; h: number }> = {
   text: { w: 320, h: 80 },
+  button: { w: 200, h: 56 },
   image: { w: 320, h: 200 },
   shape: { w: 240, h: 160 },
 };
@@ -90,6 +121,234 @@ const ALIGN_ACTIONS: Array<{
   { mode: "matchH", label: "等高", Icon: StretchVertical },
 ];
 
+type RibbonTab = "home" | "insert" | "view";
+
+/** 视图 → 页面视图：三个缩放选项（下拉菜单内容，对齐 Power BI 的图标 + 文字） */
+const PAGE_FIT_OPTIONS: Array<{ value: PageViewFit; label: string; Icon: typeof Plus }> = [
+  { value: "page", label: "调整到页面大小", Icon: Maximize },
+  { value: "width", label: "适应宽度", Icon: StretchHorizontal },
+  { value: "actual", label: "实际大小", Icon: Scan },
+];
+
+/** Ribbon Tab 条上的页签 */
+function RibbonTabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        "mb-1 h-7 rounded-md border px-4 text-xs transition-colors",
+        active
+          ? "border-border bg-background font-semibold text-foreground shadow-sm"
+          : "border-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Ribbon 按钮：图标在上、说明文字在下（Power BI 风格） */
+function RibbonButton({
+  Icon,
+  label,
+  onClick,
+  disabled = false,
+  active = false,
+}: {
+  Icon: typeof Plus;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  active?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "flex w-[58px] shrink-0 flex-col items-center gap-1 rounded-md px-1 py-1 text-[10px] leading-[12px] transition-colors",
+        disabled
+          ? "cursor-not-allowed opacity-40"
+          : "hover:bg-accent hover:text-foreground",
+        active && "bg-accent text-foreground",
+      )}
+    >
+      <Icon className="h-5 w-5" />
+      <span className="w-full text-center">{label}</span>
+    </button>
+  );
+}
+
+/** Ribbon 分组：内容下方显示组名 */
+function RibbonGroup({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col justify-between">
+      <div className="flex items-start gap-0.5">{children}</div>
+      <span className="pb-0.5 text-center text-[10px] text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+/** Ribbon 复选框：竖向排列的小勾选项（对齐 Power BI 视图 → 网格线 / 锁定对象） */
+function RibbonCheck({
+  label,
+  checked,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex h-5 items-center gap-1.5 rounded px-1.5 text-[11px] transition-colors",
+        disabled
+          ? "cursor-not-allowed opacity-40"
+          : "cursor-pointer hover:bg-accent hover:text-foreground",
+      )}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-3 w-3 shrink-0 accent-[#2563eb]"
+      />
+      <span className="whitespace-nowrap">{label}</span>
+    </label>
+  );
+}
+
+/** Ribbon 下拉按钮：大图标 + 固定文字 + 下方小箭头，点开后按图标 + 文字列出选项 */
+function RibbonDropdown({
+  Icon,
+  label,
+  options,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  Icon: typeof Plus;
+  label: string;
+  options: Array<{ value: string; label: string; Icon: typeof Plus }>;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  // 未匹配到当前值时使用传入的 Icon（如「按钮」下拉未选定具体动作时的默认图标）
+  const current = options.find((o) => o.value === value);
+  const CurrentIcon = current?.Icon ?? Icon;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild disabled={disabled}>
+        <button
+          type="button"
+          title={label}
+          aria-label={label}
+          aria-haspopup="menu"
+          disabled={disabled}
+          className={cn(
+            "flex w-[76px] shrink-0 flex-col items-center gap-0.5 rounded-md px-1 pt-1 pb-0.5 transition-colors",
+            disabled
+              ? "cursor-not-allowed opacity-40"
+              : "hover:bg-accent hover:text-foreground",
+          )}
+        >
+          <CurrentIcon className="h-6 w-6" />
+          <span className="text-[10px] leading-[12px]">{label}</span>
+          <ChevronDown className="h-2.5 w-2.5 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-44 p-1">
+        {options.map((opt) => (
+          <DropdownMenuItem
+            key={opt.value}
+            onSelect={() => onChange(opt.value)}
+            className="gap-2 px-1.5 py-1 text-xs"
+          >
+            <opt.Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="whitespace-nowrap">{opt.label}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** 形状下拉：图标网格 + 分组标题（对齐 Power BI「插入 → 形状」） */
+function RibbonShapeMenu({
+  disabled = false,
+  onPick,
+}: {
+  disabled?: boolean;
+  onPick: (kind: ShapeKind) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild disabled={disabled}>
+        <button
+          type="button"
+          title="形状"
+          aria-label="形状"
+          aria-haspopup="menu"
+          disabled={disabled}
+          className={cn(
+            "flex w-[76px] shrink-0 flex-col items-center gap-0.5 rounded-md px-1 pt-1 pb-0.5 transition-colors",
+            disabled
+              ? "cursor-not-allowed opacity-40"
+              : "hover:bg-accent hover:text-foreground",
+          )}
+        >
+          <Shapes className="h-6 w-6" />
+          <span className="text-[10px] leading-[12px]">形状</span>
+          <ChevronDown className="h-2.5 w-2.5 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-[216px] p-2">
+        {SHAPE_GROUPS.map((group) => (
+          <div key={group.label} className="mb-1.5 last:mb-0">
+            <p className="px-1 pb-1 text-[10px] font-semibold text-muted-foreground">
+              {group.label}
+            </p>
+            <div className="grid grid-cols-4 gap-0.5">
+              {group.items.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  title={item.label}
+                  aria-label={item.label}
+                  onClick={() => onPick(item.key)}
+                  className="flex h-8 items-center justify-center rounded text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  <ShapePath kind={item.key} className="h-4 w-4" strokeWidth={2} />
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function DashboardView({
   onAddDataset,
   readOnly = false,
@@ -104,6 +363,12 @@ export function DashboardView({
   const addWidget = useDashboardStore((s) => s.addWidget);
   const updateWidget = useDashboardStore((s) => s.updateWidget);
   const removeWidget = useDashboardStore((s) => s.removeWidget);
+  const reorderWidgets = useDashboardStore((s) => s.reorderWidgets);
+  const reportFilters = useDashboardStore((s) => s.reportFilters);
+  const setReportFilters = useDashboardStore((s) => s.setReportFilters);
+  const syncSlicers = useDashboardStore((s) => s.syncSlicers);
+  const setSyncSlicers = useDashboardStore((s) => s.setSyncSlicers);
+  const syncSlicerState = useDashboardStore((s) => s.syncSlicerState);
 
   const datasets = useDatasetStore((s) => s.datasets);
 
@@ -119,6 +384,49 @@ export function DashboardView({
   const [renameValue, setRenameValue] = useState("");
   const [pageOpen, setPageOpen] = useState(false);
   const [presenting, setPresenting] = useState(false);
+  /** Ribbon 当前 Tab 与「选择 / 筛选器」窗格开关 */
+  const [ribbonTab, setRibbonTab] = useState<RibbonTab>("home");
+  const [selectionOpen, setSelectionOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [bookmarksOpen, setBookmarksOpen] = useState(false);
+
+  /** 工作区可用尺寸：用于页面视图缩放（适应页面 / 适应宽度） */
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState({ w: 1200, h: 800 });
+
+  useLayoutEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const update = () =>
+      setViewport({
+        w: Math.max(0, el.clientWidth - PAGE_MARGIN * 2),
+        h: Math.max(0, el.clientHeight - PAGE_MARGIN * 2),
+      });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  /** 画布在未缩放坐标系下的尺寸：页面设置优先，未设置时用默认页面宽度，不随容器自适应 */
+  const baseW = page.width > 0 ? page.width : DEFAULT_PAGE_W;
+  const baseH =
+    page.height > 0
+      ? page.height
+      : Math.max(
+          720,
+          widgets.reduce((m, w) => Math.max(m, w.layout.y + w.layout.h), 0) + 60,
+        );
+
+  /** 视图 → 页面视图：适应页面 / 适应宽度 / 实际大小 */
+  const pageFit = page.pageFit ?? "actual";
+  const zoom = useMemo(() => {
+    if (pageFit === "actual") return 1;
+    const fitWidth = baseW > 0 ? viewport.w / baseW : 1;
+    const raw =
+      pageFit === "width" ? fitWidth : Math.min(fitWidth, baseH > 0 ? viewport.h / baseH : 1);
+    return Math.min(2, Math.max(0.2, raw));
+  }, [pageFit, baseW, baseH, viewport.w, viewport.h]);
 
   /**
    * 切片器筛选条件：来自所有切片器视觉对象的选择状态，
@@ -133,6 +441,9 @@ export function DashboardView({
     }
     return out;
   }, [widgets, datasets]);
+
+  /** 此页上的筛选器：随仪表板落库，作用于本页所有视觉对象 */
+  const pageFilters = active?.filters ?? [];
 
   // 格式窗格以第一个选中项为编辑对象
   const selected = widgets.find((w) => w.id === selectedIds[0]) ?? null;
@@ -207,7 +518,11 @@ export function DashboardView({
     );
   }
 
-  function createWidget(type: ChartType = "bar"): ChartWidget | null {
+  function createWidget(
+    type: ChartType = "bar",
+    action?: ButtonAction,
+    shape?: ShapeKind,
+  ): ChartWidget | null {
     const isFilter = type === "filter";
     const isDecor = isDecoration(type);
     const ds = browseDataset ?? datasets[0];
@@ -247,7 +562,7 @@ export function DashboardView({
               borderWidth: 0,
               shadow: "none" as const,
             },
-            decoration: type === "text" ? defaultDecoration(type) : { ...DEFAULT_DECORATION },
+            decoration: defaultDecoration(type, action, shape),
           }
         : {}),
     };
@@ -258,12 +573,17 @@ export function DashboardView({
 
   const DECOR_LABELS: Partial<Record<ChartType, string>> = {
     text: "文本框",
+    button: "按钮",
     image: "图像",
     shape: "形状",
   };
 
-  function handleCreate(type: ChartType = "bar") {
-    const widget = createWidget(type);
+  function handleCreate(
+    type: ChartType = "bar",
+    action?: ButtonAction,
+    shape?: ShapeKind,
+  ) {
+    const widget = createWidget(type, action, shape);
     if (!widget) {
       toast.error("请先在左侧「数据」标签中添加数据集");
       return;
@@ -276,6 +596,56 @@ export function DashboardView({
           ? "已新建切片器，可在右侧「字段」中拖入数据列"
           : "已新建图表，可在右侧拖入字段",
     );
+  }
+
+  /** 清除本页所有切片器的选择（保留切片器本身的配置） */
+  function resetSlicers() {
+    for (const w of widgets) {
+      if (w.type !== "filter") continue;
+      updateWidget(w.id, { slicer: { ...slicerOf(w), state: defaultSlicer().state } });
+    }
+  }
+
+  /** 按钮类装饰元素的动作分发（对齐 Power BI「插入 → 按钮」的动作清单） */
+  function runButtonAction(action: ButtonAction) {
+    if (!active) return;
+    const index = dashboards.findIndex((d) => d.id === active.id);
+    if (action === "back" || action === "stepBack") {
+      if (index > 0) setActive(dashboards[index - 1].id);
+      else toast("已经是第一页");
+      return;
+    }
+    if (action === "next") {
+      if (index >= 0 && index < dashboards.length - 1) setActive(dashboards[index + 1].id);
+      else toast("已经是最后一页");
+      return;
+    }
+    if (action === "reset") {
+      updateDashboard(active.id, { filters: [] });
+      resetSlicers();
+      toast.success("已重置本页筛选与切片器");
+      return;
+    }
+    if (action === "clearSlicers") {
+      resetSlicers();
+      toast.success("已清除所有切片器的选择");
+      return;
+    }
+    if (action === "bookmark") {
+      setBookmarksOpen(true);
+      return;
+    }
+    if (action === "applySlicers") {
+      toast.success("切片器选择已作用于本页视觉对象");
+      return;
+    }
+    if (action === "navigator") {
+      toast(`共 ${dashboards.length} 页：${dashboards.map((d) => d.name).join(" / ")}`);
+      return;
+    }
+    if (action === "info" || action === "help" || action === "qa") {
+      toast(`「${BUTTON_LABELS[action]}」动作暂未接入外部内容`);
+    }
   }
 
   /** 从可视化画廊拖放：在落点位置创建视觉对象 */
@@ -393,6 +763,92 @@ export function DashboardView({
     updateDashboard(active.id, { page: { ...page, ...patch } });
   }
 
+  /** 更新「此页上的筛选器」 */
+  function updatePageFilters(next: FilterCondition[]) {
+    if (!active) return;
+    updateDashboard(active.id, { filters: next });
+  }
+
+  /** 切片器选择变化：同步切片器开启时，相同字段的切片器跨页联动 */
+  function handleSlicerChange(id: string, slicer: SlicerConfig) {
+    updateWidget(id, { slicer });
+    if (syncSlicers) syncSlicerState(id, slicer);
+  }
+
+  const bookmarks = active?.bookmarks ?? [];
+
+  /** 采集当前页面状态快照：筛选器、可见性 / Tab 顺序、切片器选择 */
+  function captureState(): Bookmark["state"] {
+    return {
+      filters: active?.filters ?? [],
+      widgets: (active?.widgets ?? []).map((w) => ({
+        id: w.id,
+        hidden: w.hidden,
+        tabOrder: w.tabOrder,
+      })),
+      slicers: Object.fromEntries(
+        (active?.widgets ?? [])
+          .filter((w) => w.type === "filter")
+          .map((w) => [w.id, slicerOf(w).state]),
+      ),
+    };
+  }
+
+  /** 添加书签：捕获当前页面的筛选器、隐藏状态与切片器选择 */
+  function addBookmark() {
+    if (!active) return;
+    const bm: Bookmark = {
+      id: uid("bm"),
+      name: `书签 ${bookmarks.length + 1}`,
+      state: captureState(),
+    };
+    updateDashboard(active.id, { bookmarks: [...bookmarks, bm] });
+    toast.success(`已添加书签「${bm.name}」`);
+  }
+
+  /** 更新书签：用当前页面状态覆盖该书签保存的快照 */
+  function updateBookmark(id: string) {
+    if (!active) return;
+    const bm = bookmarks.find((b) => b.id === id);
+    if (!bm) return;
+    updateDashboard(active.id, {
+      bookmarks: bookmarks.map((b) => (b.id === id ? { ...b, state: captureState() } : b)),
+    });
+    toast.success(`已更新书签「${bm.name}」`);
+  }
+
+  function renameBookmark(id: string, name: string) {
+    if (!active) return;
+    const next = name.trim();
+    if (!next) return;
+    updateDashboard(active.id, {
+      bookmarks: bookmarks.map((b) => (b.id === id ? { ...b, name: next } : b)),
+    });
+  }
+
+  /** 应用书签：还原筛选器、可见性 / Tab 顺序与切片器选择（silent 为真时不弹提示） */
+  function applyBookmark(id: string, silent = false) {
+    if (!active) return;
+    const bm = bookmarks.find((b) => b.id === id);
+    if (!bm) return;
+    for (const item of bm.state.widgets) {
+      updateWidget(item.id, { hidden: item.hidden, tabOrder: item.tabOrder });
+    }
+    for (const w of active.widgets) {
+      const state = bm.state.slicers[w.id];
+      if (w.type === "filter" && state) {
+        updateWidget(w.id, { slicer: { ...slicerOf(w), state } });
+      }
+    }
+    updateDashboard(active.id, { filters: bm.state.filters });
+    if (!silent) toast.success(`已应用书签「${bm.name}」`);
+  }
+
+  function deleteBookmark(id: string) {
+    if (!active) return;
+    updateDashboard(active.id, { bookmarks: bookmarks.filter((b) => b.id !== id) });
+  }
+
   function handleRename() {
     if (!active) return;
     const name = renameValue.trim();
@@ -425,123 +881,216 @@ export function DashboardView({
     backgroundRepeat: "no-repeat",
   } as const;
 
+  /** 右侧停靠面板总宽度：随筛选器 / 选择 / 书签窗格开关累加 */
+  const paneWidth =
+    480 + (filtersOpen ? 220 : 0) + (selectionOpen ? 240 : 0) + (bookmarksOpen ? 200 : 0);
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* 工具栏 */}
-      <div className="flex items-center gap-2 border-b px-4 py-3">
-        <LayoutDashboard className="h-4 w-4 text-muted-foreground" />
-        <div className="flex flex-1 flex-wrap items-center gap-1">
-          {dashboards.map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              onClick={() => setActive(d.id)}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent",
-                d.id === activeId ? "bg-accent font-medium" : "text-muted-foreground",
-              )}
+      {/* Ribbon 菜单（Power BI 风格：Tab 条 + 图标在上文字在下的命令组） */}
+      {!readOnly && (
+        <div className="shrink-0 border-b bg-background">
+          <div
+            role="tablist"
+            aria-label="功能区"
+            className="flex h-9 items-end gap-1 border-b border-border bg-muted/50 px-3"
+          >
+            <RibbonTabButton active={ribbonTab === "home"} onClick={() => setRibbonTab("home")}>
+              开始
+            </RibbonTabButton>
+            <RibbonTabButton
+              active={ribbonTab === "insert"}
+              onClick={() => setRibbonTab("insert")}
             >
-              {d.name}
-            </button>
-          ))}
-          {!readOnly && (
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label="新建仪表盘"
-              onClick={() => addDashboard(`仪表盘 ${dashboards.length + 1}`)}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-
-        {/* 多选时浮出对齐工具条（对齐 Power BI 的「格式 → 对齐」） */}
-        {!readOnly && selectedIds.length >= 2 && (
-          <div className="flex items-center gap-0.5 rounded-md border px-1 py-0.5">
-            <span className="px-1 text-xs text-muted-foreground">
-              已选 {selectedIds.length} 个
-            </span>
-            {ALIGN_ACTIONS.map(({ mode, label, Icon }) => (
-              <button
-                key={mode}
-                type="button"
-                title={label}
-                aria-label={label}
-                onClick={() => handleAlign(mode)}
-                className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              >
-                <Icon className="h-4 w-4" />
-              </button>
-            ))}
+              插入
+            </RibbonTabButton>
+            <RibbonTabButton active={ribbonTab === "view"} onClick={() => setRibbonTab("view")}>
+              视图
+            </RibbonTabButton>
           </div>
-        )}
 
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={!active}
-          onClick={enterPresent}
-          title="全屏演示当前页"
-        >
-          <Play className="h-4 w-4" />
-          演示
-        </Button>
-
-        {!readOnly && (
-          <>
-            <Button size="sm" variant="outline" disabled={!active} onClick={() => setPageOpen(true)}>
-              <Settings2 className="h-4 w-4" />
-              页面
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!active}
-              onClick={() => {
-                setRenameValue(active?.name ?? "");
-                setRenameOpen(true);
-              }}
-            >
-              <Pencil className="h-4 w-4" />
-              重命名
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!active || dashboards.length <= 1}
-              onClick={() => active && removeDashboard(active.id)}
-            >
-              <Trash2 className="h-4 w-4" />
-              删除
-            </Button>
-            <Button size="sm" onClick={() => handleCreate()} disabled={datasets.length === 0}>
-              <Plus className="h-4 w-4" />
-              新建图表
-            </Button>
-          </>
-        )}
-      </div>
+          <div role="tabpanel" className="flex min-h-[64px] flex-wrap items-stretch gap-2 px-2 py-1">
+            {ribbonTab === "home" ? (
+              <>
+                <RibbonGroup label="插入">
+                  <RibbonButton
+                    Icon={Plus}
+                    label="新建图表"
+                    disabled={!active || datasets.length === 0}
+                    onClick={() => handleCreate()}
+                  />
+                </RibbonGroup>
+                <div className="mx-1 w-px self-stretch bg-border" />
+                <RibbonGroup label="页面">
+                  <RibbonButton Icon={Play} label="演示" disabled={!active} onClick={enterPresent} />
+                  <RibbonButton
+                    Icon={Settings2}
+                    label="页面设置"
+                    disabled={!active}
+                    onClick={() => setPageOpen(true)}
+                  />
+                  <RibbonButton
+                    Icon={Pencil}
+                    label="重命名"
+                    disabled={!active}
+                    onClick={() => {
+                      setRenameValue(active?.name ?? "");
+                      setRenameOpen(true);
+                    }}
+                  />
+                  <RibbonButton
+                    Icon={Trash2}
+                    label="删除页面"
+                    disabled={!active || dashboards.length <= 1}
+                    onClick={() => active && removeDashboard(active.id)}
+                  />
+                </RibbonGroup>
+                <div className="mx-1 w-px self-stretch bg-border" />
+                <RibbonGroup label="对齐">
+                  <div className="grid grid-cols-5 gap-0.5">
+                    {ALIGN_ACTIONS.map(({ mode, label, Icon }) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        title={label}
+                        aria-label={label}
+                        disabled={selectedIds.length < 2}
+                        onClick={() => handleAlign(mode)}
+                        className={cn(
+                          "flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors",
+                          selectedIds.length < 2
+                            ? "cursor-not-allowed opacity-40"
+                            : "hover:bg-accent hover:text-foreground",
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </button>
+                    ))}
+                  </div>
+                </RibbonGroup>
+              </>
+            ) : ribbonTab === "insert" ? (
+              <>
+                {/* 视觉对象：新建空白视觉对象 / 分解树（对齐 Power BI「插入」页签） */}
+                <RibbonGroup label="视觉对象">
+                  <RibbonButton
+                    Icon={SquareDashed}
+                    label="新建视觉对象"
+                    disabled={!active}
+                    onClick={() => handleCreate("bar")}
+                  />
+                  <RibbonButton
+                    Icon={Workflow}
+                    label="分解树"
+                    disabled={!active}
+                    onClick={() => handleCreate("decomposition")}
+                  />
+                </RibbonGroup>
+                <div className="mx-1 w-px self-stretch bg-border" />
+                {/* 元素：对齐 Power BI「插入 → 元素」的四个命令，图标在上、文字在下 */}
+                <RibbonGroup label="元素">
+                  <RibbonButton
+                    Icon={Type}
+                    label="文本框"
+                    disabled={!active}
+                    onClick={() => handleCreate("text")}
+                  />
+                  {/* 按钮：与 Power BI 一致，展开为动作类型清单（向左键 / 右箭头 / … / 导航器） */}
+                  <RibbonDropdown
+                    Icon={CHART_ICONS.button as unknown as typeof Plus}
+                    label="按钮"
+                    options={BUTTON_ACTIONS.map((a) => ({
+                      value: a.key,
+                      label: a.label,
+                      Icon: a.Icon,
+                    }))}
+                    value=""
+                    disabled={!active}
+                    onChange={(v) => handleCreate("button", v as ButtonAction)}
+                  />
+                  {/* 形状：与 Power BI 一致，展开为分组图标网格（矩形 / 基本形状 / 箭头总汇） */}
+                  <RibbonShapeMenu
+                    disabled={!active}
+                    onPick={(kind) => handleCreate("shape", undefined, kind)}
+                  />
+                  <RibbonButton
+                    Icon={Image}
+                    label="图像"
+                    disabled={!active}
+                    onClick={() => handleCreate("image")}
+                  />
+                </RibbonGroup>
+              </>
+            ) : (
+              <>
+                <RibbonGroup label="页面视图">
+                  <RibbonDropdown
+                    Icon={Maximize}
+                    label="页面视图"
+                    options={PAGE_FIT_OPTIONS}
+                    value={pageFit}
+                    disabled={!active}
+                    onChange={(v) => updatePage({ pageFit: v as PageViewFit })}
+                  />
+                </RibbonGroup>
+                <div className="mx-1 w-px self-stretch bg-border" />
+                <RibbonGroup label="显示">
+                  <div className="flex flex-col justify-center gap-0.5 py-0.5">
+                    <RibbonCheck
+                      label="网格线"
+                      checked={!!page.gridlines}
+                      disabled={!active}
+                      onChange={(v) => updatePage({ gridlines: v })}
+                    />
+                    <RibbonCheck
+                      label="锁定对象"
+                      checked={!!page.lockObjects}
+                      disabled={!active}
+                      onChange={(v) => updatePage({ lockObjects: v })}
+                    />
+                    <RibbonCheck
+                      label="同步切片器"
+                      checked={syncSlicers}
+                      disabled={!active}
+                      onChange={(v) => setSyncSlicers(v)}
+                    />
+                  </div>
+                </RibbonGroup>
+                <div className="mx-1 w-px self-stretch bg-border" />
+                <RibbonGroup label="窗格">
+                  <RibbonButton
+                    Icon={Filter}
+                    label="筛选器"
+                    active={filtersOpen}
+                    onClick={() => setFiltersOpen((v) => !v)}
+                  />
+                  <RibbonButton
+                    Icon={Layers}
+                    label="选择"
+                    active={selectionOpen}
+                    onClick={() => setSelectionOpen((v) => !v)}
+                  />
+                  <RibbonButton
+                    Icon={BookmarkIcon}
+                    label="书签"
+                    active={bookmarksOpen}
+                    onClick={() => setBookmarksOpen((v) => !v)}
+                  />
+                </RibbonGroup>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 画布 + 右侧面板 */}
-      <div className="flex min-h-0 flex-1">
-        {/* 工作区：对比底色（壁纸）+ 报告页卡片（对齐 Power BI 报表页） */}
-        <div
-          className="min-h-0 flex-1 overflow-auto bg-muted/40 p-6"
-          style={{ backgroundColor: page.wallpaper || undefined }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setSelectedIds([]);
-              setHighlight(null);
-            }
-          }}
-        >
+      <div className="flex min-h-0 min-w-0 flex-1">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          {/* 工作区：对比底色（壁纸）+ 报告页卡片（对齐 Power BI 报表页） */}
           <div
-            className={cn(
-              "mx-auto min-h-full rounded-md border shadow-sm",
-              page.width > 0 ? "" : "w-full max-w-[1400px]",
-            )}
-            style={{ ...pageStyle, width: page.width > 0 ? page.width : undefined }}
+            ref={viewportRef}
+            className="vbi-scroll min-h-0 min-w-0 flex-1 overflow-auto bg-muted/40 p-6"
+            style={{ backgroundColor: page.wallpaper || undefined }}
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setSelectedIds([]);
@@ -549,34 +1098,120 @@ export function DashboardView({
               }
             }}
           >
-            <ReportCanvas
-              widgets={widgets}
-              datasets={datasets}
-              selectedIds={selectedIds}
-              onSelect={handleSelect}
-              onLayout={(id, layout) => updateWidget(id, { layout })}
-              onLayoutMany={handleLayoutMany}
-              onRemove={(id) => {
-                setSelectedIds((prev) => prev.filter((x) => x !== id));
-                if (highlight?.sourceId === id) setHighlight(null);
-                removeWidget(id);
-              }}
-              highlight={highlight}
-              filters={activeValueFilters}
-              onPointClick={handlePointClick}
-              onDropVisual={readOnly ? undefined : handleDropVisual}
-              onSlicerChange={(id, slicer) => updateWidget(id, { slicer })}
-              onWidgetChange={(id, patch) => updateWidget(id, patch)}
-              pageWidth={page.width}
-              pageHeight={page.height}
-              readOnly={readOnly}
-            />
+            {/* 页面视图缩放：外层保留缩放后的占位尺寸，内层按 origin-top-left 缩放 */}
+            <div className="mx-auto" style={{ width: baseW * zoom, height: baseH * zoom }}>
+              <div
+                className="relative origin-top-left rounded-md border shadow-sm"
+                style={{
+                  ...pageStyle,
+                  width: baseW,
+                  height: baseH,
+                  transform: `scale(${zoom})`,
+                }}
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) {
+                    setSelectedIds([]);
+                    setHighlight(null);
+                  }
+                }}
+              >
+                {/* 视图 → 网格线：编辑辅助网格，不参与指针事件 */}
+                {page.gridlines ? (
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 rounded-md"
+                    style={{
+                      backgroundImage:
+                        "radial-gradient(circle, rgba(100, 116, 139, 0.38) 1px, transparent 1px)",
+                      backgroundSize: "20px 20px",
+                    }}
+                  />
+                ) : null}
+                <ReportCanvas
+                  widgets={widgets}
+                  datasets={datasets}
+                  selectedIds={selectedIds}
+                  onSelect={handleSelect}
+                  onLayout={(id, layout) => updateWidget(id, { layout })}
+                  onLayoutMany={handleLayoutMany}
+                  onRemove={(id) => {
+                    setSelectedIds((prev) => prev.filter((x) => x !== id));
+                    if (highlight?.sourceId === id) setHighlight(null);
+                    removeWidget(id);
+                  }}
+                  highlight={highlight}
+                  filters={activeValueFilters}
+                  pageFilters={pageFilters}
+                  reportFilters={reportFilters}
+                  onPointClick={handlePointClick}
+                  onDropVisual={readOnly ? undefined : handleDropVisual}
+                  onSlicerChange={(id, slicer) => handleSlicerChange(id, slicer)}
+                  onWidgetChange={(id, patch) => updateWidget(id, patch)}
+                  onButtonAction={runButtonAction}
+                  pageWidth={baseW}
+                  pageHeight={baseH}
+                  zoom={zoom}
+                  readOnly={readOnly}
+                  locked={!!page.lockObjects}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 页面导航：对齐 Power BI，把页面标签放在画布底部 */}
+          <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-t bg-muted/40 px-3 py-1">
+            {dashboards.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => setActive(d.id)}
+                className={cn(
+                  "shrink-0 rounded-t-md border-x border-t px-3 py-1 text-xs transition-colors",
+                  d.id === activeId
+                    ? "border-border bg-background font-medium text-foreground"
+                    : "border-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                )}
+              >
+                {d.name}
+              </button>
+            ))}
+            {!readOnly && (
+              <button
+                type="button"
+                aria-label="新建仪表盘"
+                title="新建页面"
+                onClick={() => addDashboard(`仪表盘 ${dashboards.length + 1}`)}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* 右侧面板（Power BI 风格：可视化 / 数据 两列并排） */}
+        {/* 右侧面板（Power BI 风格：筛选器 / 可视化 / 数据 / 选择 并列停靠） */}
         {!readOnly && (
-          <aside className="flex w-[480px] shrink-0 border-l">
+          <aside
+            className="flex shrink-0 border-l"
+            style={{ width: paneWidth, maxWidth: "72vw" }}
+          >
+            {filtersOpen && (
+              <FiltersPane
+                reportFilters={reportFilters}
+                pageFilters={pageFilters}
+                visualFilters={selected?.filters ?? []}
+                selectedWidget={selected}
+                browseDatasetId={browseDataset?.id ?? null}
+                datasets={datasets}
+                onReportFiltersChange={setReportFilters}
+                onPageFiltersChange={updatePageFilters}
+                onVisualFiltersChange={(next) =>
+                  selected && updateWidget(selected.id, { filters: next })
+                }
+                onClose={() => setFiltersOpen(false)}
+                className="border-r"
+              />
+            )}
             <VisualizationsPane
               className="min-h-0 min-w-0 border-r"
               grow={1}
@@ -595,6 +1230,37 @@ export function DashboardView({
               onPickField={handlePickField}
               onAddDataset={onAddDataset}
             />
+            {selectionOpen && (
+              <SelectionPane
+                widgets={widgets}
+                selectedIds={selectedIds}
+                onSelect={handleSelect}
+                onReorder={reorderWidgets}
+                onToggleHidden={(id) => {
+                  const target = widgets.find((w) => w.id === id);
+                  if (!target) return;
+                  updateWidget(id, { hidden: !target.hidden });
+                  if (!target.hidden) {
+                    setSelectedIds((prev) => prev.filter((x) => x !== id));
+                  }
+                }}
+                onTabOrderChange={(items) => {
+                  for (const it of items) updateWidget(it.id, { tabOrder: it.tabOrder });
+                }}
+                onClose={() => setSelectionOpen(false)}
+              />
+            )}
+            {bookmarksOpen && (
+              <BookmarksPane
+                bookmarks={bookmarks}
+                onAdd={addBookmark}
+                onApply={applyBookmark}
+                onUpdate={updateBookmark}
+                onRename={renameBookmark}
+                onDelete={deleteBookmark}
+                onClose={() => setBookmarksOpen(false)}
+              />
+            )}
           </aside>
         )}
       </div>
@@ -628,9 +1294,12 @@ export function DashboardView({
                 onRemove={() => {}}
                 highlight={highlight}
                 filters={activeValueFilters}
+                pageFilters={pageFilters}
+                reportFilters={reportFilters}
                 onPointClick={handlePointClick}
-                onSlicerChange={(id, slicer) => updateWidget(id, { slicer })}
+                onSlicerChange={(id, slicer) => handleSlicerChange(id, slicer)}
                 onWidgetChange={(id, patch) => updateWidget(id, patch)}
+                onButtonAction={runButtonAction}
                 pageWidth={page.width}
                 pageHeight={page.height}
                 readOnly

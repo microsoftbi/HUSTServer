@@ -23,7 +23,7 @@ import {
   YAxis,
 } from "recharts";
 import type { PieLabelRenderProps } from "recharts";
-import type { ChartWidget, Dataset, FieldFormat } from "@bi/types";
+import type { ButtonAction, ChartWidget, Dataset, FieldFormat } from "@bi/types";
 import { aggregate, measureKey } from "@bi/lib/aggregate";
 import { colorAt, normalizeToPercent } from "@bi/lib/chart";
 import { DataTable } from "@bi/components/DataTable";
@@ -57,6 +57,8 @@ interface ChartRendererProps {
   onPointClick?: (field: string, value: string, additive: boolean) => void;
   /** 视觉对象自身配置变更（分解树的展开状态需要回写并落库） */
   onWidgetChange?: (patch: Partial<ChartWidget>) => void;
+  /** 按钮类装饰元素的点击动作 */
+  onButtonAction?: (action: ButtonAction) => void;
 }
 
 export function ChartRenderer({
@@ -67,10 +69,17 @@ export function ChartRenderer({
   filters = null,
   onPointClick,
   onWidgetChange,
+  onButtonAction,
 }: ChartRendererProps) {
   // 装饰元素不依赖数据集，需在「数据集丢失 / 未配置度量」判断之前分流
   if (isDecoration(widget.type)) {
-    return <DecorationView widget={widget} onChange={onWidgetChange} />;
+    return (
+      <DecorationView
+        widget={widget}
+        onChange={onWidgetChange}
+        onButtonAction={onButtonAction}
+      />
+    );
   }
 
   if (!dataset) {
