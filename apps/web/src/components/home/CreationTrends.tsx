@@ -83,10 +83,13 @@ export function CreationTrends() {
       {state.status === 'ok' && (
         <div className="grid gap-3 p-4 lg:grid-cols-2">
           {SERIES.map((series, i) => {
-            const data = state.data.dates.map((date, idx) => ({
-              date,
-              value: state.data.counts[series.key][idx] ?? 0,
-            }));
+            // 横轴按时间倒序：最近一天在最左，便于先看到当前状态
+            const data = state.data.dates
+              .map((date, idx) => ({
+                date,
+                value: state.data.counts[series.key][idx] ?? 0,
+              }))
+              .reverse();
             return (
               <div key={series.key} className="rounded-md border border-border p-3">
                 <div className="mb-1 text-sm font-medium">

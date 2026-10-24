@@ -7,9 +7,11 @@ export type NodeKind =
   | 'inputCsv'
   | 'inputExcel'
   | 'inputSqlServer'
+  | 'textInput'
   | 'select'
   | 'filter'
   | 'join'
+  | 'findReplace'
   | 'union'
   | 'aggregation'
   | 'sort'
@@ -109,6 +111,31 @@ export interface InputSqlServerConfig {
   /** 记录所选表/视图，仅用于重新打开面板时回显。 */
   object?: SqlObjectRef;
   query: string;
+}
+
+/** 手工输入字段的数据类型（对齐 Alteryx Text Input 的常用类型）。 */
+export type TextInputFieldType = 'VARCHAR' | 'BIGINT' | 'DOUBLE' | 'BOOLEAN' | 'DATE' | 'TIMESTAMP';
+
+export interface TextInputField {
+  name: string;
+  type: TextInputFieldType;
+}
+
+export interface TextInputConfig {
+  fields: TextInputField[];
+  rows: string[][];
+}
+
+/** Find Replace 的输出方式：替换原字段值 或 追加为新字段。 */
+export type FindReplaceMode = 'replace' | 'append';
+
+export interface FindReplaceConfig {
+  field: string;
+  findField?: string;
+  replaceField?: string;
+  mode: FindReplaceMode;
+  newField?: string;
+  matchCase?: boolean;
 }
 
 export interface SelectField {

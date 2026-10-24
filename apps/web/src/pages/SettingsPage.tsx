@@ -12,12 +12,18 @@ interface AdminSettings {
   logRetentionDays: number;
   sharedDirs: string[];
   tz: string;
+  assistant: {
+    apiBase: string;
+    model: string;
+    hasApiKey: boolean;
+  };
 }
 
 export function SettingsPage() {
   const { hasCap } = useAuth();
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [sharedDirsText, setSharedDirsText] = useState('');
+  const [apiKeyDraft, setApiKeyDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -43,16 +49,23 @@ export function SettingsPage() {
     if (!settings) return;
     setBusy(true);
     try {
-      const body: AdminSettings = {
-        ...settings,
+      const body = {
+        maxConcurrentRuns: settings.maxConcurrentRuns,
+        logRetentionDays: settings.logRetentionDays,
+        tz: settings.tz,
         sharedDirs: sharedDirsText
           .split('\n')
           .map((s) => s.trim())
           .filter(Boolean),
+        assistantApiBase: settings.assistant.apiBase,
+        assistantModel: settings.assistant.model,
+        // 留空表示保持原有 Key 不变
+        ...(apiKeyDraft.trim() ? { assistantApiKey: apiKeyDraft.trim() } : {}),
       };
       const next = await api.put<AdminSettings>('/api/admin/settings', { body });
       setSettings(next);
       setSharedDirsText(next.sharedDirs.join('\n'));
+      setApiKeyDraft('');
       setError(null);
       window.alert('保存成功。并发数与保留期在服务重启后完全生效。');
     } catch (err) {
@@ -135,6 +148,49 @@ export function SettingsPage() {
                 className="w-64"
                 value={settings.tz}
                 onChange={(e) => setSettings({ ...settings, tz: e.target.value })}
+              />
+            </Field>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <div className="space-y-1">
+              <CardTitle>AI 智能体</CardTitle>
+              <CardDescription>
+                用于「AI 智能体」自然语言查询数据模型（Text2SQL）的大模型接口配置。API Key 加密保存在数据库中，不会回显。
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <Field label="API 地址" hint="兼容 OpenAI 协议的地址，默认 https://api.deepseek.com">
+              <Input
+                className="w-full max-w-md"
+                value={settings.assistant.apiBase}
+                onChange={(e) =>
+                  setSettings({ ...settings, assistant: { ...settings.assistant, apiBase: e.target.value } })
+                }
+              />
+            </Field>
+            <Field label="模型名称" hint="例如 deepseek-chat">
+              <Input
+                className="w-64"
+                value={settings.assistant.model}
+                onChange={(e) =>
+                  setSettings({ ...settings, assistant: { ...settings.assistant, model: e.target.value } })
+                }
+              />
+            </Field>
+            <Field
+              label="API Key"
+              hint={settings.assistant.hasApiKey ? '已配置。留空表示不修改。' : '尚未配置，填写后才能使用 AI 智能体。'}
+            >
+              <Input
+                type="password"
+                autoComplete="new-password"
+                className="w-full max-w-md"
+                placeholder={settings.assistant.hasApiKey ? '••••••••（留空不修改）' : 'sk-...'}
+                value={apiKeyDraft}
+                onChange={(e) => setApiKeyDraft(e.target.value)}
               />
             </Field>
           </CardContent>

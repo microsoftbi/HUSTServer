@@ -3,11 +3,13 @@ import type {
   AggregationFn,
   ColumnMeta,
   CrossTabConfig,
+  FindReplaceConfig,
   FormulaConfig,
   JoinConfig,
   NodeKind,
   RunningTotalConfig,
   SelectConfig,
+  TextInputConfig,
   TextToColumnsConfig,
   TransposeConfig,
   UnionConfig,
@@ -144,6 +146,25 @@ function derive(
     case 'inputExcel':
     case 'inputSqlServer':
       return [];
+
+    /* Text Input：字段结构直接来自配置 */
+    case 'textInput': {
+      const cfg = node.config as unknown as Partial<TextInputConfig>;
+      return (cfg.fields ?? [])
+        .filter((f) => f && String(f.name ?? '').trim())
+        .map((f) => ({ name: String(f.name).trim(), type: f.type ?? 'VARCHAR' }));
+    }
+
+    /* Find Replace：替换模式列结构不变；追加模式新增一列 */
+    case 'findReplace': {
+      const cols = upstream('in').map((c) => ({ ...c }));
+      const cfg = node.config as unknown as Partial<FindReplaceConfig>;
+      if (cfg.mode === 'append') {
+        const field = cfg.field?.trim() ?? '';
+        cols.push({ name: cfg.newField?.trim() || `${field}_Replaced`, type: 'VARCHAR' });
+      }
+      return cols;
+    }
 
     /* 行级转换：列结构原样透传 */
     case 'filter':

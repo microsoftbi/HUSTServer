@@ -3,19 +3,29 @@ import {
   BarChart3,
   Database,
   Eye,
+  MoreHorizontal,
   Pencil,
   Plus,
   RefreshCw,
   SlidersHorizontal,
   Table2,
+  Tag,
   Trash2,
 } from 'lucide-react';
 import { api, ApiClientError } from '../api.js';
 import { useAuth } from '../auth.js';
 import { CreateModelModal, type CreatedModel } from '../components/models/CreateModelModal.js';
 import { ModelColumnConfigModal } from '../components/models/ModelColumnConfigModal.js';
+import { ModelLabelModal } from '../components/models/ModelLabelModal.js';
 import { ModelStatsModal } from '../components/models/ModelStatsModal.js';
 import { PivotBuilder } from '../components/pivot/PivotBuilder.js';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@bi/components/ui/dropdown-menu';
 import { Badge } from '../components/ui/badge.js';
 import { Button } from '../components/ui/button.js';
 import { Card } from '../components/ui/card.js';
@@ -102,6 +112,7 @@ export function ModelsPage() {
   const [pivotModel, setPivotModel] = useState<ModelItem | null>(null);
   const [statsModel, setStatsModel] = useState<ModelItem | null>(null);
   const [configModel, setConfigModel] = useState<ModelItem | null>(null);
+  const [labelModel, setLabelModel] = useState<ModelItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -213,7 +224,7 @@ export function ModelsPage() {
                 <TableHead className="w-24">行数</TableHead>
                 <TableHead className="w-24">列数</TableHead>
                 <TableHead className="w-48">加载时间</TableHead>
-                <TableHead className="w-[18rem] text-right">操作</TableHead>
+                <TableHead className="w-36 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -230,40 +241,53 @@ export function ModelsPage() {
                   <TableCell className="text-muted-foreground">{m.columns.length}</TableCell>
                   <TableCell className="text-muted-foreground">{new Date(m.loadedAt).toLocaleString()}</TableCell>
                   <TableCell>
-                    <div className="ml-auto flex max-w-[16rem] flex-wrap items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1">
                       <Button variant="ghost" size="sm" onClick={() => void openPreview(m)}>
                         <Eye />
                         数据预览
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setPivotModel(m)}>
-                        <Table2 />
-                        透视
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setStatsModel(m)}>
-                        <BarChart3 />
-                        统计
-                      </Button>
-                      {canManage && (
-                        <>
-                          <Button variant="ghost" size="sm" onClick={() => setConfigModel(m)}>
-                            <SlidersHorizontal />
-                            配置
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" title="更多操作" aria-label="更多操作">
+                            <MoreHorizontal />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => void rename(m)}>
-                            <Pencil />
-                            重命名
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => void remove(m)}
-                          >
-                            <Trash2 />
-                            删除
-                          </Button>
-                        </>
-                      )}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                          <DropdownMenuItem onSelect={() => setPivotModel(m)}>
+                            <Table2 />
+                            透视分析
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => setStatsModel(m)}>
+                            <BarChart3 />
+                            统计信息
+                          </DropdownMenuItem>
+                          {canManage && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onSelect={() => setLabelModel(m)}>
+                                <Tag />
+                                数据标签
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => setConfigModel(m)}>
+                                <SlidersHorizontal />
+                                列配置
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => void rename(m)}>
+                                <Pencil />
+                                重命名…
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onSelect={() => void remove(m)}
+                                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                              >
+                                <Trash2 />
+                                删除…
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -302,6 +326,19 @@ export function ModelsPage() {
         onSaved={(count) => {
           setNotice(`已保存模型「${configModel?.name ?? ''}」的列类型配置（${count} 列）`);
           void load();
+        }}
+      />
+
+      <ModelLabelModal
+        open={labelModel !== null}
+        modelName={labelModel?.name ?? ''}
+        onClose={() => setLabelModel(null)}
+        onSaved={(hasLabel) => {
+          setNotice(
+            hasLabel
+              ? `已保存模型「${labelModel?.name ?? ''}」的数据标签`
+              : `已清空模型「${labelModel?.name ?? ''}」的数据标签`,
+          );
         }}
       />
 

@@ -3,9 +3,11 @@ import type { NodeExecutor } from '../nodes/context.js';
 import { inputCsv } from '../nodes/inputCsv.js';
 import { inputExcel } from '../nodes/inputExcel.js';
 import { inputSqlServer } from '../nodes/inputSqlServer.js';
+import { textInput } from '../nodes/textInput.js';
 import { select } from '../nodes/select.js';
 import { filter } from '../nodes/filter.js';
 import { join } from '../nodes/join.js';
+import { findReplace } from '../nodes/findReplace.js';
 import { union } from '../nodes/union.js';
 import { aggregation } from '../nodes/aggregation.js';
 import { sort } from '../nodes/sort.js';
@@ -28,9 +30,11 @@ export const nodeRegistry: Record<NodeKind, NodeExecutor> = {
   inputCsv,
   inputExcel,
   inputSqlServer,
+  textInput,
   select,
   filter,
   join,
+  findReplace,
   union,
   aggregation,
   sort,

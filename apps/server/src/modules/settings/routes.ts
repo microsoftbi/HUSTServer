@@ -3,14 +3,32 @@ import type { AppConfig } from '../../config.js';
 import type { UsersRepo } from '../users/repo.js';
 import type { SessionsRepo } from '../auth/sessions.js';
 import { requireAuth, requireAdmin } from '../../plugins/guards.js';
+import { encryptConfig } from '../connections/crypto.js';
 import type { SettingsRepo } from './repo.js';
+
+/** AI 智能体配置（API Key 只回传是否已配置，绝不回传明文）。 */
+export interface AssistantSettingsView {
+  apiBase: string;
+  model: string;
+  hasApiKey: boolean;
+}
 
 export interface AdminSettings {
   maxConcurrentRuns: number;
   logRetentionDays: number;
   sharedDirs: string[];
   tz: string;
+  assistant: AssistantSettingsView;
 }
+
+export const DEFAULT_ASSISTANT_API_BASE = 'https://api.deepseek.com';
+export const DEFAULT_ASSISTANT_MODEL = 'deepseek-chat';
+/** settings 表中的键名 */
+export const ASSISTANT_KEYS = {
+  apiBase: 'assistant.apiBase',
+  model: 'assistant.model',
+  apiKeyEnc: 'assistant.apiKeyEnc',
+} as const;
 
 export interface SettingsRoutesDeps {
   config: AppConfig;
@@ -44,6 +62,11 @@ export function readSettings(config: AppConfig, settings: SettingsRepo): AdminSe
     logRetentionDays: num('logRetentionDays', config.logRetentionDays),
     sharedDirs,
     tz: raw.tz ?? config.tz,
+    assistant: {
+      apiBase: raw[ASSISTANT_KEYS.apiBase] ?? DEFAULT_ASSISTANT_API_BASE,
+      model: raw[ASSISTANT_KEYS.model] ?? DEFAULT_ASSISTANT_MODEL,
+      hasApiKey: Boolean(raw[ASSISTANT_KEYS.apiKeyEnc]),
+    },
   };
 }
 
@@ -82,6 +105,32 @@ export function settingsRoutes(app: FastifyInstance, deps: SettingsRoutesDeps): 
         return reply.code(400).send({ error: 'invalid_settings', detail: 'tz 必须为非空字符串' });
       }
       updates.tz = body.tz;
+    }
+
+    if (body.assistantApiBase !== undefined) {
+      const value = body.assistantApiBase;
+      if (typeof value !== 'string' || !/^https?:\/\/\S+$/i.test(value.trim())) {
+        return reply
+          .code(400)
+          .send({ error: 'invalid_settings', detail: 'API 地址必须为 http:// 或 https:// 开头的 URL' });
+      }
+      updates[ASSISTANT_KEYS.apiBase] = value.trim().replace(/\/+$/, '');
+    }
+
+    if (body.assistantModel !== undefined) {
+      const value = body.assistantModel;
+      if (typeof value !== 'string' || value.trim() === '') {
+        return reply.code(400).send({ error: 'invalid_settings', detail: '模型名称不能为空' });
+      }
+      updates[ASSISTANT_KEYS.model] = value.trim();
+    }
+
+    // 空字符串表示保持原有 Key 不变，避免前端留空提交时误清空凭据
+    if (typeof body.assistantApiKey === 'string' && body.assistantApiKey.trim() !== '') {
+      updates[ASSISTANT_KEYS.apiKeyEnc] = encryptConfig(
+        { apiKey: body.assistantApiKey.trim() },
+        deps.config.encryptionKey,
+      );
     }
 
     if (Object.keys(updates).length > 0) {

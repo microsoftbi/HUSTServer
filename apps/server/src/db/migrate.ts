@@ -259,6 +259,39 @@ CREATE TABLE IF NOT EXISTS model_column_configs (
   columns    TEXT NOT NULL,
   updated_at INTEGER NOT NULL
 );
+
+-- 数据标签：每个模型一段 Markdown 说明，按模型名映射
+CREATE TABLE IF NOT EXISTS model_labels (
+  model_name TEXT PRIMARY KEY,
+  content    TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+`;
+
+const ASSISTANT_TABLES = `
+CREATE TABLE IF NOT EXISTS assistant_conversations (
+  id                   TEXT PRIMARY KEY,
+  user_id              TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title                TEXT NOT NULL,
+  summary              TEXT,
+  compressed_until_seq INTEGER NOT NULL DEFAULT 0,
+  created_at           INTEGER NOT NULL,
+  updated_at           INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS assistant_messages (
+  id              TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL REFERENCES assistant_conversations(id) ON DELETE CASCADE,
+  seq             INTEGER NOT NULL,
+  role            TEXT NOT NULL,
+  content         TEXT NOT NULL DEFAULT '',
+  sql             TEXT,
+  result_json     TEXT,
+  created_at      INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_assistant_conv_owner ON assistant_conversations(user_id, updated_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_assistant_msg_seq ON assistant_messages(conversation_id, seq);
 `;
 
 export function backfillUserRoles(db: Database): void {
@@ -283,6 +316,15 @@ export function migrate(db: Database): void {
   db.exec(LOGIN_LOG_TABLES);
   db.exec(AUDIT_TABLES);
   db.exec(MODEL_TABLES);
+  db.exec(ASSISTANT_TABLES);
+  const convCols = (db.pragma('table_info(assistant_conversations)') as Array<{ name: string }>).map(
+    (c) => c.name,
+  );
+  if (!convCols.includes('compressed_until_seq')) {
+    db.exec(
+      'ALTER TABLE assistant_conversations ADD COLUMN compressed_until_seq INTEGER NOT NULL DEFAULT 0',
+    );
+  }
   const runCols = (db.pragma('table_info(runs)') as Array<{ name: string }>).map((c) => c.name);
   if (!runCols.includes('job_run_id')) {
     db.exec('ALTER TABLE runs ADD COLUMN job_run_id TEXT REFERENCES job_runs(id) ON DELETE SET NULL');

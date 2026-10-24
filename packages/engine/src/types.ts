@@ -7,9 +7,11 @@ export type NodeKind =
   | 'inputCsv'
   | 'inputExcel'
   | 'inputSqlServer'
+  | 'textInput'
   | 'select'
   | 'filter'
   | 'join'
+  | 'findReplace'
   | 'union'
   | 'aggregation'
   | 'sort'
@@ -31,9 +33,11 @@ export const NODE_KINDS: NodeKind[] = [
   'inputCsv',
   'inputExcel',
   'inputSqlServer',
+  'textInput',
   'select',
   'filter',
   'join',
+  'findReplace',
   'union',
   'aggregation',
   'sort',
@@ -125,6 +129,38 @@ export interface InputSqlServerConfig {
   /** 记录所选表/视图，仅用于重新打开面板时回显。 */
   object?: SqlObjectRef;
   query: string;
+}
+
+/** 手工输入字段的数据类型（对齐 Alteryx Text Input 的常用类型）。 */
+export type TextInputFieldType = 'VARCHAR' | 'BIGINT' | 'DOUBLE' | 'BOOLEAN' | 'DATE' | 'TIMESTAMP';
+
+export interface TextInputField {
+  name: string;
+  type: TextInputFieldType;
+}
+
+export interface TextInputConfig {
+  /** 字段定义；文本输入节点没有上游，字段由用户手工维护。 */
+  fields: TextInputField[];
+  /** 每行按字段顺序存放的原始文本；空单元格在非字符串字段上按 NULL 处理。 */
+  rows: string[][];
+}
+
+/** Find Replace 的输出方式：替换原字段值 或 追加为新字段。 */
+export type FindReplaceMode = 'replace' | 'append';
+
+export interface FindReplaceConfig {
+  /** 数据表（F 输入）中要查找的字段。 */
+  field: string;
+  /** 查找表中存放查找值的字段，默认 Find。 */
+  findField?: string;
+  /** 查找表中存放替换值的字段，默认 Replace。 */
+  replaceField?: string;
+  mode: FindReplaceMode;
+  /** 追加模式下的新字段名，默认 <字段>_Replaced。 */
+  newField?: string;
+  /** 是否区分大小写，默认区分。 */
+  matchCase?: boolean;
 }
 
 export interface SelectField {

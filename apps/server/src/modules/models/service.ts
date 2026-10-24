@@ -31,7 +31,7 @@ import {
   toQueryColumnType,
   type LogicalColumnType,
 } from './columnTypes.js';
-import { dataModelsRepo, modelColumnConfigsRepo, type ModelSourceKind } from './repo.js';
+import { dataModelsRepo, modelColumnConfigsRepo, modelLabelsRepo, type ModelSourceKind } from './repo.js';
 
 /** DuckDB 连接类型从 engine 公开面推导，避免 server 直接依赖 @duckdb/node-api。 */
 type DuckConnection = DuckSession['connection'];
@@ -275,6 +275,7 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
   const { db, config } = deps;
   const repo = dataModelsRepo(db);
   const columnConfigs = modelColumnConfigsRepo(db);
+  const labels = modelLabelsRepo(db);
   const connections = connectionsRepo(db);
   // DuckDB 单文件只允许单写者：所有读写串行
   const sem = createSemaphore(1);
@@ -608,6 +609,8 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
     repo.rename(oldName, newName);
     // 列类型配置按模型名映射，重命名后同步迁移
     columnConfigs.rename(oldName, newName);
+    // 数据标签同样按模型名映射
+    labels.rename(oldName, newName);
   }
 
   async function doRemove(name: string): Promise<void> {
@@ -615,6 +618,7 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
     await dropTable(connection, name);
     repo.remove(name);
     columnConfigs.remove(name);
+    labels.remove(name);
   }
 
   return {

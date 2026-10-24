@@ -32,6 +32,7 @@ import {
   TextToColumnsPanel,
   TransposePanel,
 } from '@/components/panels/PivotPanels';
+import { FindReplacePanel, TextInputPanel } from '@/components/panels/DataEntryPanels';
 import { CATEGORY_ACCENT, getNodeMeta } from '@/lib/nodeMeta';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { cn } from '@/lib/utils';
@@ -45,12 +46,16 @@ function ConfigForm({ node }: { node: WorkflowNode }) {
       return <InputExcelPanel node={node} />;
     case 'inputSqlServer':
       return <InputSqlServerPanel node={node} />;
+    case 'textInput':
+      return <TextInputPanel node={node} />;
     case 'select':
       return <SelectPanel node={node} />;
     case 'filter':
       return <FilterPanel node={node} />;
     case 'join':
       return <JoinPanel node={node} />;
+    case 'findReplace':
+      return <FindReplacePanel node={node} />;
     case 'union':
       return <UnionPanel node={node} />;
     case 'aggregation':

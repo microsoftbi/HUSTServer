@@ -16,7 +16,7 @@ import {
   type LogicalColumnType,
   type StoredColumnType,
 } from './columnTypes.js';
-import { dataModelsRepo, modelColumnConfigsRepo } from './repo.js';
+import { dataModelsRepo, modelColumnConfigsRepo, modelLabelsRepo } from './repo.js';
 import {
   MODEL_NAME_RE,
   PIVOT_AGGS,
@@ -41,6 +41,8 @@ const MAX_PIVOT_FIELDS = 3;
 const MAX_PIVOT_VALUES = 4;
 /** 筛选条件数上限 */
 const MAX_PIVOT_FILTERS = 3;
+/** 数据标签（Markdown）字符数上限 */
+const MAX_LABEL_LENGTH = 20000;
 
 /** 校验透视请求体：只做形状与白名单校验，字段是否存在交给服务层（需要模型列信息）。 */
 function parsePivotBody(raw: unknown): { spec: PivotSpec } | { error: string } {
@@ -106,6 +108,7 @@ export function modelRoutes(app: FastifyInstance, deps: ModelRouteDeps): void {
   const auth = requireAuth({ users: deps.users, sessions: deps.sessions });
   const repo = dataModelsRepo(deps.db);
   const columnConfigs = modelColumnConfigsRepo(deps.db);
+  const labels = modelLabelsRepo(deps.db);
   const connections = connectionsRepo(deps.db);
 
   /** 直接从资源文件或 SQL Server 表载入模型（与 Job 的「加载成模型」步骤同一套 config 与校验）。 */
@@ -243,6 +246,39 @@ export function modelRoutes(app: FastifyInstance, deps: ModelRouteDeps): void {
       return { ok: true, count: items.length };
     },
   );
+
+  /** 数据标签：读取该模型的 Markdown 说明（无标签时返回空串）。 */
+  app.get('/api/models/:name/label', { preHandler: [auth, requireCap('dashboard.view')] }, async (req, reply) => {
+    const { name } = req.params as { name: string };
+    if (!repo.findByName(name)) return reply.code(404).send({ error: '模型不存在' });
+    const row = labels.get(name);
+    return { name, content: row?.content ?? '', updatedAt: row?.updated_at ?? null };
+  });
+
+  /** 数据标签：保存 Markdown 说明；内容为空白时删除标签。 */
+  app.put('/api/models/:name/label', { preHandler: [auth, requireCap('job')] }, async (req, reply) => {
+    const { name } = req.params as { name: string };
+    if (!repo.findByName(name)) return reply.code(404).send({ error: '模型不存在' });
+
+    const body = (req.body ?? {}) as { content?: unknown };
+    if (typeof body.content !== 'string') return reply.code(400).send({ error: 'content 必须是字符串' });
+    if (body.content.length > MAX_LABEL_LENGTH) {
+      return reply.code(400).send({ error: `标签内容过长（最多 ${MAX_LABEL_LENGTH} 字）` });
+    }
+
+    const hasLabel = body.content.trim() !== '';
+    if (hasLabel) labels.save(name, body.content);
+    else labels.remove(name);
+
+    deps.audit.record({
+      userId: req.auth!.userId,
+      action: 'update',
+      resource: 'model',
+      resourceName: name,
+      description: hasLabel ? `更新了数据模型「${name}」的数据标签` : `清空了数据模型「${name}」的数据标签`,
+    });
+    return { ok: true, hasLabel };
+  });
 
   app.post('/api/models/query', { preHandler: [auth, requireCap('dashboard.view')] }, async (req, reply) => {
     const body = (req.body ?? {}) as { name?: unknown; limit?: unknown };

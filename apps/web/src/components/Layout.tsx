@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
+  Bot,
   Boxes,
   Compass,
   Database,
@@ -115,6 +116,9 @@ export function Layout() {
           )}
           {hasCap('connection.use') && (
             <NavItem to="/explore" icon={Compass} label="数据探索" collapsed={collapsed} />
+          )}
+          {hasCap('connection.use') && (
+            <NavItem to="/assistant" icon={Bot} label="AI智能体" collapsed={collapsed} />
           )}
           {hasCap('resources') && (
             <NavItem to="/resources" icon={FolderOpen} label="资源管理" collapsed={collapsed} />

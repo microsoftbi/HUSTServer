@@ -37,6 +37,17 @@ export function getNodeConfigIssues(
       if (!str(config.connectionId)) issues.push('未选择数据连接');
       if (!str(config.query)) issues.push('未填写 SQL 查询');
       break;
+    case 'textInput': {
+      const fields = list(config.fields);
+      if (fields.length === 0) issues.push('未定义字段');
+      else if (fields.some((item) => !str((item as { name?: unknown } | null)?.name))) {
+        issues.push('存在未命名的字段');
+      }
+      break;
+    }
+    case 'findReplace':
+      if (!str(config.field)) issues.push('未选择要查找的字段');
+      break;
     case 'select': {
       const fields = list(config.fields);
       const included = fields.filter(

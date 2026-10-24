@@ -6,6 +6,7 @@ import type { ModelWriteHook } from '@hustserver/engine';
 import type { AppConfig } from './config.js';
 import { auditRepo } from './modules/audit/repo.js';
 import { auditRoutes } from './modules/audit/routes.js';
+import { assistantRoutes } from './modules/assistant/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { loginLogsRepo } from './modules/auth/loginLogs.js';
 import { sessionsRepo } from './modules/auth/sessions.js';
@@ -173,6 +174,15 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
 
   const settings = settingsRepo(deps.db);
   settingsRoutes(app, { config: deps.config, users, sessions, settings });
+
+  assistantRoutes(app, {
+    db: deps.db,
+    config: deps.config,
+    users,
+    sessions,
+    settings,
+    modelStore,
+  });
 
   overviewRoutes(app, { db: deps.db, users, sessions });
 

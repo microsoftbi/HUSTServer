@@ -13,11 +13,13 @@ import {
   Filter,
   Fingerprint,
   GitMerge,
+  Replace,
   Rows3,
   Sheet,
   Sigma,
   Split,
   Table2,
+  TextCursorInput,
   TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
@@ -74,6 +76,22 @@ export const NODE_META: Record<NodeKind, NodeMeta> = {
     outputs: [{ id: 'out', label: '输出' }],
     defaultConfig: { connectionId: '', query: '' },
   },
+  textInput: {
+    kind: 'textInput',
+    label: 'Text Input',
+    category: 'input',
+    description: '手工录入常量数据，作为码表或参数表使用',
+    icon: TextCursorInput,
+    inputs: [],
+    outputs: [{ id: 'out', label: '输出' }],
+    defaultConfig: {
+      fields: [
+        { name: 'Field1', type: 'VARCHAR' },
+        { name: 'Field2', type: 'VARCHAR' },
+      ],
+      rows: [['', '']],
+    },
+  },
   select: {
     kind: 'select',
     label: 'Select',
@@ -109,6 +127,26 @@ export const NODE_META: Record<NodeKind, NodeMeta> = {
     ],
     outputs: [{ id: 'out', label: '输出' }],
     defaultConfig: { joinType: 'inner', leftKey: '', rightKey: '', selectFields: [] },
+  },
+  findReplace: {
+    kind: 'findReplace',
+    label: 'Find Replace',
+    category: 'transform',
+    description: '用查找表把数据中的字段值替换为新值（F 数据输入，R 查找输入）',
+    icon: Replace,
+    inputs: [
+      { id: 'in', label: 'F' },
+      { id: 'lookup', label: 'R' },
+    ],
+    outputs: [{ id: 'out', label: '输出' }],
+    defaultConfig: {
+      field: '',
+      findField: 'Find',
+      replaceField: 'Replace',
+      mode: 'replace',
+      newField: '',
+      matchCase: true,
+    },
   },
   union: {
     kind: 'union',

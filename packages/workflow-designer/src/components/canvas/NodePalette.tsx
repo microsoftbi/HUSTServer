@@ -15,12 +15,13 @@ const RIBBON_GROUPS: Record<NodeCategory, { label: string; kinds: NodeKind[] }[]
   input: [
     { label: '文件', kinds: ['inputCsv', 'inputExcel'] },
     { label: '数据库', kinds: ['inputSqlServer'] },
+    { label: '手工', kinds: ['textInput'] },
   ],
   transform: [
     { label: '选择', kinds: ['select', 'filter'] },
     { label: '组合', kinds: ['join', 'union'] },
     { label: '汇总', kinds: ['aggregation', 'sort', 'runningTotal'] },
-    { label: '数据准备', kinds: ['formula', 'unique', 'sample', 'cleansing'] },
+    { label: '数据准备', kinds: ['formula', 'findReplace', 'unique', 'sample', 'cleansing'] },
     { label: '拆分重组', kinds: ['textToColumns', 'crossTab', 'transpose'] },
   ],
   output: [

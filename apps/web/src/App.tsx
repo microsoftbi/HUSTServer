@@ -4,6 +4,7 @@ import { Layout } from './components/Layout.js';
 import { DashboardEditorPage } from './features/dashboard/DashboardEditorPage.js';
 import { DashboardListPage } from './features/dashboard/DashboardListPage.js';
 import { AuditPage } from './pages/AuditPage.js';
+import { AssistantPage } from './pages/AssistantPage.js';
 import { ConnectionsPage } from './pages/ConnectionsPage.js';
 import { DataExplorerPage } from './pages/DataExplorerPage.js';
 import { HomePage } from './pages/HomePage.js';
@@ -191,6 +192,14 @@ export function App() {
               element={
                 <RequireCap cap="connection.use">
                   <DataExplorerPage />
+                </RequireCap>
+              }
+            />
+            <Route
+              path="/assistant"
+              element={
+                <RequireCap cap="connection.use">
+                  <AssistantPage />
                 </RequireCap>
               }
             />

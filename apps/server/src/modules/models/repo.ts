@@ -66,6 +66,43 @@ export function modelColumnConfigsRepo(db: Database): ModelColumnConfigsRepo {
   };
 }
 
+export interface ModelLabelRow {
+  model_name: string;
+  /** Markdown 文本 */
+  content: string;
+  updated_at: number;
+}
+
+export interface ModelLabelsRepo {
+  get(modelName: string): ModelLabelRow | null;
+  save(modelName: string, content: string): void;
+  remove(modelName: string): boolean;
+  rename(oldName: string, newName: string): boolean;
+}
+
+/** 数据标签仓库：每个模型一段 Markdown 说明，按模型名映射。 */
+export function modelLabelsRepo(db: Database): ModelLabelsRepo {
+  const byName = db.prepare('SELECT * FROM model_labels WHERE model_name = ?');
+  const upsertStmt = db.prepare(`
+    INSERT INTO model_labels (model_name, content, updated_at)
+    VALUES (?,?,?)
+    ON CONFLICT(model_name) DO UPDATE SET
+      content    = excluded.content,
+      updated_at = excluded.updated_at
+  `);
+  const del = db.prepare('DELETE FROM model_labels WHERE model_name = ?');
+  const renameStmt = db.prepare('UPDATE model_labels SET model_name = ? WHERE model_name = ?');
+
+  return {
+    get: (name) => (byName.get(name) as ModelLabelRow | undefined) ?? null,
+    save(modelName, content) {
+      upsertStmt.run(modelName, content, Date.now());
+    },
+    remove: (name) => del.run(name).changes > 0,
+    rename: (oldName, newName) => renameStmt.run(newName, oldName).changes > 0,
+  };
+}
+
 export function dataModelsRepo(db: Database): DataModelsRepo {
   const byName = db.prepare('SELECT * FROM data_models WHERE name = ?');
   const get = (name: string) => (byName.get(name) as DataModelRow | undefined) ?? null;
