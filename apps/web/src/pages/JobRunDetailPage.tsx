@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, ListChecks } from 'lucide-react';
-import { api } from '../api.js';
+import { ArrowLeft, ListChecks, XCircle } from 'lucide-react';
+import { api, ApiClientError } from '../api.js';
 import { Badge } from '../components/ui/badge.js';
 import { Button } from '../components/ui/button.js';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card.js';
@@ -9,13 +9,15 @@ import { EmptyState } from '../components/ui/empty-state.js';
 import { ErrorNote } from '../components/ui/error-note.js';
 import { PageHeader } from '../components/ui/page-header.js';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table.js';
-import type { JobRunSummary, JobStepRunSummary } from '../types.js';
+import { JobRunCanvas } from '../features/jobs/canvas/JobRunCanvas.js';
+import type { JobGraphSnapshot, JobRunSummary, JobStepRunSummary } from '../types.js';
 
 const STATUS_LABEL: Record<string, string> = {
   queued: '排队中',
   running: '运行中',
   success: '成功',
   error: '失败',
+  canceled: '已取消',
   skipped: '已跳过',
   pending: '排队中',
 };
@@ -28,6 +30,7 @@ const STATUS_TONE: Record<string, BadgeTone> = {
   running: 'primary',
   success: 'success',
   error: 'danger',
+  canceled: 'warning',
   skipped: 'neutral',
 };
 
@@ -59,13 +62,21 @@ function StepOutput({ step }: { step: JobStepRunSummary }) {
 export function JobRunDetailPage() {
   const { id = '' } = useParams();
   const [jobRun, setJobRun] = useState<JobRunSummary | null>(null);
+  const [graph, setGraph] = useState<JobGraphSnapshot | null>(null);
   const [steps, setSteps] = useState<JobStepRunSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [canceling, setCanceling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const detail = await api.get<{ jobRun: JobRunSummary; steps: JobStepRunSummary[] }>(`/api/job-runs/${id}`);
+      const detail = await api.get<{
+        jobRun: JobRunSummary;
+        graph: JobGraphSnapshot | null;
+        steps: JobStepRunSummary[];
+      }>(`/api/job-runs/${id}`);
       setJobRun(detail.jobRun);
+      setGraph(detail.graph ?? null);
       setSteps(detail.steps);
       setError(null);
     } catch (err) {
@@ -83,8 +94,26 @@ export function JobRunDetailPage() {
     return () => window.clearInterval(timer);
   }, [jobRun, load]);
 
+  async function cancelRun(): Promise<void> {
+    setCanceling(true);
+    setCancelError(null);
+    try {
+      await api.post(`/api/job-runs/${id}/cancel`);
+      await load();
+    } catch (err) {
+      if (err instanceof ApiClientError && err.status === 409) {
+        setCancelError('当前运行已结束，无法取消');
+      } else {
+        setCancelError((err as Error).message);
+      }
+    } finally {
+      setCanceling(false);
+    }
+  }
+
   if (error) return <ErrorNote>{error}</ErrorNote>;
   if (!jobRun) return <p className="text-sm text-muted-foreground">加载中…</p>;
+  const active = ACTIVE_STATUSES.has(jobRun.status);
 
   return (
     <div className="space-y-4">
@@ -95,7 +124,15 @@ export function JobRunDetailPage() {
             返回 Job
           </Link>
         </Button>
+        {active && (
+          <Button variant="outline" disabled={canceling} onClick={() => void cancelRun()}>
+            <XCircle />
+            {canceling ? '取消中…' : '取消运行'}
+          </Button>
+        )}
       </PageHeader>
+
+      {cancelError && <ErrorNote>{cancelError}</ErrorNote>}
 
       <Card>
         <CardHeader>
@@ -113,6 +150,17 @@ export function JobRunDetailPage() {
           {jobRun.error && <ErrorNote>{jobRun.error}</ErrorNote>}
         </CardContent>
       </Card>
+
+      {graph && graph.nodes.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>运行流程</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <JobRunCanvas graph={graph} steps={steps} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="overflow-hidden">
         <CardHeader>

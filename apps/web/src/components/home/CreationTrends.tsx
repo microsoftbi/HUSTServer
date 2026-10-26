@@ -8,8 +8,9 @@ import { ErrorNote } from '../ui/error-note.js';
 /** 折线颜色（与仪表板内置调色板取色一致） */
 const LINE_COLORS = ['#2563eb', '#16a34a', '#ea580c', '#7c3aed', '#dc2626', '#0891b2'];
 
-/** 六类资源：一行两个折线图 */
+/** 资源趋势：审计记录趋势独占一整行并置顶，其余六类一行两个折线图 */
 const SERIES = [
+  { key: 'audits', title: '审计', subtitle: '每天记录数', tooltip: '记录', fullRow: true },
   { key: 'workflows', title: '工作流' },
   { key: 'dashboards', title: '仪表板' },
   { key: 'models', title: '数据模型' },
@@ -83,6 +84,9 @@ export function CreationTrends() {
       {state.status === 'ok' && (
         <div className="grid gap-3 p-4 lg:grid-cols-2">
           {SERIES.map((series, i) => {
+            const subtitle = 'subtitle' in series ? series.subtitle : '每天新建';
+            const tooltipLabel = 'tooltip' in series ? series.tooltip : '新建';
+            const fullRow = 'fullRow' in series && series.fullRow;
             // 横轴按时间倒序：最近一天在最左，便于先看到当前状态
             const data = state.data.dates
               .map((date, idx) => ({
@@ -91,12 +95,15 @@ export function CreationTrends() {
               }))
               .reverse();
             return (
-              <div key={series.key} className="rounded-md border border-border p-3">
+              <div
+                key={series.key}
+                className={`rounded-md border border-border p-3${fullRow ? ' lg:col-span-2' : ''}`}
+              >
                 <div className="mb-1 text-sm font-medium">
-                  {series.title} · 每天新建
+                  {series.title} · {subtitle}
                   <span className="ml-2 text-xs font-normal text-muted-foreground">共 {days} 天</span>
                 </div>
-                <div className="h-40">
+                <div className={fullRow ? 'h-48' : 'h-40'}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -109,10 +116,10 @@ export function CreationTrends() {
                       <YAxis tick={{ fontSize: 10 }} width={32} allowDecimals={false} />
                       <Tooltip
                         labelFormatter={(date) => `日期 ${String(date)}`}
-                        formatter={(value) => [`${String(value)} 个`, '新建']}
+                        formatter={(value) => [`${String(value)} 个`, tooltipLabel]}
                       />
                       <Line
-                        type="monotone"
+                        type="linear"
                         dataKey="value"
                         stroke={LINE_COLORS[i % LINE_COLORS.length]}
                         strokeWidth={2}

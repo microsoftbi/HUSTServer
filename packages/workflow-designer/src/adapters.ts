@@ -52,6 +52,10 @@ export interface RunHost {
   loadPreview: (runId: string, nodeId: string, limit?: number) => Promise<PreviewData>;
   /** 解除服务端冻结缓存（「取消缓存」）。 */
   unpinCache?: (cacheToken: string) => Promise<void>;
+  /** 请求取消正在运行的运行（返回后引擎在当前节点结束后停止）。 */
+  cancelRun?: (runId: string) => Promise<void>;
+  /** 补拉运行日志（SSE 订阅晚于快速运行完成时用于补齐）。 */
+  loadLogs?: (runId: string) => Promise<RunLogEvent[]>;
 }
 
 /**
@@ -82,10 +86,16 @@ export interface DesignerAdapter {
   loadPreview?: (runId: string, nodeId: string, limit?: number) => Promise<PreviewData>;
   /** 解除服务端冻结缓存（「取消缓存」）。 */
   unpinCache?: (cacheToken: string) => Promise<void>;
+  /** 请求取消运行。 */
+  cancelRun?: (runId: string) => Promise<void>;
+  /** 补拉运行日志。 */
+  loadLogs?: (runId: string) => Promise<RunLogEvent[]>;
 }
 
 export interface WorkflowDesignerProps {
   initialWorkflow: Workflow;
   adapter: DesignerAdapter;
   onExit?: () => void;
+  /** 画布明暗模式，由宿主的主题决定；默认深色。 */
+  colorMode?: 'light' | 'dark';
 }

@@ -11,10 +11,13 @@ import {
   AlignVerticalSpaceAround,
   Bookmark as BookmarkIcon,
   ChevronDown,
+  Copy,
+  Download,
   Image,
   Filter,
   Layers,
   Maximize,
+  Palette,
   Pencil,
   Play,
   Plus,
@@ -24,6 +27,7 @@ import {
   StretchHorizontal,
   StretchVertical,
   Shapes,
+  Table2,
   Trash2,
   Type,
   Workflow,
@@ -70,6 +74,7 @@ import type {
   ChartType,
   ChartWidget,
   Column,
+  DashboardTheme,
   FilterCondition,
   PageConfig,
   PageViewFit,
@@ -83,6 +88,11 @@ import { defaultDecomposition } from "@bi/lib/decomposition";
 import { alignRects, type AlignMode } from "@bi/lib/canvas";
 import { DEFAULT_WIDGET_STYLE, PAGE_PRESETS, matchPreset, pageOf } from "@bi/lib/style";
 import { BUTTON_ACTIONS, BUTTON_LABELS, defaultDecoration, isDecoration } from "@bi/lib/decoration";
+import { conditionFilters } from "@bi/lib/filter";
+import { setChartPalette } from "./lib/chart";
+import { copyImageToClipboard, downloadCsv, downloadPdf, downloadPng, timestamp } from "./lib/export";
+import { widgetTable } from "./lib/widgetData";
+import { DataTable } from "./components/DataTable";
 
 /** 新建视觉对象的默认像素尺寸与级联偏移 */
 const DEFAULT_WIDGET_W = 420;
@@ -349,6 +359,50 @@ function RibbonShapeMenu({
   );
 }
 
+/**
+ * 解析 Power BI 主题 JSON。
+ * 只取能直接落地的字段：dataColors / background / wallpaper / foreground，
+ * 其余视觉级样式不在此处解释，避免引入完整的主题引擎。
+ */
+function parseThemeJson(text: string): DashboardTheme | null {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!raw || typeof raw !== "object") return null;
+  const src = raw as Record<string, unknown>;
+  const color = (value: unknown): string | undefined => {
+    if (typeof value !== "string") return undefined;
+    const v = value.trim();
+    if (!v) return undefined;
+    return /^(#[0-9a-f]{3,8}|rgba?\(|hsla?\()/i.test(v) ? v : undefined;
+  };
+  const dataColors = Array.isArray(src.dataColors)
+    ? src.dataColors.map(color).filter((c): c is string => !!c)
+    : [];
+  // Power BI 主题的标题色在 textClasses.title.fontColor，旧版主题用 foreground
+  const titleFont = (src.textClasses as { title?: { fontColor?: unknown } } | undefined)?.title
+    ?.fontColor;
+  const theme: DashboardTheme = {
+    ...(typeof src.name === "string" && src.name.trim() ? { name: src.name.trim() } : {}),
+    dataColors,
+    background: color(src.background),
+    wallpaper: color(src.wallpaper),
+    titleColor: color(titleFont) ?? color(src.foreground),
+  };
+  if (
+    theme.dataColors.length === 0 &&
+    !theme.background &&
+    !theme.wallpaper &&
+    !theme.titleColor
+  ) {
+    return null;
+  }
+  return theme;
+}
+
 export function DashboardView({
   onAddDataset,
   readOnly = false,
@@ -389,6 +443,16 @@ export function DashboardView({
   const [selectionOpen, setSelectionOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
+  /** 导出 / 主题 / 焦点模式 / 视觉对象右键菜单 / 查看数据 */
+  const [themeOpen, setThemeOpen] = useState(false);
+  const [themeText, setThemeText] = useState("");
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [dataId, setDataId] = useState<string | null>(null);
+  const pageCardRef = useRef<HTMLDivElement>(null);
+  const focusCardRef = useRef<HTMLDivElement>(null);
+  /** 主题调色板为模块级状态，变更后 bump 一次触发图表重绘 */
+  const [, setPaletteTick] = useState(0);
 
   /** 工作区可用尺寸：用于页面视图缩放（适应页面 / 适应宽度） */
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -467,14 +531,24 @@ export function DashboardView({
     setHighlight(null);
   }, [activeId]);
 
-  // Esc 清除交叉高亮
+  // Esc 清除交叉高亮，并退出焦点模式 / 关闭右键菜单
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setHighlight(null);
+      if (e.key !== "Escape") return;
+      setHighlight(null);
+      setFocusId(null);
+      setMenu(null);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  /** 导入主题后同步全局图表配色 */
+  const themeColors = active?.theme?.dataColors;
+  useEffect(() => {
+    setChartPalette(themeColors);
+    setPaletteTick((v) => v + 1);
+  }, [themeColors]);
 
   // 演示模式：Esc 退出，并同步浏览器全屏状态
   useEffect(() => {
@@ -872,6 +946,150 @@ export function DashboardView({
     }
   }
 
+  /** 焦点模式：把单个视觉对象按窗口可用空间等比放大 */
+  const focusWidget = widgets.find((w) => w.id === focusId) ?? null;
+  const focusSize = useMemo(() => {
+    if (!focusWidget) return null;
+    const ratio = focusWidget.layout.w / Math.max(1, focusWidget.layout.h);
+    const maxW = Math.max(320, viewport.w - 48);
+    const maxH = Math.max(240, viewport.h - 48);
+    let w = maxW;
+    let h = w / ratio;
+    if (h > maxH) {
+      h = maxH;
+      w = h * ratio;
+    }
+    return { w: Math.round(w), h: Math.round(h) };
+  }, [focusWidget, viewport.w, viewport.h]);
+
+  const focusWidgets = useMemo<ChartWidget[]>(() => {
+    if (!focusWidget || !focusSize) return [];
+    return [
+      {
+        ...focusWidget,
+        hidden: false,
+        layout: { x: 0, y: 0, w: focusSize.w, h: focusSize.h },
+      },
+    ];
+  }, [focusWidget, focusSize]);
+
+  /** 截图前取消选中并等两帧，让缩放手柄与悬浮操作条从画面上消失 */
+  async function flushCanvas() {
+    setSelectedIds([]);
+    setMenu(null);
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+  }
+
+  /** 导出当前页：PNG / PDF */
+  async function exportPage(kind: "png" | "pdf") {
+    const node = pageCardRef.current;
+    if (!node || !active) return;
+    await flushCanvas();
+    const filename = `${active.name || "仪表板"}-${timestamp()}.${kind}`;
+    try {
+      if (kind === "png") {
+        await downloadPng(node, filename, {
+          width: baseW,
+          height: baseH,
+          background: page.background || "#ffffff",
+        });
+      } else {
+        await downloadPdf(node, filename, { w: baseW, h: baseH }, page.background || "#ffffff");
+      }
+      toast.success(`已导出 ${kind.toUpperCase()}`);
+    } catch {
+      toast.error("导出失败，请重试");
+    }
+  }
+
+  /** 复制当前页图像；浏览器不支持剪贴板写入时降级为下载 PNG */
+  async function copyPageImage() {
+    const node = pageCardRef.current;
+    if (!node) return;
+    await flushCanvas();
+    const ok = await copyImageToClipboard(node, {
+      width: baseW,
+      height: baseH,
+      background: page.background || "#ffffff",
+    });
+    if (ok) toast.success("图像已复制到剪贴板");
+    else await exportPage("png");
+  }
+
+  /** 视觉对象当前展示的数据（与画布口径一致：切片器 / 页 / 报表 / 视觉对象筛选全部生效） */
+  function tableOf(widget: ChartWidget) {
+    const ds = datasets.find((d) => d.id === widget.datasetId);
+    const widgetFilters: ValueFilter[] = [
+      ...activeValueFilters,
+      ...conditionFilters(reportFilters, ds),
+      ...conditionFilters(pageFilters, ds),
+      ...conditionFilters(widget.filters, ds),
+    ];
+    return widgetTable(widget, ds, widgetFilters);
+  }
+
+  function exportWidgetCsv(widget: ChartWidget) {
+    const table = tableOf(widget);
+    if (table.headers.length === 0) {
+      toast.error("该视觉对象暂无可导出的数据");
+      return;
+    }
+    const name = widget.title.trim() || "视觉对象";
+    downloadCsv(`${name}-${timestamp()}.csv`, table.headers, table.rows);
+    toast.success("已导出数据");
+  }
+
+  /** 焦点模式下导出图像 */
+  async function exportFocusImage() {
+    const node = focusCardRef.current;
+    if (!node || !focusWidget || !focusSize) return;
+    try {
+      await downloadPng(
+        node,
+        `${focusWidget.title.trim() || "视觉对象"}-${timestamp()}.png`,
+        { width: focusSize.w, height: focusSize.h, background: "#ffffff" },
+      );
+      toast.success("已导出图像");
+    } catch {
+      toast.error("导出失败，请重试");
+    }
+  }
+
+  /** 应用主题 JSON：配色进全局调色板，背景 / 壁纸进页面设置 */
+  function applyTheme() {
+    if (!active) return;
+    const next = parseThemeJson(themeText);
+    if (!next) {
+      toast.error("无法解析主题 JSON，请检查格式");
+      return;
+    }
+    updateDashboard(active.id, {
+      theme: next,
+      ...(next.background || next.wallpaper
+        ? {
+            page: {
+              ...page,
+              ...(next.background ? { background: next.background } : {}),
+              ...(next.wallpaper ? { wallpaper: next.wallpaper } : {}),
+            },
+          }
+        : {}),
+    });
+    setThemeOpen(false);
+    toast.success(`已应用主题${next.name ? `「${next.name}」` : ""}`);
+  }
+
+  function resetTheme() {
+    if (!active) return;
+    updateDashboard(active.id, { theme: undefined });
+    toast.success("已恢复默认主题");
+  }
+
+  const dataWidget = widgets.find((w) => w.id === dataId) ?? null;
+  const dataTable = dataWidget ? tableOf(dataWidget) : null;
+
   /** 报表页（编辑画布与演示共用）：尺寸、背景与背景图 */
   const pageStyle = {
     backgroundColor: page.background || "#ffffff",
@@ -943,6 +1161,36 @@ export function DashboardView({
                     label="删除页面"
                     disabled={!active || dashboards.length <= 1}
                     onClick={() => active && removeDashboard(active.id)}
+                  />
+                </RibbonGroup>
+                <div className="mx-1 w-px self-stretch bg-border" />
+                <RibbonGroup label="导出">
+                  <RibbonButton
+                    Icon={Download}
+                    label="导出 PNG"
+                    disabled={!active}
+                    onClick={() => void exportPage("png")}
+                  />
+                  <RibbonButton
+                    Icon={Download}
+                    label="导出 PDF"
+                    disabled={!active}
+                    onClick={() => void exportPage("pdf")}
+                  />
+                  <RibbonButton
+                    Icon={Copy}
+                    label="复制图像"
+                    disabled={!active}
+                    onClick={() => void copyPageImage()}
+                  />
+                </RibbonGroup>
+                <div className="mx-1 w-px self-stretch bg-border" />
+                <RibbonGroup label="主题">
+                  <RibbonButton
+                    Icon={Palette}
+                    label={active?.theme ? "更换主题" : "导入主题"}
+                    disabled={!active}
+                    onClick={() => setThemeOpen(true)}
                   />
                 </RibbonGroup>
                 <div className="mx-1 w-px self-stretch bg-border" />
@@ -1086,6 +1334,39 @@ export function DashboardView({
       {/* 画布 + 右侧面板 */}
       <div className="flex min-h-0 min-w-0 flex-1">
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          {/* 浏览模式没有 Ribbon：在工作区右上角提供导出入口 */}
+          {readOnly ? (
+            <div className="absolute right-4 top-4 z-20 flex items-center gap-1 rounded-md border bg-background/95 p-1 shadow-sm backdrop-blur-sm">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 gap-1 px-2 text-xs"
+                onClick={() => void copyPageImage()}
+              >
+                <Copy className="h-3.5 w-3.5" />
+                复制图像
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 gap-1 px-2 text-xs"
+                onClick={() => void exportPage("png")}
+              >
+                <Download className="h-3.5 w-3.5" />
+                PNG
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 gap-1 px-2 text-xs"
+                onClick={() => void exportPage("pdf")}
+              >
+                <Download className="h-3.5 w-3.5" />
+                PDF
+              </Button>
+            </div>
+          ) : null}
+
           {/* 工作区：对比底色（壁纸）+ 报告页卡片（对齐 Power BI 报表页） */}
           <div
             ref={viewportRef}
@@ -1101,6 +1382,7 @@ export function DashboardView({
             {/* 页面视图缩放：外层保留缩放后的占位尺寸，内层按 origin-top-left 缩放 */}
             <div className="mx-auto" style={{ width: baseW * zoom, height: baseH * zoom }}>
               <div
+                ref={pageCardRef}
                 className="relative origin-top-left rounded-md border shadow-sm"
                 style={{
                   ...pageStyle,
@@ -1119,6 +1401,7 @@ export function DashboardView({
                 {page.gridlines ? (
                   <div
                     aria-hidden
+                    data-export-hide=""
                     className="pointer-events-none absolute inset-0 rounded-md"
                     style={{
                       backgroundImage:
@@ -1153,6 +1436,9 @@ export function DashboardView({
                   zoom={zoom}
                   readOnly={readOnly}
                   locked={!!page.lockObjects}
+                  themeTitleColor={active?.theme?.titleColor}
+                  onFocusWidget={(id) => setFocusId(id)}
+                  onWidgetContextMenu={(id, x, y) => setMenu({ id, x, y })}
                 />
               </div>
             </div>
@@ -1308,6 +1594,221 @@ export function DashboardView({
           </div>
         </div>
       ) : null}
+
+      {/* 视觉对象右键菜单：焦点模式 / 查看数据 / 导出数据 */}
+      {menu
+        ? (() => {
+            const target = widgets.find((w) => w.id === menu.id);
+            if (!target) return null;
+            const item =
+              "flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-accent hover:text-foreground";
+            return (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setMenu(null)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMenu(null);
+                  }}
+                />
+                <div
+                  className="fixed z-50 w-44 overflow-hidden rounded-md border bg-popover py-1 text-popover-foreground shadow-lg"
+                  style={{
+                    left: Math.min(menu.x, window.innerWidth - 190),
+                    top: Math.min(menu.y, window.innerHeight - 130),
+                  }}
+                >
+                  <button
+                    type="button"
+                    className={item}
+                    onClick={() => {
+                      setFocusId(target.id);
+                      setMenu(null);
+                    }}
+                  >
+                    <Maximize className="h-3.5 w-3.5" />
+                    进入焦点模式
+                  </button>
+                  <button
+                    type="button"
+                    className={item}
+                    onClick={() => {
+                      setDataId(target.id);
+                      setMenu(null);
+                    }}
+                  >
+                    <Table2 className="h-3.5 w-3.5" />
+                    查看数据
+                  </button>
+                  <button
+                    type="button"
+                    className={item}
+                    onClick={() => {
+                      exportWidgetCsv(target);
+                      setMenu(null);
+                    }}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    导出数据（CSV）
+                  </button>
+                </div>
+              </>
+            );
+          })()
+        : null}
+
+      {/* 焦点模式：单个视觉对象放大到窗口可用空间，Esc 退出 */}
+      {focusWidget && focusSize ? (
+        <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/95">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-4 py-2 text-white">
+            <span className="truncate text-sm font-medium">
+              {focusWidget.title.trim() || "视觉对象"}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-7 gap-1 px-2 text-xs"
+                onClick={() => void exportFocusImage()}
+              >
+                <Download className="h-3.5 w-3.5" />
+                导出图像
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-7 px-2 text-xs"
+                onClick={() => setFocusId(null)}
+              >
+                退出焦点（Esc）
+              </Button>
+            </div>
+          </div>
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-6">
+            <div
+              ref={focusCardRef}
+              className="overflow-hidden rounded-md border shadow-2xl"
+              style={{
+                width: focusSize.w,
+                height: focusSize.h,
+                backgroundColor: page.background || "#ffffff",
+              }}
+            >
+              <ReportCanvas
+                widgets={focusWidgets}
+                datasets={datasets}
+                selectedIds={[]}
+                onSelect={() => {}}
+                onLayout={() => {}}
+                onRemove={() => {}}
+                highlight={null}
+                filters={activeValueFilters}
+                pageFilters={pageFilters}
+                reportFilters={reportFilters}
+                onSlicerChange={(id, slicer) => handleSlicerChange(id, slicer)}
+                onWidgetChange={(id, patch) => updateWidget(id, patch)}
+                onButtonAction={runButtonAction}
+                pageWidth={focusSize.w}
+                pageHeight={focusSize.h}
+                themeTitleColor={active?.theme?.titleColor}
+                readOnly
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* 查看数据：按图表的筛选与聚合口径还原数据表 */}
+      <Dialog
+        open={!!dataWidget}
+        onOpenChange={(open) => {
+          if (!open) setDataId(null);
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {dataWidget?.title.trim() || "视觉对象"} · 数据
+            </DialogTitle>
+          </DialogHeader>
+          {dataTable && dataTable.headers.length > 0 ? (
+            <DataTable
+              columns={dataTable.headers.map((name) => ({ name }))}
+              rows={dataTable.rows}
+              pageSize={20}
+              className="max-h-[60vh]"
+            />
+          ) : (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              该视觉对象暂无可展示的数据
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => dataWidget && exportWidgetCsv(dataWidget)}
+            >
+              导出 CSV
+            </Button>
+            <Button onClick={() => setDataId(null)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 主题：导入 Power BI 主题 JSON，应用配色与页面背景 */}
+      <Dialog open={themeOpen} onOpenChange={setThemeOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>导入主题</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              支持 Power BI 主题 JSON 的 dataColors / background / wallpaper / foreground。
+              当前主题：{active?.theme?.name ?? "默认"}
+            </p>
+            <Input
+              type="file"
+              accept=".json,application/json"
+              className="h-8 text-xs"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                void file.text().then(setThemeText);
+              }}
+            />
+            <textarea
+              value={themeText}
+              onChange={(e) => setThemeText(e.target.value)}
+              placeholder={'{\n  "name": "My Theme",\n  "dataColors": ["#118DFF", "#12239E", …]\n}'}
+              className="h-40 w-full resize-none rounded-md border bg-background p-2 font-mono text-xs"
+            />
+            {active?.theme?.dataColors.length ? (
+              <div className="flex items-center gap-1">
+                {active.theme.dataColors.map((color, i) => (
+                  <span
+                    key={`${color}-${i}`}
+                    className="h-5 w-5 rounded-sm border"
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={resetTheme}>
+              恢复默认
+            </Button>
+            <Button variant="outline" onClick={() => setThemeOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={applyTheme} disabled={!themeText.trim()}>
+              应用
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
         <DialogContent className="max-w-sm">

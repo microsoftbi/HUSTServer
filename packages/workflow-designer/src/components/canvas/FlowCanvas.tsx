@@ -13,8 +13,9 @@ import {
   type Node,
   type NodeChange,
 } from '@xyflow/react';
-import { MousePointerClick, Play, Snowflake, Unlock } from 'lucide-react';
+import { MousePointerClick, Play, Snowflake, Unlock, Copy, Power, PowerOff } from 'lucide-react';
 import { nodeTypes, type HusterNodeData } from '@/components/canvas/NodeCard';
+import { useDesignerHost } from '@/context';
 import { formatInt } from '@/lib/format';
 import { getNodeMeta, type NodeCategory } from '@/lib/nodeMeta';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -35,7 +36,14 @@ export function FlowCanvas() {
   const removeNode = useWorkflowStore((s) => s.removeNode);
   const removeEdge = useWorkflowStore((s) => s.removeEdge);
   const setNodePosition = useWorkflowStore((s) => s.setNodePosition);
+  const setNodePositions = useWorkflowStore((s) => s.setNodePositions);
   const selectNode = useWorkflowStore((s) => s.selectNode);
+  const undo = useWorkflowStore((s) => s.undo);
+  const redo = useWorkflowStore((s) => s.redo);
+  const copyNode = useWorkflowStore((s) => s.copyNode);
+  const pasteNode = useWorkflowStore((s) => s.pasteNode);
+  const duplicateNode = useWorkflowStore((s) => s.duplicateNode);
+  const toggleNodeDisabled = useWorkflowStore((s) => s.toggleNodeDisabled);
   const runStatus = useWorkflowStore((s) => s.runStatus);
   const nodeStatus = useWorkflowStore((s) => s.nodeStatus);
   const nodeResults = useWorkflowStore((s) => s.nodeResults);
@@ -47,6 +55,7 @@ export function FlowCanvas() {
   const cachedNodeIds = useWorkflowStore((s) => s.cachedNodeIds);
 
   const { screenToFlowPosition } = useReactFlow();
+  const { colorMode } = useDesignerHost();
 
   /**
    * React Flow 测量得到的节点尺寸。
@@ -147,10 +156,11 @@ export function FlowCanvas() {
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       const measuredUpdates: Record<string, { width: number; height: number }> = {};
+      const positionUpdates: Record<string, { x: number; y: number }> = {};
       for (const change of changes) {
         if (change.type === 'position' && change.position) {
           if (running || cachedSet.has(change.id)) continue;
-          setNodePosition(change.id, change.position);
+          positionUpdates[change.id] = change.position;
         } else if (change.type === 'remove') {
           if (running || cachedSet.has(change.id)) continue;
           removeNode(change.id);
@@ -159,6 +169,13 @@ export function FlowCanvas() {
         } else if (change.type === 'dimensions' && change.dimensions) {
           measuredUpdates[change.id] = change.dimensions;
         }
+      }
+      // 批量提交坐标：多选拖动时只记一步撤销。
+      if (Object.keys(positionUpdates).length === 1) {
+        const [id, position] = Object.entries(positionUpdates)[0];
+        setNodePosition(id, position);
+      } else if (Object.keys(positionUpdates).length > 1) {
+        setNodePositions(positionUpdates);
       }
       if (Object.keys(measuredUpdates).length > 0) {
         setNodeDimensions((prev) => {
@@ -174,7 +191,7 @@ export function FlowCanvas() {
         });
       }
     },
-    [removeNode, selectNode, setNodePosition, running, cachedSet],
+    [removeNode, selectNode, setNodePosition, setNodePositions, running, cachedSet],
   );
 
   const onEdgesChange = useCallback(
@@ -244,6 +261,47 @@ export function FlowCanvas() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [menu]);
 
+  /** 画布快捷键：撤销/重做、复制/粘贴、快速复制。输入框内不拦截。 */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) {
+          return;
+        }
+      }
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (key === 'y') {
+        event.preventDefault();
+        redo();
+        return;
+      }
+      if (running) return;
+      const selected = useWorkflowStore.getState().selectedNodeId;
+      if (key === 'c') {
+        if (copyNode(selected ?? undefined)) event.preventDefault();
+      } else if (key === 'v') {
+        event.preventDefault();
+        pasteNode();
+      } else if (key === 'd' && selected) {
+        event.preventDefault();
+        duplicateNode(selected);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [running, undo, redo, copyNode, pasteNode, duplicateNode]);
+
+  const menuNode = menu ? nodes.find((node) => node.id === menu.nodeId) : undefined;
+
   return (
     <>
       <ReactFlow
@@ -257,7 +315,7 @@ export function FlowCanvas() {
         onPaneClick={() => selectNode(null)}
         onNodeContextMenu={onNodeContextMenu}
         nodeTypes={nodeTypes}
-        colorMode="dark"
+        colorMode={colorMode}
         fitView
         minZoom={0.2}
         maxZoom={2}
@@ -338,6 +396,41 @@ export function FlowCanvas() {
                 取消缓存
               </button>
             )}
+            <div className="my-1 h-px bg-border" />
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+              onClick={() => {
+                const nodeId = menu.nodeId;
+                setMenu(null);
+                duplicateNode(nodeId);
+              }}
+            >
+              <Copy className="size-3.5" />
+              复制节点
+            </button>
+            <button
+              type="button"
+              disabled={cachedSet.has(menu.nodeId)}
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => {
+                const nodeId = menu.nodeId;
+                setMenu(null);
+                toggleNodeDisabled(nodeId);
+              }}
+            >
+              {menuNode?.disabled ? (
+                <>
+                  <Power className="size-3.5" />
+                  启用节点
+                </>
+              ) : (
+                <>
+                  <PowerOff className="size-3.5" />
+                  禁用节点
+                </>
+              )}
+            </button>
           </div>
         </>
       )}

@@ -79,6 +79,12 @@ function insertRow(table: string, createdAt: number): void {
         'INSERT INTO users (id, username, password_hash, role, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?)',
       ).run(id, `u_${id}`, 'x', 'dashboard_viewer', 'active', createdAt, createdAt);
       return;
+    case 'audit_logs':
+      db.prepare(
+        `INSERT INTO audit_logs (id, user_id, username, action, resource, resource_name, description, created_at)
+         VALUES (?,?,?,?,?,?,?,?)`,
+      ).run(id, adminId, 'admin1', 'create', 'workflow', null, `审计-${id}`, createdAt);
+      return;
     default:
       throw new Error(`未知表：${table}`);
   }
@@ -144,18 +150,19 @@ describe('GET /api/admin/overview', () => {
     expect(counts.workflows[today - 2]).toBe(0); // 缺失日期补 0
   });
 
-  it('六类来源各自统计', async () => {
+  it('七类来源各自统计（含审计记录）', async () => {
     insertWorkflow(localMidnight(2));
     insertRow('dashboards', localMidnight(2));
     insertRow('data_models', localMidnight(2));
     insertRow('connections', localMidnight(2));
     insertRow('jobs', localMidnight(2));
     insertRow('users', localMidnight(2));
+    insertRow('audit_logs', localMidnight(2));
 
     const res = await overview('?days=7');
     const { dates, counts } = res.json() as { dates: string[]; counts: Record<string, number[]> };
     const day = dates.indexOf(dateKey(localMidnight(2)));
-    for (const key of ['workflows', 'dashboards', 'models', 'connections', 'jobs', 'users']) {
+    for (const key of ['workflows', 'dashboards', 'models', 'connections', 'jobs', 'users', 'audits']) {
       expect(counts[key][day]).toBe(1);
     }
     // users 里此前还建了 admin1 与 viewer（created_at 为今天）

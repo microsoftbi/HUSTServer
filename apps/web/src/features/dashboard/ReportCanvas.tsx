@@ -72,6 +72,12 @@ interface ReportCanvasProps {
   pageHeight?: number;
   /** 页面视图缩放倍数：指针位移与拖放坐标需按此换算回画布坐标 */
   zoom?: number;
+  /** 双击视觉对象：进入焦点模式 */
+  onFocusWidget?: (id: string) => void;
+  /** 右键视觉对象：打开上下文菜单（clientX / clientY） */
+  onWidgetContextMenu?: (id: string, x: number, y: number) => void;
+  /** 主题标题色：未单独设置样式的视觉对象使用 */
+  themeTitleColor?: string;
 }
 
 interface DragState {
@@ -129,6 +135,9 @@ export function ReportCanvas({
   pageWidth = 0,
   pageHeight = 0,
   zoom = 1,
+  onFocusWidget,
+  onWidgetContextMenu,
+  themeTitleColor,
 }: ReportCanvasProps) {
   const innerRef = useRef<HTMLDivElement>(null);
   const [measuredW, setMeasuredW] = useState(1200);
@@ -459,6 +468,13 @@ export function ReportCanvas({
                 ? undefined
                 : (e) => onSelect(w.id, e.metaKey || e.ctrlKey || e.shiftKey)
             }
+            onDoubleClick={() => onFocusWidget?.(w.id)}
+            onContextMenu={(e) => {
+              if (!onWidgetContextMenu) return;
+              e.preventDefault();
+              e.stopPropagation();
+              onWidgetContextMenu(w.id, e.clientX, e.clientY);
+            }}
             className={cn(
               "group absolute flex touch-none select-none flex-col rounded-md",
               !styled && "border bg-background shadow-sm",
@@ -488,7 +504,9 @@ export function ReportCanvas({
                         color: st.titleColor,
                         textAlign: st.titleAlign,
                       }
-                    : undefined
+                    : themeTitleColor
+                      ? { color: themeTitleColor }
+                      : undefined
                 }
               >
                 {title}
@@ -498,6 +516,7 @@ export function ReportCanvas({
             {/* 悬停/选中时右上角浮出操作按钮（抓取 + 删除），不占用图表空间 */}
             {!readOnly && (
               <div
+                data-export-hide=""
                 className={cn(
                   "absolute right-1 top-1 z-20 flex items-center gap-0.5 rounded-md border bg-background/90 p-0.5 shadow-sm backdrop-blur-sm transition-opacity",
                   isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
@@ -579,6 +598,7 @@ export function ReportCanvas({
                   <span
                     key={dir}
                     data-dir={dir}
+                    data-export-hide=""
                     className="vbi-handle"
                     onPointerDown={(e) => handleResizePointerDown(e, w, dir)}
                   />
@@ -589,10 +609,10 @@ export function ReportCanvas({
       })}
 
       {guides.v.map((x, i) => (
-        <div key={`v-${i}`} className="vbi-guide-v" style={{ left: x }} />
+        <div key={`v-${i}`} data-export-hide="" className="vbi-guide-v" style={{ left: x }} />
       ))}
       {guides.h.map((y, i) => (
-        <div key={`h-${i}`} className="vbi-guide-h" style={{ top: y }} />
+        <div key={`h-${i}`} data-export-hide="" className="vbi-guide-h" style={{ top: y }} />
       ))}
     </div>
   );

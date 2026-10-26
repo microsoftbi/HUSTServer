@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Play, Save } from 'lucide-react';
+import { Loader2, Play, Redo2, Save, Square, Undo2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,11 @@ export function Toolbar() {
   const runStatus = useWorkflowStore((s) => s.runStatus);
   const runHost = useWorkflowStore((s) => s.runHost);
   const run = useWorkflowStore((s) => s.run);
+  const cancel = useWorkflowStore((s) => s.cancel);
+  const undo = useWorkflowStore((s) => s.undo);
+  const redo = useWorkflowStore((s) => s.redo);
+  const canUndo = useWorkflowStore((s) => s.past.length > 0);
+  const canRedo = useWorkflowStore((s) => s.future.length > 0);
 
   const running = runStatus === 'running';
   const runDisabled = !workflowId || nodeCount === 0 || running || !runHost;
@@ -74,19 +79,53 @@ export function Toolbar() {
         </Badge>
       )}
 
+      <div className="mx-1 h-6 w-px bg-border" />
+
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={undo}
+        disabled={!canUndo || running}
+        title="撤销（⌘/Ctrl + Z）"
+      >
+        <Undo2 className="size-3.5" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={redo}
+        disabled={!canRedo || running}
+        title="重做（⌘/Ctrl + Shift + Z）"
+      >
+        <Redo2 className="size-3.5" />
+      </Button>
+
       <div className="ml-auto flex items-center gap-2">
         {runStatus === 'success' && <Badge variant="success">运行成功</Badge>}
         {runStatus === 'error' && <Badge variant="destructive">运行失败</Badge>}
+        {runStatus === 'canceled' && <Badge variant="secondary">已取消</Badge>}
 
-        <Button
-          size="sm"
-          onClick={() => void run()}
-          disabled={runDisabled}
-          title={runHint}
-        >
-          {running ? <Loader2 className="animate-spin" /> : <Play />}
-          运行
-        </Button>
+        {running ? (
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => void cancel()}
+            disabled={!runHost?.cancelRun}
+            title={
+              runHost?.cancelRun
+                ? '取消运行：当前节点执行结束后停止'
+                : '当前宿主不支持取消运行'
+            }
+          >
+            <Square />
+            停止
+          </Button>
+        ) : (
+          <Button size="sm" onClick={() => void run()} disabled={runDisabled} title={runHint}>
+            <Play />
+            运行
+          </Button>
+        )}
 
         <Button variant="outline" size="sm" onClick={handleSave} disabled={saving}>
           {saving ? <Loader2 className="animate-spin" /> : <Save />}

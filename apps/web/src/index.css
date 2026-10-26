@@ -133,6 +133,260 @@
   cursor: sw-resize;
 }
 
+/* Job 画布节点连线锚点：放大可见尺寸并用伪元素扩展命中区域，便于拖拽连线 */
+.react-flow__node-job .react-flow__handle {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  min-height: 14px;
+  background: var(--primary);
+  border: 2px solid var(--card);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.react-flow__node-job .react-flow__handle::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: 9999px;
+}
+.react-flow__node-job .react-flow__handle-left:hover {
+  transform: translate(-50%, -50%) scale(1.15);
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary) 22%, transparent);
+}
+.react-flow__node-job .react-flow__handle-right:hover {
+  transform: translate(50%, -50%) scale(1.15);
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary) 22%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+ * 界面配色主题
+ * 应用根节点把主题写到 <html data-ui-theme>，导航、列表、表单等全站生效。
+ * 与画布主题分开配置；本段位于「画布配色主题」之前，两者同时命中时画布主题优先。
+ * classic（默认浅色）不覆盖任何变量，直接沿用 :root。
+ * ------------------------------------------------------------------------- */
+html[data-ui-theme='midnight'] {
+  --background: oklch(0.16 0.005 260);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 260);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 260);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.68 0.16 258);
+  --primary-foreground: oklch(0.16 0.005 260);
+  --secondary: oklch(0.27 0.006 260);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.27 0.006 260);
+  --muted-foreground: oklch(0.7 0.01 260);
+  --accent: oklch(0.31 0.008 260);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.62 0.21 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.7 0.16 150);
+  --warning: oklch(0.8 0.15 80);
+  --border: oklch(0.3 0.008 260);
+  --input: oklch(0.32 0.008 260);
+  --ring: oklch(0.68 0.16 258);
+}
+
+html[data-ui-theme='graphite'] {
+  --background: #000000;
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.12 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.12 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.68 0.16 258);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.18 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.18 0 0);
+  --muted-foreground: oklch(0.66 0 0);
+  --accent: oklch(0.22 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.62 0.21 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.7 0.16 150);
+  --warning: oklch(0.8 0.15 80);
+  --border: oklch(0.24 0 0);
+  --input: oklch(0.26 0 0);
+  --ring: oklch(0.68 0.16 258);
+}
+
+html[data-ui-theme='daylight'] {
+  --background: oklch(0.97 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.55 0.19 258);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.96 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.95 0 0);
+  --muted-foreground: oklch(0.5 0 0);
+  --accent: oklch(0.94 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.62 0.17 150);
+  --warning: oklch(0.75 0.16 75);
+  --border: oklch(0.9 0 0);
+  --input: oklch(0.9 0 0);
+  --ring: oklch(0.55 0.19 258);
+}
+
+html[data-ui-theme='ocean'] {
+  --background: oklch(0.19 0.03 250);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.24 0.035 250);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.24 0.035 250);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.7 0.14 250);
+  --primary-foreground: oklch(0.19 0.03 250);
+  --secondary: oklch(0.3 0.04 250);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.3 0.04 250);
+  --muted-foreground: oklch(0.72 0.03 250);
+  --accent: oklch(0.35 0.045 250);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.62 0.21 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.7 0.16 150);
+  --warning: oklch(0.8 0.15 80);
+  --border: oklch(0.33 0.04 250);
+  --input: oklch(0.35 0.04 250);
+  --ring: oklch(0.7 0.14 250);
+}
+
+/* ---------------------------------------------------------------------------
+ * 画布配色主题
+ * 编辑器根节点（或 html）挂 data-canvas-theme，下面四组变量即完成整屏换肤。
+ * 同时覆盖 .react-flow.dark：colorMode="dark" 会给画布容器加 dark 类，
+ * 使 designer.css 的 .dark 变量在画布内重新生效，必须同级覆盖。
+ * 变量取值与 features/theme/themes.ts 中 preview 保持一致。
+ * ------------------------------------------------------------------------- */
+html[data-canvas-theme='midnight'],
+[data-canvas-theme='midnight'],
+[data-canvas-theme='midnight'] .react-flow.dark {
+  --background: oklch(0.16 0.005 260);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 260);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 260);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.68 0.16 258);
+  --primary-foreground: oklch(0.16 0.005 260);
+  --secondary: oklch(0.27 0.006 260);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.27 0.006 260);
+  --muted-foreground: oklch(0.7 0.01 260);
+  --accent: oklch(0.31 0.008 260);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.62 0.21 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.7 0.16 150);
+  --warning: oklch(0.8 0.15 80);
+  --border: oklch(0.3 0.008 260);
+  --input: oklch(0.32 0.008 260);
+  --ring: oklch(0.68 0.16 258);
+  --xy-background-color: oklch(0.16 0.005 260);
+  --xy-edge-stroke: #3e3e3e;
+  --xy-edge-label-background-color: oklch(0.21 0.006 260);
+  --xy-edge-label-color: oklch(0.985 0 0);
+}
+
+html[data-canvas-theme='graphite'],
+[data-canvas-theme='graphite'],
+[data-canvas-theme='graphite'] .react-flow.dark {
+  --background: #000000;
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.12 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.12 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.68 0.16 258);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.18 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.18 0 0);
+  --muted-foreground: oklch(0.66 0 0);
+  --accent: oklch(0.22 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.62 0.21 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.7 0.16 150);
+  --warning: oklch(0.8 0.15 80);
+  --border: oklch(0.24 0 0);
+  --input: oklch(0.26 0 0);
+  --ring: oklch(0.68 0.16 258);
+  --xy-background-color: #000000;
+  --xy-edge-stroke: #333333;
+  --xy-edge-label-background-color: oklch(0.12 0 0);
+  --xy-edge-label-color: oklch(0.985 0 0);
+}
+
+html[data-canvas-theme='daylight'],
+[data-canvas-theme='daylight'],
+[data-canvas-theme='daylight'] .react-flow.dark {
+  --background: oklch(0.97 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.55 0.19 258);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.96 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.95 0 0);
+  --muted-foreground: oklch(0.5 0 0);
+  --accent: oklch(0.94 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.62 0.17 150);
+  --warning: oklch(0.75 0.16 75);
+  --border: oklch(0.9 0 0);
+  --input: oklch(0.9 0 0);
+  --ring: oklch(0.55 0.19 258);
+  --xy-background-color: oklch(0.97 0 0);
+  --xy-edge-stroke: #b1b1b7;
+  --xy-edge-label-background-color: oklch(1 0 0);
+  --xy-edge-label-color: oklch(0.145 0 0);
+}
+
+html[data-canvas-theme='ocean'],
+[data-canvas-theme='ocean'],
+[data-canvas-theme='ocean'] .react-flow.dark {
+  --background: oklch(0.19 0.03 250);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.24 0.035 250);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.24 0.035 250);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.7 0.14 250);
+  --primary-foreground: oklch(0.19 0.03 250);
+  --secondary: oklch(0.3 0.04 250);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.3 0.04 250);
+  --muted-foreground: oklch(0.72 0.03 250);
+  --accent: oklch(0.35 0.045 250);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.62 0.21 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.7 0.16 150);
+  --warning: oklch(0.8 0.15 80);
+  --border: oklch(0.33 0.04 250);
+  --input: oklch(0.35 0.04 250);
+  --ring: oklch(0.7 0.14 250);
+  --xy-background-color: oklch(0.19 0.03 250);
+  --xy-edge-stroke: #40546b;
+  --xy-edge-label-background-color: oklch(0.24 0.035 250);
+  --xy-edge-label-color: oklch(0.985 0 0);
+}
+
 /* 拖动/缩放时的对齐辅助线 */
 .vbi-guide-v {
   position: absolute;

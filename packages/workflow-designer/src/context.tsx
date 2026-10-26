@@ -4,6 +4,8 @@ import type { DesignerAdapter } from './adapters';
 export interface DesignerHost {
   adapter: DesignerAdapter;
   onExit?: () => void;
+  /** 画布明暗模式（由宿主主题决定），透传给 React Flow 的 colorMode。 */
+  colorMode: 'light' | 'dark';
 }
 
 const DesignerHostContext = createContext<DesignerHost | null>(null);

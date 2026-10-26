@@ -79,22 +79,46 @@ export interface RunSummary {
 export type JobStepType = 'workflow' | 'sql' | 'load_model';
 export type JobOnFailure = 'abort' | 'continue';
 export type LoadModelSource = 'file' | 'sqlserver';
+/** 节点运行模式：run 正常执行、skip 跳过自身、disable 禁用自身及全部下游。 */
+export type JobNodeMode = 'run' | 'skip' | 'disable';
 
-export type JobStepConfig =
-  | { workflowId: string }
-  | { connectionId: string; sql: string }
-  | { source: 'file'; modelName: string; resourcePath: string; format?: 'csv' | 'excel' }
-  | { source: 'sqlserver'; modelName: string; connectionId: string; object?: string; query?: string };
+export interface JobNodeConfig {
+  workflowId?: string;
+  connectionId?: string;
+  sql?: string;
+  modelName?: string;
+  source?: LoadModelSource;
+  resourcePath?: string;
+  object?: string;
+  query?: string;
+  format?: 'csv' | 'excel';
+  [key: string]: unknown;
+}
 
-export interface JobStep {
-  id: string;
-  job_id: string;
+/** 画布上的一个节点；key 为 Job 内稳定标识，坐标单位为画布像素。 */
+export interface JobNode {
+  key: string;
   seq: number;
   type: JobStepType;
   name: string;
-  config: JobStepConfig;
-  on_failure: JobOnFailure;
-  created_at: number;
+  onFailure: JobOnFailure;
+  mode: JobNodeMode;
+  x: number;
+  y: number;
+  config: JobNodeConfig;
+}
+
+/** 依赖边：把 source 的输出交给 target，target 需等 source 完成后执行。 */
+export interface JobEdge {
+  source: string;
+  target: string;
+}
+
+/** 运行时的图快照（旧运行可能没有快照）。 */
+export interface JobGraphSnapshot {
+  version: number;
+  nodes: JobNode[];
+  edges: JobEdge[];
 }
 
 export interface JobScheduleState {
@@ -115,7 +139,8 @@ export interface JobSummary {
   timezone: string;
   created_at: number;
   updated_at: number;
-  stepCount: number;
+  nodeCount: number;
+  edgeCount: number;
   nextRunAt: number | null;
   lastRun: {
     id: string;
@@ -138,7 +163,8 @@ export interface JobDetail {
   created_at: number;
   updated_at: number;
   nextRunAt: number | null;
-  steps: JobStep[];
+  nodes: JobNode[];
+  edges: JobEdge[];
   schedule: JobScheduleState;
 }
 
@@ -147,7 +173,7 @@ export interface JobRunSummary {
   job_id: string;
   trigger_type: 'manual' | 'schedule';
   triggered_by: string | null;
-  status: 'queued' | 'running' | 'success' | 'error';
+  status: 'queued' | 'running' | 'success' | 'error' | 'canceled';
   started_at: number | null;
   finished_at: number | null;
   duration_ms: number | null;
@@ -155,16 +181,22 @@ export interface JobRunSummary {
   created_at: number;
 }
 
+/** 跨 Job 的运行记录（「Job 日志」列表用），附带所属 Job 名称。 */
+export interface JobRunListItem extends JobRunSummary {
+  job_name: string;
+}
+
 export interface JobStepRunSummary {
   id: string;
   job_run_id: string;
   step_id: string | null;
+  node_key: string | null;
   seq: number;
   type: string;
   name: string;
   config: string;
   on_failure: string;
-  status: 'pending' | 'running' | 'success' | 'error' | 'skipped';
+  status: 'pending' | 'running' | 'success' | 'error' | 'skipped' | 'canceled';
   started_at: number | null;
   finished_at: number | null;
   duration_ms: number | null;

@@ -9,6 +9,7 @@ export {
   pinRun,
   getPinnedCache,
   unpinCache,
+  cancelRun,
   CacheExpiredError,
 } from './engine/runStore.js';
 export type {

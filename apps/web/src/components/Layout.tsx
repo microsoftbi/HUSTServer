@@ -13,7 +13,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plug,
-  ScrollText,
   Settings,
   ShieldCheck,
   Users,
@@ -126,10 +125,7 @@ export function Layout() {
           {hasCap('connection.manage') && (
             <NavItem to="/connections" icon={Plug} label="连接" collapsed={collapsed} />
           )}
-          {hasCap('job') && <NavItem to="/jobs" icon={ListChecks} label="Job编排" collapsed={collapsed} />}
-          {hasCap('job') && (
-            <NavItem to="/job-logs" icon={ScrollText} label="Job日志" collapsed={collapsed} />
-          )}
+          {hasCap('job') && <NavItem to="/jobs" icon={ListChecks} label="Job" collapsed={collapsed} />}
           {hasCap('admin') && (
             <>
               <div aria-hidden className="my-1 h-px bg-border" />

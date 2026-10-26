@@ -1,5 +1,5 @@
 import { Handle, Position, type NodeProps, type NodeTypes } from '@xyflow/react';
-import { AlertTriangle, CheckCircle2, Loader2, Lock } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, Lock, PowerOff } from 'lucide-react';
 import { CATEGORY_ACCENT, getNodeMeta } from '@/lib/nodeMeta';
 import { getNodeConfigIssues } from '@/lib/nodeValidation';
 import { formatInt } from '@/lib/format';
@@ -47,10 +47,19 @@ export function NodeCard({ data, selected }: NodeProps) {
         'relative w-26 rounded-md border-2 bg-card shadow-md transition-all',
         STATUS_RING[status],
         frozen && 'bg-sky-500/10',
+        node.disabled && 'border-dashed opacity-60',
         dimmed && 'opacity-50 grayscale',
         selected && 'ring-2 ring-ring ring-offset-1 ring-offset-background',
       )}
     >
+      {node.disabled && (
+        <div
+          className="absolute -left-1.5 -top-1.5 z-10 flex size-4 items-center justify-center rounded-full bg-muted-foreground text-background shadow"
+          title="节点已禁用：运行时跳过，输入直接透传到输出"
+        >
+          <PowerOff className="size-2.5" />
+        </div>
+      )}
       {frozen && (
         <div
           className="absolute -right-1.5 -top-1.5 z-10 flex size-4 items-center justify-center rounded-full bg-sky-500 text-white shadow"
@@ -59,7 +68,7 @@ export function NodeCard({ data, selected }: NodeProps) {
           <Lock className="size-2.5" />
         </div>
       )}
-      {issues.length > 0 && (
+      {!node.disabled && issues.length > 0 && (
         <div
           className="absolute -bottom-1.5 -right-1.5 z-10 flex size-4 items-center justify-center rounded-full bg-[var(--warning)] text-[9px] font-bold leading-none text-black shadow"
           title={`配置未完成：${issues.join('、')}`}

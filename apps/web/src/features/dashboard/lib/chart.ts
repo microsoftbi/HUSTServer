@@ -96,7 +96,18 @@ export function autoTitle(encoding: WidgetEncoding): string {
 }
 
 export function colorAt(i: number): string {
-  return CHART_COLORS[i % CHART_COLORS.length];
+  return activePalette[i % activePalette.length];
+}
+
+/**
+ * 当前配色：默认使用内置调色板，导入主题后替换为主题的 dataColors。
+ * 以模块级变量承载，避免把调色板逐层透传给所有图表组件。
+ */
+let activePalette: string[] = CHART_COLORS;
+
+/** 设置全局配色；传空则恢复默认调色板。 */
+export function setChartPalette(colors: string[] | null | undefined): void {
+  activePalette = colors && colors.length > 0 ? colors : CHART_COLORS;
 }
 
 /**

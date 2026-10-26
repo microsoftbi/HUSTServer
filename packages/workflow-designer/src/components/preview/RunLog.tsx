@@ -16,9 +16,17 @@ const LEVEL_CLASS: Record<RunLogEvent['level'], string> = {
 /** 运行日志内容视图（嵌入底部面板的「运行日志」选项卡）。 */
 export function RunLogView() {
   const logs = useWorkflowStore((s) => s.logs);
+  const runId = useWorkflowStore((s) => s.runId);
   const runStatus = useWorkflowStore((s) => s.runStatus);
   const clearLogs = useWorkflowStore((s) => s.clearLogs);
+  const loadRunLogs = useWorkflowStore((s) => s.loadRunLogs);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 快速运行时日志可能早于 SSE 订阅丢失；日志为空且已有 runId 时从服务端补拉。
+  useEffect(() => {
+    if (!runId || logs.length > 0) return;
+    void loadRunLogs(runId);
+  }, [runId, logs.length, loadRunLogs]);
 
   useEffect(() => {
     const el = scrollRef.current;

@@ -67,6 +67,8 @@ export interface WorkflowNode {
   name: string;
   position: Position;
   config: Record<string, unknown>;
+  /** 已禁用（bypass）：运行时跳过该节点，把输入表直接透传到输出端口。 */
+  disabled?: boolean;
 }
 
 export interface WorkflowEdge {
@@ -408,7 +410,7 @@ export interface NodeResultEvent {
 export interface RunStatusEvent {
   runId: string;
   type: 'run-status';
-  status: 'running' | 'success' | 'error';
+  status: 'running' | 'success' | 'error' | 'canceled';
   message?: string;
 }
 

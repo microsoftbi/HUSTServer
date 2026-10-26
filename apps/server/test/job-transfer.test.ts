@@ -30,6 +30,20 @@ const cfg = loadConfig({
 const CONN_NAME = 'Alice 连接';
 const WF_NAME = 'Alice 工作流';
 
+/** 导出文件中的节点（v2） */
+interface FileNode {
+  key: string;
+  type: string;
+  name: string;
+  onFailure: string;
+  mode: string;
+  x: number;
+  y: number;
+  config: Record<string, unknown>;
+  refs?: { connectionName?: string; workflowName?: string };
+}
+interface FileEdge { source: string; target: string }
+
 let app: FastifyInstance;
 let db: Database.Database;
 let aliceId: string;
@@ -55,7 +69,8 @@ async function createJob(cookie: string, payload: Record<string, unknown>) {
     name: string;
     description: string | null;
     schedule: { enabled: boolean; freqType: string | null; cronExpr: string | null; timezone: string };
-    steps: Array<{ type: string; name: string; onFailure: string; config: Record<string, unknown> }>;
+    nodes: FileNode[];
+    edges: FileEdge[];
   };
 }
 
@@ -71,29 +86,42 @@ async function exportJob(cookie: string, id: string) {
       name: string;
       description: string | null;
       schedule: { enabled: boolean; freqType: string | null; cronExpr: string | null; timezone: string };
-      steps: Array<{
-        type: string;
-        name: string;
-        onFailure: string;
-        config: Record<string, unknown>;
-        refs?: { connectionName?: string; workflowName?: string };
-      }>;
+      nodes: FileNode[];
+      edges: FileEdge[];
     };
   };
 }
 
-/** 组装一个最小的合法导出文件，便于针对导入做定向用例 */
-function jobFile(name: string, steps: unknown[], schedule?: Record<string, unknown>) {
+const DEFAULT_SCHEDULE = { enabled: false, freqType: null, cronExpr: null, timezone: 'Asia/Shanghai' };
+
+/** 组装一个 v2 导出文件；节点未写 key 时按顺序补 n0/n1… */
+function jobFile(
+  name: string,
+  nodes: Array<Record<string, unknown>>,
+  edges: unknown[] = [],
+  schedule?: Record<string, unknown>,
+) {
   return {
     kind: 'hustserver.job',
-    version: 1,
+    version: 2,
     exportedAt: Date.now(),
     job: {
       name,
       description: null,
-      schedule: schedule ?? { enabled: false, freqType: null, cronExpr: null, timezone: 'Asia/Shanghai' },
-      steps,
+      schedule: schedule ?? DEFAULT_SCHEDULE,
+      nodes: nodes.map((n, i) => ({ key: `n${i}`, mode: 'run', x: i * 260, y: 120, ...n })),
+      edges,
     },
+  };
+}
+
+/** 组装一个 v1（线性 steps）导出文件 */
+function v1JobFile(name: string, steps: unknown[]) {
+  return {
+    kind: 'hustserver.job',
+    version: 1,
+    exportedAt: Date.now(),
+    job: { name, description: null, schedule: DEFAULT_SCHEDULE, steps },
   };
 }
 
@@ -105,6 +133,13 @@ function importJob(cookie: string, payload: Record<string, unknown> | unknown[] 
 async function getJob(cookie: string, id: string) {
   const res = await app.inject({ method: 'GET', url: `/api/jobs/${id}`, headers: { cookie } });
   return res;
+}
+
+function pickNode(n: FileNode) {
+  return {
+    key: n.key, type: n.type, name: n.name, onFailure: n.onFailure,
+    mode: n.mode, x: n.x, y: n.y, config: n.config,
+  };
 }
 
 beforeEach(async () => {
@@ -146,7 +181,7 @@ afterEach(async () => {
 });
 
 describe('Job 导出', () => {
-  it('返回 kind/version/exportedAt/job，名称、描述、调度、步骤与原 Job 一致', async () => {
+  it('返回 kind/version/exportedAt/job，名称、描述、调度、节点与原 Job 一致', async () => {
     const job = await createJob(aliceCookie, {
       name: '日结', description: '每日结算',
       steps: [
@@ -159,25 +194,22 @@ describe('Job 导出', () => {
     const file = await exportJob(aliceCookie, job.id);
 
     expect(file.kind).toBe('hustserver.job');
-    expect(file.version).toBe(1);
+    expect(file.version).toBe(2);
     expect(typeof file.exportedAt).toBe('number');
     expect(file.job.name).toBe('日结');
     expect(file.job.description).toBe('每日结算');
     expect(file.job.schedule).toEqual({
       enabled: true, freqType: 'daily', cronExpr: '0 8 * * *', timezone: 'Asia/Shanghai',
     });
-    expect(file.job.steps).toHaveLength(2);
+    expect(file.job.nodes).toHaveLength(2);
+    expect(file.job.edges).toEqual([{ source: file.job.nodes[0].key, target: file.job.nodes[1].key }]);
 
     // 与原 Job 的读取结果一致
     const detail = (await getJob(aliceCookie, job.id)).json();
     expect(detail.name).toBe(file.job.name);
     expect(detail.description).toBe(file.job.description);
     expect(detail.schedule).toEqual(file.job.schedule);
-    expect(detail.steps.map((s: { type: string; name: string; onFailure: string; config: unknown }) => ({
-      type: s.type, name: s.name, onFailure: s.onFailure, config: s.config,
-    }))).toEqual(file.job.steps.map((s) => ({
-      type: s.type, name: s.name, onFailure: s.onFailure, config: s.config,
-    })));
+    expect(detail.nodes.map(pickNode)).toEqual(file.job.nodes.map(pickNode));
   });
 
   it('把连接名/工作流名写进 refs，config 保留原始存储字段', async () => {
@@ -190,8 +222,8 @@ describe('Job 导出', () => {
     });
 
     const file = await exportJob(aliceCookie, job.id);
-    const sqlStep = file.job.steps.find((s) => s.type === 'sql')!;
-    const wfStep = file.job.steps.find((s) => s.type === 'workflow')!;
+    const sqlStep = file.job.nodes.find((s) => s.type === 'sql')!;
+    const wfStep = file.job.nodes.find((s) => s.type === 'workflow')!;
 
     expect(sqlStep.refs).toEqual({ connectionName: CONN_NAME });
     expect(sqlStep.config).toEqual({ connectionId: aliceConnId, sql: 'SELECT 42' });
@@ -220,7 +252,7 @@ describe('Job 导出', () => {
 });
 
 describe('Job 导入', () => {
-  it('把导出对象原样 POST 回去：201、name/warnings 正确，步骤与调度与导出前一致', async () => {
+  it('把导出对象原样 POST 回去：201、name/warnings 正确，节点、边与调度与导出前一致', async () => {
     const job = await createJob(aliceCookie, {
       name: '往返', description: '往返描述',
       steps: [
@@ -245,11 +277,8 @@ describe('Job 导入', () => {
     expect(detail.name).toBe(file.job.name);
     expect(detail.description).toBe(file.job.description);
     expect(detail.schedule).toEqual(file.job.schedule);
-    expect(detail.steps.map((s: { type: string; name: string; onFailure: string; config: unknown }) => ({
-      type: s.type, name: s.name, onFailure: s.onFailure, config: s.config,
-    }))).toEqual(file.job.steps.map((s) => ({
-      type: s.type, name: s.name, onFailure: s.onFailure, config: s.config,
-    })));
+    expect(detail.nodes.map(pickNode)).toEqual(file.job.nodes.map(pickNode));
+    expect(detail.edges).toEqual(file.job.edges);
   });
 
   it('同名自动加后缀：(2) 再到 (3)，并带提示 warning', async () => {
@@ -275,7 +304,7 @@ describe('Job 导入', () => {
     });
     const file = await exportJob(aliceCookie, job.id);
     // 让原 id 失效（模拟跨环境），但保留 refs 里的连接名
-    (file.job.steps[0].config as Record<string, unknown>).connectionId = 'gone-conn-id';
+    file.job.nodes[0].config.connectionId = 'gone-conn-id';
     await app.inject({ method: 'DELETE', url: `/api/jobs/${job.id}`, headers: { cookie: aliceCookie } });
 
     const res = await importJob(aliceCookie, file);
@@ -284,7 +313,7 @@ describe('Job 导入', () => {
     expect(body.warnings.some((w) => w.includes('连接'))).toBe(false);
 
     const detail = (await getJob(aliceCookie, body.id)).json();
-    expect(detail.steps[0].config.connectionId).toBe(aliceConnId);
+    expect(detail.nodes[0].config.connectionId).toBe(aliceConnId);
   });
 
   it('连接匹配不到：connectionId 清空为 ""，且有连接提示 warning', async () => {
@@ -298,8 +327,8 @@ describe('Job 导入', () => {
     expect(body.warnings.some((w) => w.includes('连接「不存在的连接」'))).toBe(true);
 
     const detail = (await getJob(aliceCookie, body.id)).json();
-    expect(detail.steps[0].config.connectionId).toBe('');
-    expect(detail.steps[0].config.sql).toBe('SELECT 1');
+    expect(detail.nodes[0].config.connectionId).toBe('');
+    expect(detail.nodes[0].config.sql).toBe('SELECT 1');
   });
 
   it('工作流按名称匹配成功则替换 id；匹配不到则清空为 "" 并有 warning', async () => {
@@ -312,7 +341,7 @@ describe('Job 导入', () => {
     const hitBody = hitRes.json() as { id: string; warnings: string[] };
     expect(hitBody.warnings.some((w) => w.includes('工作流'))).toBe(false);
     const hitDetail = (await getJob(aliceCookie, hitBody.id)).json();
-    expect(hitDetail.steps[0].config.workflowId).toBe(aliceWfId);
+    expect(hitDetail.nodes[0].config.workflowId).toBe(aliceWfId);
 
     // 未命中
     const miss = jobFile('工作流未命中', [
@@ -323,10 +352,82 @@ describe('Job 导入', () => {
     const missBody = missRes.json() as { id: string; warnings: string[] };
     expect(missBody.warnings.some((w) => w.includes('工作流「不存在的流」'))).toBe(true);
     const missDetail = (await getJob(aliceCookie, missBody.id)).json();
-    expect(missDetail.steps[0].config.workflowId).toBe('');
+    expect(missDetail.nodes[0].config.workflowId).toBe('');
   });
 
-  it('文件级非法：kind/version/非对象/steps 为空/名称为空 均 400', async () => {
+  it('v1 文件升级为线性图：节点顺序、坐标与连线自动补齐', async () => {
+    const res = await importJob(aliceCookie, v1JobFile('旧文件', [
+      { type: 'workflow', name: '跑流', onFailure: 'continue', config: { workflowId: aliceWfId } },
+      { type: 'sql', name: '取数', onFailure: 'abort', config: { connectionId: aliceConnId, sql: 'SELECT 1' } },
+    ]));
+    expect(res.statusCode).toBe(201);
+    const body = res.json() as { id: string; warnings: string[] };
+    expect(body.warnings).toEqual([]);
+
+    const detail = (await getJob(aliceCookie, body.id)).json();
+    expect(detail.nodes).toHaveLength(2);
+    expect(detail.nodes.map((n: { seq: number }) => n.seq)).toEqual([0, 1]);
+    expect(detail.nodes[0]).toMatchObject({ type: 'workflow', mode: 'run', x: 0, y: 120 });
+    expect(detail.nodes[1]).toMatchObject({ type: 'sql', mode: 'run', x: 260, y: 120 });
+    expect(detail.nodes[0].key).not.toBe(detail.nodes[1].key);
+    expect(detail.edges).toEqual([{ source: detail.nodes[0].key, target: detail.nodes[1].key }]);
+  });
+
+  it('v2 保留 DAG 与坐标/模式；非法 mode 回落 run', async () => {
+    const file = jobFile('画布', [
+      { key: 'a', type: 'sql', name: 'A', onFailure: 'abort', mode: 'skip', x: 10, y: 20, config: { connectionId: aliceConnId, sql: 'SELECT 1' } },
+      { key: 'b', type: 'sql', name: 'B', onFailure: 'continue', mode: 'bogus', x: 300, y: 40, config: { connectionId: aliceConnId, sql: 'SELECT 2' } },
+      { key: 'c', type: 'workflow', name: 'C', onFailure: 'abort', mode: 'disable', x: 560, y: 60, config: { workflowId: aliceWfId } },
+    ], [{ source: 'a', target: 'b' }, { source: 'a', target: 'c' }]);
+
+    const res = await importJob(aliceCookie, file);
+    expect(res.statusCode).toBe(201);
+    const detail = (await getJob(aliceCookie, res.json().id)).json();
+    expect(detail.nodes.map((n: { key: string }) => n.key)).toEqual(['a', 'b', 'c']);
+    expect(detail.nodes.map((n: { mode: string }) => n.mode)).toEqual(['skip', 'run', 'disable']);
+    expect(detail.nodes.map((n: { x: number }) => n.x)).toEqual([10, 300, 560]);
+    expect(detail.edges).toEqual([{ source: 'a', target: 'b' }, { source: 'a', target: 'c' }]);
+  });
+
+  it('非法/重复 key 重新生成，悬空边与自环/重复边被忽略并给出 warning', async () => {
+    const file = jobFile('脏数据', [
+      { key: 'a', type: 'sql', name: 'A', onFailure: 'abort', config: { connectionId: aliceConnId, sql: 'SELECT 1' } },
+      { key: 'a', type: 'sql', name: 'B', onFailure: 'abort', config: { connectionId: aliceConnId, sql: 'SELECT 2' } },
+      { key: 'b', type: 'sql', name: 'C', onFailure: 'abort', config: { connectionId: aliceConnId, sql: 'SELECT 3' } },
+    ], [
+      { source: 'a', target: 'ghost' },
+      { source: 'b', target: 'b' },
+      { source: 'a', target: 'b' },
+      { source: 'a', target: 'b' },
+    ]);
+
+    const res = await importJob(aliceCookie, file);
+    expect(res.statusCode).toBe(201);
+    const body = res.json() as { id: string; warnings: string[] };
+    expect(body.warnings.some((w) => w.includes('key 无效或重复'))).toBe(true);
+    expect(body.warnings.some((w) => w.includes('指向不存在的节点'))).toBe(true);
+    expect(body.warnings.some((w) => w.includes('不能连接到自身'))).toBe(true);
+    expect(body.warnings.some((w) => w.includes('重复'))).toBe(true);
+
+    const detail = (await getJob(aliceCookie, body.id)).json();
+    expect(detail.nodes).toHaveLength(3);
+    expect(new Set(detail.nodes.map((n: { key: string }) => n.key)).size).toBe(3);
+    expect(detail.edges).toEqual([{ source: 'a', target: 'b' }]);
+  });
+
+  it('环依赖被拒绝：400 且错误信息包含环路', async () => {
+    const file = jobFile('成环', [
+      { key: 'a', type: 'sql', name: 'A', onFailure: 'abort', config: { connectionId: aliceConnId, sql: 'SELECT 1' } },
+      { key: 'b', type: 'sql', name: 'B', onFailure: 'abort', config: { connectionId: aliceConnId, sql: 'SELECT 2' } },
+    ], [{ source: 'a', target: 'b' }, { source: 'b', target: 'a' }]);
+
+    const res = await importJob(aliceCookie, file);
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain('存在循环依赖');
+    expect(res.json().error).toContain('a → b → a');
+  });
+
+  it('文件级非法：kind/version/非对象/nodes 为空/名称为空 均 400', async () => {
     const base = jobFile('x', [
       { type: 'sql', name: 's', onFailure: 'abort', config: { connectionId: '', sql: 'SELECT 1' } },
     ]);
@@ -335,13 +436,17 @@ describe('Job 导入', () => {
     expect(badKind.statusCode).toBe(400);
     expect(badKind.json().error).toContain('不是 Job 导出文件');
 
-    const badVersion = await importJob(aliceCookie, { ...base, version: 2 });
+    const badVersion = await importJob(aliceCookie, { ...base, version: 3 });
     expect(badVersion.statusCode).toBe(400);
     expect(badVersion.json().error).toContain('不支持的文件版本');
 
-    const emptySteps = await importJob(aliceCookie, jobFile('x', []));
-    expect(emptySteps.statusCode).toBe(400);
-    expect(emptySteps.json().error).toContain('steps');
+    const emptyNodes = await importJob(aliceCookie, jobFile('x', []));
+    expect(emptyNodes.statusCode).toBe(400);
+    expect(emptyNodes.json().error).toContain('nodes');
+
+    const emptyV1Steps = await importJob(aliceCookie, v1JobFile('x', []));
+    expect(emptyV1Steps.statusCode).toBe(400);
+    expect(emptyV1Steps.json().error).toContain('steps');
 
     const emptyName = await importJob(aliceCookie, jobFile('', [
       { type: 'sql', name: 's', onFailure: 'abort', config: { connectionId: '', sql: 'SELECT 1' } },
@@ -360,7 +465,7 @@ describe('Job 导入', () => {
     expect(stringBody.statusCode).toBe(400);
   });
 
-  it('步骤级非法：SQL 为空 / 模型名非法 / load_model 来源无效 均 400', async () => {
+  it('节点级非法：SQL 为空 / 模型名非法 / load_model 来源无效 均 400', async () => {
     const emptySql = await importJob(aliceCookie, jobFile('空SQL', [
       { type: 'sql', name: 's', onFailure: 'abort', config: { connectionId: '', sql: '' } },
     ]));

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Info, Settings } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Info, Search, Settings, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CATEGORY_ACCENT, NODE_CATEGORY_LABEL, NODE_META, type NodeCategory } from '@/lib/nodeMeta';
 import { AboutDialog } from '@/components/settings/AboutDialog';
@@ -40,10 +40,28 @@ export function NodePalette() {
   const runStatus = useWorkflowStore((s) => s.runStatus);
   const running = runStatus === 'running';
   const [active, setActive] = useState<NodeCategory>('input');
+  const [query, setQuery] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
 
-  const groups = RIBBON_GROUPS[active];
+  const keyword = query.trim().toLowerCase();
+  /** 搜索命中：按名称、说明与内部标识跨全部类别匹配。 */
+  const matches = useMemo<NodeKind[]>(() => {
+    if (!keyword) return [];
+    return (Object.keys(NODE_META) as NodeKind[]).filter((kind) => {
+      const meta = NODE_META[kind];
+      return (
+        meta.label.toLowerCase().includes(keyword) ||
+        meta.description.toLowerCase().includes(keyword) ||
+        kind.toLowerCase().includes(keyword) ||
+        NODE_CATEGORY_LABEL[meta.category].toLowerCase().includes(keyword)
+      );
+    });
+  }, [keyword]);
+
+  const groups = keyword
+    ? [{ label: `搜索结果 ${matches.length} 个`, kinds: matches }]
+    : RIBBON_GROUPS[active];
 
   return (
     <div className="flex shrink-0 flex-col border-b border-border bg-card/40">
@@ -59,7 +77,10 @@ export function NodePalette() {
             type="button"
             role="tab"
             aria-selected={active === category}
-            onClick={() => setActive(category)}
+            onClick={() => {
+              setActive(category);
+              setQuery('');
+            }}
             className={cn(
               'mb-1 h-7 rounded-md border px-4 text-xs transition-colors',
               active === category
@@ -72,6 +93,27 @@ export function NodePalette() {
         ))}
 
         <div className="ml-auto flex items-center gap-1 pb-1.5">
+          <div className="relative mr-1">
+            <Search className="pointer-events-none absolute left-1.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜索节点…"
+              aria-label="搜索节点"
+              className="h-6 w-36 rounded-md border border-border bg-background pl-6 pr-6 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            {query && (
+              <button
+                type="button"
+                aria-label="清空搜索"
+                onClick={() => setQuery('')}
+                className="absolute right-1 top-1/2 flex size-4 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <X className="size-3" />
+              </button>
+            )}
+          </div>
           {running && (
             <span className="mr-1 text-[10px] text-muted-foreground">运行中，画布与配置已锁定。</span>
           )}

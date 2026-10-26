@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
+import { ExpressionEditor } from '@/components/panels/ExpressionEditor';
 import {
   ColumnSelect,
   EmptyHint,
@@ -220,44 +220,18 @@ export function FilterPanel({ node }: PanelProps) {
   const [config, patch] = useNodeConfig<FilterConfig>(node);
   const inCols = useInputCols(node.id);
 
-  const appendColumn = (name: string) => {
-    const expression = config.expression ?? '';
-    patch({ expression: `${expression}${expression ? ' ' : ''}"${name}"` });
-  };
-
   return (
     <div className="flex flex-col gap-4">
-      <Field
-        label="过滤条件"
-        hint="填写 SQL 布尔表达式，例如 amount > 100 AND status = 'A'。"
-      >
-        <Textarea
-          value={config.expression ?? ''}
-          onChange={(event) => patch({ expression: event.target.value })}
-          placeholder="amount > 100 AND status = 'A'"
-          spellCheck={false}
-          className="min-h-[100px] font-mono text-xs"
-        />
-      </Field>
-
-      <Section title="插入列">
-        {inCols.length === 0 ? (
-          <EmptyHint>暂无可选列（请先运行一次上游节点）</EmptyHint>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {inCols.map((col) => (
-              <button
-                key={col.name}
-                type="button"
-                onClick={() => appendColumn(col.name)}
-                className="rounded border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                {col.name}
-              </button>
-            ))}
-          </div>
-        )}
-      </Section>
+      <ExpressionEditor
+        value={config.expression ?? ''}
+        onChange={(expression) => patch({ expression })}
+        columns={inCols}
+        placeholder="amount > 100 AND status = 'A'"
+        className="min-h-[100px]"
+      />
+      <p className="text-[10px] leading-relaxed text-muted-foreground">
+        条件为真的行从 T 端口输出，其余从 F 端口输出。表达式直接按 DuckDB SQL 执行。
+      </p>
     </div>
   );
 }

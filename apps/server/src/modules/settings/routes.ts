@@ -19,6 +19,32 @@ export interface AdminSettings {
   sharedDirs: string[];
   tz: string;
   assistant: AssistantSettingsView;
+  /** 画布配色主题（工作流设计器与 Job 编排共用）。 */
+  canvasTheme: CanvasThemeId;
+  /** 界面配色主题（导航、列表、表单等整个界面），与画布主题分开配置。 */
+  uiTheme: UiThemeId;
+}
+
+/** 可选的画布配色主题；与前端 features/theme/themes.ts 保持一致。 */
+export const CANVAS_THEME_IDS = ['midnight', 'graphite', 'daylight', 'ocean'] as const;
+export type CanvasThemeId = (typeof CANVAS_THEME_IDS)[number];
+export const DEFAULT_CANVAS_THEME: CanvasThemeId = 'midnight';
+/** settings 表中的键名 */
+export const CANVAS_THEME_KEY = 'ui.canvasTheme';
+
+export function isCanvasThemeId(value: unknown): value is CanvasThemeId {
+  return typeof value === 'string' && (CANVAS_THEME_IDS as readonly string[]).includes(value);
+}
+
+/** 可选的界面配色主题：classic 为原有浅色界面，其余复用画布主题配色。 */
+export const UI_THEME_IDS = ['classic', ...CANVAS_THEME_IDS] as const;
+export type UiThemeId = (typeof UI_THEME_IDS)[number];
+export const DEFAULT_UI_THEME: UiThemeId = 'classic';
+/** settings 表中的键名 */
+export const UI_THEME_KEY = 'ui.appTheme';
+
+export function isUiThemeId(value: unknown): value is UiThemeId {
+  return typeof value === 'string' && (UI_THEME_IDS as readonly string[]).includes(value);
 }
 
 export const DEFAULT_ASSISTANT_API_BASE = 'https://api.deepseek.com';
@@ -57,6 +83,8 @@ export function readSettings(config: AppConfig, settings: SettingsRepo): AdminSe
       /* 保留默认 */
     }
   }
+  const rawTheme = raw[CANVAS_THEME_KEY];
+  const rawUiTheme = raw[UI_THEME_KEY];
   return {
     maxConcurrentRuns: num('maxConcurrentRuns', config.maxConcurrentRuns),
     logRetentionDays: num('logRetentionDays', config.logRetentionDays),
@@ -67,6 +95,8 @@ export function readSettings(config: AppConfig, settings: SettingsRepo): AdminSe
       model: raw[ASSISTANT_KEYS.model] ?? DEFAULT_ASSISTANT_MODEL,
       hasApiKey: Boolean(raw[ASSISTANT_KEYS.apiKeyEnc]),
     },
+    canvasTheme: isCanvasThemeId(rawTheme) ? rawTheme : DEFAULT_CANVAS_THEME,
+    uiTheme: isUiThemeId(rawUiTheme) ? rawUiTheme : DEFAULT_UI_THEME,
   };
 }
 
@@ -74,6 +104,12 @@ const POSITIVE_INT_KEYS = ['maxConcurrentRuns', 'logRetentionDays'] as const;
 
 export function settingsRoutes(app: FastifyInstance, deps: SettingsRoutesDeps): void {
   const auth = requireAuth({ users: deps.users, sessions: deps.sessions });
+
+  // 界面偏好：所有登录用户可读（仅包含非敏感的展示项），供编辑器决定换肤。
+  app.get('/api/ui/preferences', { preHandler: [auth] }, async () => {
+    const { canvasTheme, uiTheme } = readSettings(deps.config, deps.settings);
+    return { canvasTheme, uiTheme };
+  });
 
   app.get('/api/admin/settings', { preHandler: [auth, requireAdmin] }, async () =>
     readSettings(deps.config, deps.settings),
@@ -131,6 +167,26 @@ export function settingsRoutes(app: FastifyInstance, deps: SettingsRoutesDeps): 
         { apiKey: body.assistantApiKey.trim() },
         deps.config.encryptionKey,
       );
+    }
+
+    if (body.canvasTheme !== undefined) {
+      if (!isCanvasThemeId(body.canvasTheme)) {
+        return reply.code(400).send({
+          error: 'invalid_settings',
+          detail: `canvasTheme 必须为 ${CANVAS_THEME_IDS.join(' / ')} 之一`,
+        });
+      }
+      updates[CANVAS_THEME_KEY] = body.canvasTheme;
+    }
+
+    if (body.uiTheme !== undefined) {
+      if (!isUiThemeId(body.uiTheme)) {
+        return reply.code(400).send({
+          error: 'invalid_settings',
+          detail: `uiTheme 必须为 ${UI_THEME_IDS.join(' / ')} 之一`,
+        });
+      }
+      updates[UI_THEME_KEY] = body.uiTheme;
     }
 
     if (Object.keys(updates).length > 0) {

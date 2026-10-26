@@ -153,6 +153,18 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
     };
   });
 
+  // 取消运行：引擎在当前节点结束后停止，剩余节点标记为跳过。
+  app.post('/api/runs/:runId/cancel', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
+    const { runId } = req.params as { runId: string };
+    const authorized = authorizeRun(runId, req.auth!.caps.has('admin'), req.auth!.userId);
+    if (!authorized.run) return reply.code(404).send({ error: '运行不存在' });
+    if (!authorized.ok) return reply.code(403).send({ error: '无权访问' });
+    if (!deps.runService.cancel(runId)) {
+      return reply.code(409).send({ error: '当前运行不可取消', code: 'RUN_NOT_CANCELABLE' });
+    }
+    return { ok: true };
+  });
+
   app.get('/api/runs/:runId', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { runId } = req.params as { runId: string };
     const authorized = authorizeRun(runId, req.auth!.caps.has('admin'), req.auth!.userId);
@@ -160,7 +172,6 @@ export function runRoutes(app: FastifyInstance, deps: RunRoutesDeps): void {
     if (!authorized.ok) return reply.code(403).send({ error: '无权访问' });
     return { run: authorized.run, nodes: nodes.listByRun(runId) };
   });
-
   app.get('/api/runs/:runId/logs', { preHandler: [guard, requireCap('job')] }, async (req, reply) => {
     const { runId } = req.params as { runId: string };
     const authorized = authorizeRun(runId, req.auth!.caps.has('admin'), req.auth!.userId);

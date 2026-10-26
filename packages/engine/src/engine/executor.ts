@@ -1,6 +1,7 @@
 import type { WorkflowNode } from '../types.js';
 import type { NodeContext } from '../nodes/context.js';
-import { tableNameForNode } from '../util/sqlIdent.js';
+import { quoteIdent, tableNameForNode } from '../util/sqlIdent.js';
+import { countRows } from './duckdb.js';
 import { ancestorNodeIds, compileGraph } from './graph.js';
 import { nodeRegistry } from './registry.js';
 import {
@@ -50,12 +51,21 @@ export async function executeWorkflow(runId: string): Promise<void> {
         markSkipped(ctx, node, '上游节点执行失败');
         continue;
       }
+      if (ctx.cancelled) {
+        markSkipped(ctx, node, '运行已取消');
+        continue;
+      }
       const inputMap = compiled.inputNodes.get(node.id) ?? {};
       const blocked = Object.values(inputMap).some((list) =>
         list.some(({ source }) => (ctx.nodeResults.get(source)?.status ?? 'pending') !== 'success'),
       );
       if (blocked) {
         markSkipped(ctx, node, '上游节点未成功');
+        continue;
+      }
+      // 禁用节点（bypass）：跳过执行器，把输入表直接透传到输出端口。
+      if (node.disabled) {
+        await bypassNode(ctx, node, inputMap);
         continue;
       }
       await runNode(ctx, node, inputMap);
@@ -68,6 +78,10 @@ export async function executeWorkflow(runId: string): Promise<void> {
       const message = failed?.error ?? '工作流执行失败';
       publishRunStatus(ctx, 'error', message);
       publishLog(ctx, 'error', `工作流执行失败：${message}`);
+    } else if (ctx.cancelled) {
+      ctx.status = 'canceled';
+      publishRunStatus(ctx, 'canceled', '运行已取消');
+      publishLog(ctx, 'warn', '工作流已取消');
     } else {
       ctx.status = 'success';
       // 「缓存至此」：成功后钉住本次会话，供后续运行从缓存之后继续。
@@ -165,6 +179,57 @@ async function runNode(
     });
     publishNodeResult(ctx, node.id, 'error', 0, durationMs, message);
     publishLog(ctx, 'error', `「${node.name}」执行失败：${message}`, node.id);
+    ctx.status = 'error';
+  }
+}
+
+/**
+ * 禁用节点（bypass）：不执行节点逻辑，把第一个输入表复制到该节点的所有输出端口。
+ * 输出端口集合取自下游连线的 sourceHandle，保证连线两端的表都存在。
+ */
+async function bypassNode(
+  ctx: RunContext,
+  node: WorkflowNode,
+  inputMap: Record<string, Array<{ source: string; sourceHandle: string }>>,
+): Promise<void> {
+  const inputTables = Object.values(inputMap).flatMap((list) =>
+    list.map(({ source, sourceHandle }) => tableNameForNode(source, sourceHandle)),
+  );
+  if (inputTables.length === 0) {
+    markSkipped(ctx, node, '节点已禁用且没有可透传的输入');
+    return;
+  }
+  const sourceTable = inputTables[0];
+  const handles = new Set<string>(['out']);
+  for (const edge of ctx.workflow.edges) {
+    if (edge.source === node.id) handles.add(edge.sourceHandle ?? 'out');
+  }
+
+  ctx.nodeStatus.set(node.id, 'running');
+  publishNodeResult(ctx, node.id, 'running', 0, 0);
+  publishLog(ctx, 'info', `「${node.name}」已禁用，直接透传输入`, node.id);
+
+  const startedAt = Date.now();
+  try {
+    for (const handle of handles) {
+      const outputTable = tableNameForNode(node.id, handle);
+      await ctx.session.connection.run(
+        `CREATE OR REPLACE TABLE ${quoteIdent(outputTable)} AS SELECT * FROM ${quoteIdent(sourceTable)}`,
+      );
+    }
+    const rowCount = await countRows(ctx.session.connection, tableNameForNode(node.id));
+    const durationMs = Date.now() - startedAt;
+    ctx.nodeStatus.set(node.id, 'success');
+    ctx.nodeResults.set(node.id, { status: 'success', rowCount, durationMs });
+    publishNodeResult(ctx, node.id, 'success', rowCount, durationMs);
+    publishLog(ctx, 'success', `「${node.name}」已禁用：透传 ${rowCount} 行`, node.id);
+  } catch (error) {
+    const durationMs = Date.now() - startedAt;
+    const message = error instanceof Error ? error.message : String(error);
+    ctx.nodeStatus.set(node.id, 'error');
+    ctx.nodeResults.set(node.id, { status: 'error', rowCount: 0, durationMs, error: message });
+    publishNodeResult(ctx, node.id, 'error', 0, durationMs, message);
+    publishLog(ctx, 'error', `「${node.name}」透传失败：${message}`, node.id);
     ctx.status = 'error';
   }
 }

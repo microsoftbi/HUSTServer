@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
+import { ExpressionEditor } from '@/components/panels/ExpressionEditor';
 import {
   EmptyHint,
   Field,
@@ -142,11 +142,6 @@ export function FormulaPanel({ node }: PanelProps) {
     return [...inCols, ...extra.filter((c) => !seen.has(c.name))];
   };
 
-  const appendColumn = (index: number, name: string) => {
-    const current = formulas[index]?.expression ?? '';
-    update(index, { expression: `${current}${current ? ' ' : ''}"${name}"` });
-  };
-
   return (
     <Section
       title="表达式"
@@ -207,25 +202,12 @@ export function FormulaPanel({ node }: PanelProps) {
                   />
                 )}
               </div>
-              <Textarea
+              <ExpressionEditor
                 value={item.expression}
-                onChange={(event) => update(index, { expression: event.target.value })}
+                onChange={(expression) => update(index, { expression })}
+                columns={columnsFor(index)}
                 placeholder='例如 amount * 1.1 或 CASE WHEN amount > 100 THEN 1 ELSE 0 END'
-                spellCheck={false}
-                className="min-h-[80px] font-mono text-xs"
               />
-              <div className="flex flex-wrap gap-1">
-                {columnsFor(index).map((col) => (
-                  <button
-                    key={col.name}
-                    type="button"
-                    onClick={() => appendColumn(index, col.name)}
-                    className="rounded border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                  >
-                    {col.name}
-                  </button>
-                ))}
-              </div>
               <div className="flex items-center justify-end gap-0.5">
                 <Button
                   type="button"

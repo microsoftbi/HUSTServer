@@ -12,7 +12,12 @@ import { useWorkflowStore } from '@/store/workflowStore';
 import { useInputSchemaSync } from '@/lib/useInputSchemaSync';
 import type { WorkflowDesignerProps } from '@/adapters';
 
-export function WorkflowDesigner({ initialWorkflow, adapter, onExit }: WorkflowDesignerProps) {
+export function WorkflowDesigner({
+  initialWorkflow,
+  adapter,
+  onExit,
+  colorMode = 'dark',
+}: WorkflowDesignerProps) {
   const loadWorkflow = useWorkflowStore((s) => s.loadWorkflow);
   const setSchemaProbe = useWorkflowStore((s) => s.setSchemaProbe);
   const setRunHost = useWorkflowStore((s) => s.setRunHost);
@@ -46,7 +51,7 @@ export function WorkflowDesigner({ initialWorkflow, adapter, onExit }: WorkflowD
   useInputSchemaSync();
 
   return (
-    <DesignerHostProvider value={{ adapter, onExit }}>
+    <DesignerHostProvider value={{ adapter, onExit, colorMode }}>
       <TooltipProvider delayDuration={200}>
         <ReactFlowProvider>
           <div className="hust-designer flex h-full w-full flex-col overflow-hidden bg-background text-foreground">

@@ -1,4 +1,12 @@
-import { createRun, executeWorkflow, type ModelWriteHook, type Workflow, type WorkflowEdge, type WorkflowNode } from '@hustserver/engine';
+import {
+  cancelRun as cancelEngineRun,
+  createRun,
+  executeWorkflow,
+  type ModelWriteHook,
+  type Workflow,
+  type WorkflowEdge,
+  type WorkflowNode,
+} from '@hustserver/engine';
 import type { Database } from 'better-sqlite3';
 import { join, resolve, sep } from 'node:path';
 import type { AppConfig } from '../../config.js';
@@ -51,8 +59,19 @@ export interface RunService {
       cacheToken?: string;
     },
   ): RunRow;
+  /** 请求取消一次运行；引擎会在当前节点结束后停止。返回是否成功投递。 */
+  cancel(runId: string): boolean;
   awaitRun(runId: string): Promise<RunStatus>;
   whenIdle(): Promise<void>;
+}
+
+/** 运行被用户取消：worker 据此落 canceled 终态且不重试。 */
+export class RunCanceledError extends Error {
+  readonly code = 'RUN_CANCELED';
+  constructor(message = '运行已取消') {
+    super(message);
+    this.name = 'RunCanceledError';
+  }
 }
 
 /** 默认执行器：走 vendored 引擎（createRun + executeWorkflow）。 */
@@ -74,6 +93,8 @@ function makeDefaultExecutor(writeModel?: ModelWriteHook): RunExecutor {
       const failed = [...ctx.nodeResults.values()].find((result) => result.status === 'error');
       throw new Error(failed?.error ?? '工作流执行失败');
     }
+    // 取消是正常终态之外的主动中止，用专用错误让 worker 落 canceled 且不重试。
+    if (ctx.status === 'canceled') throw new RunCanceledError();
   };
 }
 
@@ -203,6 +224,7 @@ export function createRunService(deps: RunServiceDeps): RunService {
 
       runs.markRunning(run.id, startedAt);
       let lastError: string | null = null;
+      let canceled = false;
 
       for (let attempt = 0; attempt <= config.runMaxRetries; attempt += 1) {
         let engineRunId: string | null = null;
@@ -220,6 +242,12 @@ export function createRunService(deps: RunServiceDeps): RunService {
           lastError = null;
           break;
         } catch (err) {
+          // 取消不重试：用户意图是立刻停下，重跑会带来更多副作用。
+          if (err instanceof RunCanceledError) {
+            canceled = true;
+            lastError = null;
+            break;
+          }
           lastError = err instanceof Error ? err.message : String(err);
         } finally {
           if (engineRunId) {
@@ -231,7 +259,7 @@ export function createRunService(deps: RunServiceDeps): RunService {
 
       const finishedAt = Date.now();
       runs.finish(run.id, {
-        status: lastError === null ? 'success' : 'error',
+        status: canceled ? 'canceled' : lastError === null ? 'success' : 'error',
         finishedAt,
         durationMs: finishedAt - startedAt,
         error: lastError,
@@ -267,6 +295,12 @@ export function createRunService(deps: RunServiceDeps): RunService {
         })
         .finally(settle);
       return run;
+    },
+    cancel(runId) {
+      const row = runs.findById(runId);
+      // 排队中/已结束的运行没有可中止的引擎会话。
+      if (!row || row.status !== 'running' || !row.engine_run_id) return false;
+      return cancelEngineRun(row.engine_run_id);
     },
     awaitRun(runId) {
       const row = runs.findById(runId);

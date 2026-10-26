@@ -141,7 +141,7 @@ export function JobListPage() {
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead>名称</TableHead>
-                <TableHead className="w-24">步骤数</TableHead>
+                <TableHead className="w-24">节点数</TableHead>
                 <TableHead className="w-64">调度</TableHead>
                 <TableHead className="w-28">最近运行</TableHead>
                 <TableHead className="w-48">更新时间</TableHead>
@@ -157,7 +157,7 @@ export function JobListPage() {
                     </Link>
                     {job.description && <div className="text-xs text-muted-foreground">{job.description}</div>}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{job.stepCount}</TableCell>
+                  <TableCell className="text-muted-foreground">{job.nodeCount}</TableCell>
                   <TableCell className="text-muted-foreground">{describeSchedule(job)}</TableCell>
                   <TableCell>
                     {job.lastRun ? (

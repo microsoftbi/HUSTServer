@@ -348,6 +348,20 @@ export interface Bookmark {
   state: BookmarkState;
 }
 
+/** 仪表板主题：从 Power BI 主题 JSON 提取的简化配置 */
+export interface DashboardTheme {
+  /** 主题名称（取自 JSON 的 name） */
+  name?: string;
+  /** 数据配色：按顺序分配给图表系列 */
+  dataColors: string[];
+  /** 报表页背景色 */
+  background?: string;
+  /** 画布外壁纸色 */
+  wallpaper?: string;
+  /** 视觉对象标题颜色 */
+  titleColor?: string;
+}
+
 export interface Dashboard {
   id: string;
   name: string;
@@ -358,6 +372,8 @@ export interface Dashboard {
   filters?: FilterCondition[];
   /** 视图 → 书签：保存的页面状态 */
   bookmarks?: Bookmark[];
+  /** 导入的主题（配色 / 背景 / 标题色） */
+  theme?: DashboardTheme;
 }
 
 export interface QueryColumn {

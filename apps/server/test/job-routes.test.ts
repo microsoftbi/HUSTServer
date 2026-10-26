@@ -9,7 +9,7 @@ import { hashPassword } from '../src/modules/auth/password.js';
 import { encryptConfig } from '../src/modules/connections/crypto.js';
 import { connectionsRepo } from '../src/modules/connections/repo.js';
 import { migrate } from '../src/db/migrate.js';
-import type { JobRunRow } from '../src/modules/jobs/repo.js';
+import { jobRunsRepo, type JobRunRow } from '../src/modules/jobs/repo.js';
 import type { JobService } from '../src/modules/jobs/service.js';
 import type { Recorder } from '../src/modules/runs/recorder.js';
 import type { RunService } from '../src/modules/runs/service.js';
@@ -35,6 +35,7 @@ let bobCookie: string;
 let workflowId: string;
 let sharedConnId: string;
 const triggerJob = vi.fn(() => ({ id: 'jr-test' } as unknown as JobRunRow));
+const cancelJob = vi.fn(() => true);
 
 async function login(username: string, password: string): Promise<string> {
   const res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { username, password } });
@@ -52,7 +53,7 @@ beforeEach(async () => {
   const runService = { trigger: vi.fn(), whenIdle: async () => {} } as unknown as RunService;
   const scheduler = { sync: vi.fn(), start() {}, stop() {}, registeredIds: () => [] } as unknown as Scheduler;
   const jobScheduler = { sync: vi.fn(), start() {}, stop() {}, registeredIds: () => [] } as unknown as Scheduler;
-  const jobService = { trigger: triggerJob, whenIdle: async () => {} } as unknown as JobService;
+  const jobService = { trigger: triggerJob, cancel: cancelJob, whenIdle: async () => {} } as unknown as JobService;
 
   app = await buildServer({
     db, config: cfg, logger: false,
@@ -74,6 +75,8 @@ beforeEach(async () => {
     shared: true,
   }).id;
   triggerJob.mockClear();
+  cancelJob.mockReset();
+  cancelJob.mockReturnValue(true);
 });
 
 describe('job routes', () => {
@@ -88,12 +91,12 @@ describe('job routes', () => {
     });
     expect(res.statusCode).toBe(201);
     expect(res.json().schedule).toMatchObject({ enabled: true, freqType: 'daily', cronExpr: '0 8 * * *' });
-    expect(res.json().steps[0].config).toEqual({ workflowId });
+    expect(res.json().nodes[0].config).toEqual({ workflowId });
 
     const list = await app.inject({ method: 'GET', url: '/api/jobs', headers: { cookie: aliceCookie } });
     expect(list.statusCode).toBe(200);
     const item = list.json().items[0];
-    expect(item).toMatchObject({ name: '日结', stepCount: 1, enabled: 1 });
+    expect(item).toMatchObject({ name: '日结', nodeCount: 1, edgeCount: 0, enabled: 1 });
     expect(typeof item.nextRunAt).toBe('number');
     expect(item.lastRun).toBeNull();
   });
@@ -173,7 +176,7 @@ describe('job routes', () => {
       payload: { name: 'bob用共享连接', steps: [{ type: 'sql', name: 's', connectionId: sharedConnId, sql: 'SELECT 1', onFailure: 'continue' }] },
     });
     expect(okSql.statusCode).toBe(201);
-    expect(okSql.json().steps[0].onFailure).toBe('continue');
+    expect(okSql.json().nodes[0].onFailure).toBe('continue');
   });
 
   it('load_model 步骤：file 源校验与成功创建', async () => {
@@ -196,7 +199,7 @@ describe('job routes', () => {
       payload: { name: '加载模型', steps: [{ type: 'load_model', name: '加载', source: 'file', modelName: 'sales_model', resourcePath: 'sales.csv', onFailure: 'continue' }] },
     });
     expect(ok.statusCode).toBe(201);
-    expect(ok.json().steps[0]).toMatchObject({
+    expect(ok.json().nodes[0]).toMatchObject({
       type: 'load_model', name: '加载', onFailure: 'continue',
       config: { source: 'file', modelName: 'sales_model', resourcePath: 'sales.csv' },
     });
@@ -222,7 +225,7 @@ describe('job routes', () => {
       payload: { name: 'bob加载', steps: [{ type: 'load_model', name: 's', source: 'sqlserver', modelName: 'sales_model', connectionId: sharedConnId, object: 'dbo.sales', onFailure: 'abort' }] },
     });
     expect(ok.statusCode).toBe(201);
-    expect(ok.json().steps[0].config).toEqual({
+    expect(ok.json().nodes[0].config).toEqual({
       source: 'sqlserver', modelName: 'sales_model', connectionId: sharedConnId, object: 'dbo.sales',
     });
   });
@@ -246,7 +249,8 @@ describe('job routes', () => {
     });
     expect(put.statusCode).toBe(200);
     expect(put.json().name).toBe('B');
-    expect(put.json().steps).toHaveLength(2);
+    expect(put.json().nodes).toHaveLength(2);
+    expect(put.json().edges).toHaveLength(1);
     expect(put.json().schedule.enabled).toBe(false);
 
     const del = await app.inject({ method: 'DELETE', url: `/api/jobs/${jobId}`, headers: { cookie: aliceCookie } });
@@ -275,6 +279,115 @@ describe('job routes', () => {
     expect(detail.statusCode).toBe(404);
   });
 
+  it('画布图校验：环形/重复 key/悬空边/自环/重复边/非法模式/非法坐标 均 400', async () => {
+    const create = (nodes: unknown[], edges?: unknown[]) => app.inject({
+      method: 'POST', url: '/api/jobs', headers: { cookie: aliceCookie },
+      payload: { name: '图', nodes, edges },
+    });
+    const node = (key: string, extra: Record<string, unknown> = {}) => ({
+      key, type: 'sql', name: key, connectionId: sharedConnId, sql: 'SELECT 1', onFailure: 'abort', ...extra,
+    });
+
+    const cycle = await create([node('a'), node('b')], [{ source: 'a', target: 'b' }, { source: 'b', target: 'a' }]);
+    expect(cycle.statusCode).toBe(400);
+    expect(cycle.json().error).toContain('存在循环依赖');
+
+    const dupKey = await create([node('a'), node('a')]);
+    expect(dupKey.statusCode).toBe(400);
+    expect(dupKey.json().error).toContain('节点标识不合法或重复');
+
+    const badKey = await create([node('a b')]);
+    expect(badKey.statusCode).toBe(400);
+    expect(badKey.json().error).toContain('节点标识不合法或重复');
+
+    const dangling = await create([node('a')], [{ source: 'a', target: 'ghost' }]);
+    expect(dangling.statusCode).toBe(400);
+    expect(dangling.json().error).toContain('连线引用了不存在的节点');
+
+    const selfLoop = await create([node('a')], [{ source: 'a', target: 'a' }]);
+    expect(selfLoop.statusCode).toBe(400);
+    expect(selfLoop.json().error).toContain('不能连接到自身');
+
+    const dupEdge = await create([node('a'), node('b')], [
+      { source: 'a', target: 'b' }, { source: 'a', target: 'b' },
+    ]);
+    expect(dupEdge.statusCode).toBe(400);
+    expect(dupEdge.json().error).toContain('存在重复连线');
+
+    const badMode = await create([node('a', { mode: 'paused' })]);
+    expect(badMode.statusCode).toBe(400);
+    expect(badMode.json().error).toContain('节点运行模式不合法');
+
+    const badCoord = await create([node('a', { x: 'left' })]);
+    expect(badCoord.statusCode).toBe(400);
+    expect(badCoord.json().error).toContain('节点坐标不合法');
+  });
+
+  it('画布图正常保存：DAG、模式与坐标原样回读；全部禁用只影响运行不阻止保存', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/jobs', headers: { cookie: aliceCookie },
+      payload: {
+        name: 'DAG',
+        nodes: [
+          { key: 'a', type: 'sql', name: 'A', connectionId: sharedConnId, sql: 'SELECT 1', onFailure: 'abort', mode: 'disable', x: 10, y: 20 },
+          { key: 'b', type: 'sql', name: 'B', connectionId: sharedConnId, sql: 'SELECT 2', onFailure: 'continue', mode: 'skip', x: 300, y: 40 },
+          { key: 'c', type: 'workflow', name: 'C', workflowId, onFailure: 'abort', mode: 'run', x: 560, y: 60 },
+        ],
+        edges: [{ source: 'a', target: 'b' }, { source: 'a', target: 'c' }],
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.nodes.map((n: { key: string }) => n.key)).toEqual(['a', 'b', 'c']);
+    expect(body.nodes.map((n: { mode: string }) => n.mode)).toEqual(['disable', 'skip', 'run']);
+    expect(body.nodes.map((n: { x: number }) => n.x)).toEqual([10, 300, 560]);
+    expect(body.edges).toEqual([{ source: 'a', target: 'b' }, { source: 'a', target: 'c' }]);
+
+    const list = await app.inject({ method: 'GET', url: '/api/jobs', headers: { cookie: aliceCookie } });
+    expect(list.json().items[0]).toMatchObject({ nodeCount: 3, edgeCount: 2 });
+
+    // 全部禁用仍可保存（运行时会因「没有可执行的节点」而被拒，属执行器职责）
+    const allDisabled = await app.inject({
+      method: 'POST', url: '/api/jobs', headers: { cookie: aliceCookie },
+      payload: {
+        name: '全禁用',
+        nodes: [
+          { key: 'a', type: 'sql', name: 'A', connectionId: sharedConnId, sql: 'SELECT 1', onFailure: 'abort', mode: 'disable' },
+          { key: 'b', type: 'sql', name: 'B', connectionId: sharedConnId, sql: 'SELECT 2', onFailure: 'abort', mode: 'run' },
+        ],
+        edges: [{ source: 'a', target: 'b' }],
+      },
+    });
+    expect(allDisabled.statusCode).toBe(201);
+  });
+
+  it('取消运行：可取消返回 ok 并调用 jobService.cancel；不可取消 409；他人 403', async () => {
+    const created = await app.inject({
+      method: 'POST', url: '/api/jobs', headers: { cookie: aliceCookie },
+      payload: { name: 'K', steps: [{ type: 'workflow', name: 's', workflowId, onFailure: 'abort' }] },
+    });
+    const jobId = created.json().id as string;
+    db.prepare(
+      `INSERT INTO job_runs (id, job_id, trigger_type, triggered_by, status, started_at, finished_at, duration_ms, error, created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    ).run('jr-cancel', jobId, 'manual', null, 'running', 1000, null, null, null, 5000);
+
+    const other = await app.inject({ method: 'POST', url: '/api/job-runs/jr-cancel/cancel', headers: { cookie: bobCookie } });
+    expect(other.statusCode).toBe(403);
+
+    const ok = await app.inject({ method: 'POST', url: '/api/job-runs/jr-cancel/cancel', headers: { cookie: aliceCookie } });
+    expect(ok.statusCode).toBe(200);
+    expect(cancelJob).toHaveBeenCalledWith('jr-cancel');
+
+    cancelJob.mockReturnValue(false);
+    const conflict = await app.inject({ method: 'POST', url: '/api/job-runs/jr-cancel/cancel', headers: { cookie: aliceCookie } });
+    expect(conflict.statusCode).toBe(409);
+    expect(conflict.json().code).toBe('JOB_RUN_NOT_CANCELABLE');
+
+    const missing = await app.inject({ method: 'POST', url: '/api/job-runs/no-such/cancel', headers: { cookie: aliceCookie } });
+    expect(missing.statusCode).toBe(404);
+  });
+
   it('admin 可见全部 Job', async () => {
     await app.inject({
       method: 'POST', url: '/api/jobs', headers: { cookie: aliceCookie },
@@ -282,5 +395,44 @@ describe('job routes', () => {
     });
     const list = await app.inject({ method: 'GET', url: '/api/jobs', headers: { cookie: adminCookie } });
     expect(list.json().items).toHaveLength(1);
+  });
+
+  it('GET /api/job-runs 列出全部运行记录：管理员跨用户可见、普通用户仅自己、支持分页', async () => {
+    const aliceJob = await app.inject({
+      method: 'POST', url: '/api/jobs', headers: { cookie: aliceCookie },
+      payload: { name: 'A', steps: [{ type: 'workflow', name: 's', workflowId, onFailure: 'abort' }] },
+    });
+    const bobJob = await app.inject({
+      method: 'POST', url: '/api/jobs', headers: { cookie: bobCookie },
+      payload: {
+        name: 'B',
+        nodes: [{ key: 'n1', type: 'sql', name: 'n1', connectionId: sharedConnId, sql: 'SELECT 1', onFailure: 'abort' }],
+      },
+    });
+    const runs = jobRunsRepo(db);
+    runs.create({ jobId: aliceJob.json().id, triggerType: 'manual', triggeredBy: null });
+    runs.create({ jobId: bobJob.json().id, triggerType: 'schedule', triggeredBy: null });
+
+    const admin = await app.inject({ method: 'GET', url: '/api/job-runs', headers: { cookie: adminCookie } });
+    expect(admin.statusCode).toBe(200);
+    expect(admin.json().total).toBe(2);
+    expect(admin.json().items.map((r: { job_name: string }) => r.job_name).sort()).toEqual(['A', 'B']);
+
+    const alice = await app.inject({ method: 'GET', url: '/api/job-runs', headers: { cookie: aliceCookie } });
+    expect(alice.json().total).toBe(1);
+    expect(alice.json().items[0].job_name).toBe('A');
+
+    const bob = await app.inject({ method: 'GET', url: '/api/job-runs', headers: { cookie: bobCookie } });
+    expect(bob.json().total).toBe(1);
+    expect(bob.json().items[0].job_name).toBe('B');
+
+    const paged = await app.inject({
+      method: 'GET', url: '/api/job-runs?limit=1&offset=1', headers: { cookie: adminCookie },
+    });
+    expect(paged.json().total).toBe(2);
+    expect(paged.json().items).toHaveLength(1);
+
+    const anonymous = await app.inject({ method: 'GET', url: '/api/job-runs' });
+    expect(anonymous.statusCode).toBe(401);
   });
 });

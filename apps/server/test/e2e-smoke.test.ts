@@ -68,9 +68,10 @@ describe('端到端冒烟：建号 → 工作流 → 调度 → 运行 → 设�
         const jobRun = jobRunsRepo(db).create({
           jobId, triggerType: opts?.triggerType ?? 'manual', triggeredBy: opts?.triggeredBy ?? null,
         });
-        const steps = jobsRepo(db).listSteps(jobId);
+        const steps = jobsRepo(db).listNodes(jobId);
         jobStepRunsRepo(db).createBatch(jobRun.id, steps.map((s) => ({
-          stepId: s.id, seq: s.seq, type: s.type, name: s.name, config: s.config, onFailure: s.on_failure,
+          stepId: s.id, nodeKey: s.node_key ?? s.id, seq: s.seq,
+          type: s.type, name: s.name, config: s.config, onFailure: s.on_failure,
         })));
         for (const s of jobStepRunsRepo(db).listByJobRun(jobRun.id)) {
           jobStepRunsRepo(db).finish(s.id, { status: 'success', finishedAt: Date.now(), durationMs: 0 });

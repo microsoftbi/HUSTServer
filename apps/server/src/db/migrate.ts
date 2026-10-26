@@ -166,6 +166,19 @@ CREATE TABLE IF NOT EXISTS job_steps (
   name       TEXT NOT NULL,
   config     TEXT NOT NULL,
   on_failure TEXT NOT NULL DEFAULT 'abort',
+  node_key   TEXT,
+  pos_x      REAL NOT NULL DEFAULT 0,
+  pos_y      REAL NOT NULL DEFAULT 0,
+  run_mode   TEXT NOT NULL DEFAULT 'run',
+  created_at INTEGER NOT NULL
+);
+
+-- 依赖边：只引用 node_key，避免 job_steps 全量重插导致 id 漂移
+CREATE TABLE IF NOT EXISTS job_edges (
+  id         TEXT PRIMARY KEY,
+  job_id     TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  source_key TEXT NOT NULL,
+  target_key TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
 
@@ -179,6 +192,7 @@ CREATE TABLE IF NOT EXISTS job_runs (
   finished_at  INTEGER,
   duration_ms  INTEGER,
   error        TEXT,
+  graph_snapshot TEXT,
   created_at   INTEGER NOT NULL
 );
 
@@ -186,6 +200,7 @@ CREATE TABLE IF NOT EXISTS job_step_runs (
   id           TEXT PRIMARY KEY,
   job_run_id   TEXT NOT NULL REFERENCES job_runs(id) ON DELETE CASCADE,
   step_id      TEXT,
+  node_key     TEXT,
   seq          INTEGER NOT NULL,
   type         TEXT NOT NULL,
   name         TEXT NOT NULL,
@@ -204,8 +219,12 @@ CREATE TABLE IF NOT EXISTS job_step_runs (
 const JOB_INDEXES = `
 CREATE INDEX IF NOT EXISTS idx_jobs_owner        ON jobs(owner_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_job_steps_job     ON job_steps(job_id, seq);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_job_steps_key ON job_steps(job_id, node_key);
+CREATE INDEX IF NOT EXISTS idx_job_edges_job     ON job_edges(job_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_job_edges_pair ON job_edges(job_id, source_key, target_key);
 CREATE INDEX IF NOT EXISTS idx_job_runs_job      ON job_runs(job_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_job_step_runs_run ON job_step_runs(job_run_id, seq);
+CREATE INDEX IF NOT EXISTS idx_job_step_runs_key ON job_step_runs(job_run_id, node_key);
 CREATE INDEX IF NOT EXISTS idx_runs_job_run      ON runs(job_run_id);
 `;
 
@@ -307,12 +326,54 @@ export function backfillUserRoles(db: Database): void {
   tx();
 }
 
+/** 把线性 steps 升级为画布图：补 node_key/坐标/运行模式，并为旧 Job 生成线性边。 */
+export function migrateJobGraph(db: Database): void {
+  const columns = (table: string): string[] =>
+    (db.pragma(`table_info(${table})`) as Array<{ name: string }>).map((c) => c.name);
+
+  if (!columns('job_steps').includes('node_key')) {
+    db.exec(`
+      ALTER TABLE job_steps ADD COLUMN node_key TEXT;
+      ALTER TABLE job_steps ADD COLUMN pos_x REAL NOT NULL DEFAULT 0;
+      ALTER TABLE job_steps ADD COLUMN pos_y REAL NOT NULL DEFAULT 0;
+      ALTER TABLE job_steps ADD COLUMN run_mode TEXT NOT NULL DEFAULT 'run';
+    `);
+    // 仅首次升级时回填：node_key 取 id，坐标按 seq 排成一条直线
+    db.exec(`
+      UPDATE job_steps SET node_key = id WHERE node_key IS NULL;
+      UPDATE job_steps SET pos_x = seq * 260 WHERE node_key = id;
+    `);
+  }
+  if (!columns('job_runs').includes('graph_snapshot')) {
+    db.exec('ALTER TABLE job_runs ADD COLUMN graph_snapshot TEXT');
+  }
+  if (!columns('job_step_runs').includes('node_key')) {
+    db.exec('ALTER TABLE job_step_runs ADD COLUMN node_key TEXT');
+  }
+
+  // 没有任何边的旧 Job 用 seq 生成线性依赖；已有边的 Job 保持原样（幂等）
+  db.exec(`
+    INSERT INTO job_edges (id, job_id, source_key, target_key, created_at)
+    SELECT lower(hex(randomblob(6))), s.job_id, s.prev_key, s.node_key,
+           CAST(strftime('%s','now') AS INTEGER) * 1000
+    FROM (
+      SELECT job_id, node_key,
+             LAG(node_key) OVER (PARTITION BY job_id ORDER BY seq) AS prev_key
+      FROM job_steps
+      WHERE node_key IS NOT NULL
+    ) AS s
+    WHERE s.prev_key IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM job_edges e WHERE e.job_id = s.job_id)
+  `);
+}
+
 export function migrate(db: Database): void {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA);
   backfillUserRoles(db);
   db.exec(JOB_TABLES);
+  migrateJobGraph(db);
   db.exec(LOGIN_LOG_TABLES);
   db.exec(AUDIT_TABLES);
   db.exec(MODEL_TABLES);

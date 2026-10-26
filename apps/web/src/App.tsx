@@ -1,16 +1,17 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { AuthProvider, RequireAuth, RequireCap } from './auth.js';
+import { AuthProvider, RequireAuth, RequireCap, useAuth } from './auth.js';
 import { Layout } from './components/Layout.js';
 import { DashboardEditorPage } from './features/dashboard/DashboardEditorPage.js';
 import { DashboardListPage } from './features/dashboard/DashboardListPage.js';
+import { useUiThemeStore, useUiThemeOnDocument } from './features/theme/uiThemeStore.js';
 import { AuditPage } from './pages/AuditPage.js';
 import { AssistantPage } from './pages/AssistantPage.js';
 import { ConnectionsPage } from './pages/ConnectionsPage.js';
 import { DataExplorerPage } from './pages/DataExplorerPage.js';
 import { HomePage } from './pages/HomePage.js';
 import { JobEditorPage } from './pages/JobEditorPage.js';
-import { JobListPage } from './pages/JobListPage.js';
-import { JobLogPage } from './pages/JobLogPage.js';
+import { JobPage } from './pages/JobPage.js';
 import { JobRunDetailPage } from './pages/JobRunDetailPage.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { ModelsPage } from './pages/ModelsPage.js';
@@ -24,10 +25,24 @@ import { WorkflowDetailPage } from './pages/WorkflowDetailPage.js';
 import { WorkflowListPage } from './pages/WorkflowListPage.js';
 import { WorkflowUploadPage } from './pages/WorkflowUploadPage.js';
 
+/** 应用根节点：界面主题全站生效，并在登录后拉取系统默认主题。 */
+function UiThemeSync() {
+  const { user } = useAuth();
+  const ensureLoaded = useUiThemeStore((s) => s.ensureLoaded);
+  useUiThemeOnDocument();
+
+  useEffect(() => {
+    if (user) ensureLoaded();
+  }, [user, ensureLoaded]);
+
+  return null;
+}
+
 export function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <UiThemeSync />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route
@@ -56,6 +71,26 @@ export function App() {
               <RequireAuth>
                 <RequireCap cap="dashboard.view">
                   <DashboardEditorPage readOnly />
+                </RequireCap>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/jobs/new"
+            element={
+              <RequireAuth>
+                <RequireCap cap="job">
+                  <JobEditorPage />
+                </RequireCap>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/jobs/:id"
+            element={
+              <RequireAuth>
+                <RequireCap cap="job">
+                  <JobEditorPage />
                 </RequireCap>
               </RequireAuth>
             }
@@ -127,34 +162,12 @@ export function App() {
               path="/jobs"
               element={
                 <RequireCap cap="job">
-                  <JobListPage />
+                  <JobPage />
                 </RequireCap>
               }
             />
-            <Route
-              path="/job-logs"
-              element={
-                <RequireCap cap="job">
-                  <JobLogPage />
-                </RequireCap>
-              }
-            />
-            <Route
-              path="/jobs/new"
-              element={
-                <RequireCap cap="job">
-                  <JobEditorPage />
-                </RequireCap>
-              }
-            />
-            <Route
-              path="/jobs/:id"
-              element={
-                <RequireCap cap="job">
-                  <JobEditorPage />
-                </RequireCap>
-              }
-            />
+            {/* 旧地址兼容：Job 日志已并入 /jobs 的「日志」页签 */}
+            <Route path="/job-logs" element={<Navigate to="/jobs?tab=logs" replace />} />
             <Route
               path="/job-runs/:id"
               element={

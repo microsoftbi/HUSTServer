@@ -25,7 +25,7 @@ export interface RunContext {
   /** 「运行至此」的目标节点；为空表示全量运行。 */
   targetNodeId?: string;
   session: DuckSession;
-  status: 'running' | 'success' | 'error';
+  status: 'running' | 'success' | 'error' | 'canceled';
   nodeStatus: Map<string, NodeRunStatus>;
   nodeResults: Map<string, NodeResultState>;
   subscribers: Set<ServerResponse>;
@@ -44,6 +44,8 @@ export interface RunContext {
   writeModel?: ModelWriteHook;
   /** 已被钉住（缓存），不随 TTL 回收。 */
   pinned?: boolean;
+  /** 已请求取消：当前节点结束后停止执行剩余节点。 */
+  cancelled?: boolean;
 }
 
 /** 被钉住（冻结）的缓存：会话与其上游节点结果在会话存活期内长期保留。 */
@@ -217,6 +219,21 @@ export function getRun(runId: string): RunContext | null {
   const ctx = runs.get(runId);
   if (ctx) ctx.lastAccess = Date.now();
   return ctx ?? null;
+}
+
+/**
+ * 请求取消运行：只置标志，执行器在当前节点结束后停止。
+ * 返回 false 表示运行不存在或已处于终态。
+ */
+export function cancelRun(runId: string): boolean {
+  const ctx = runs.get(runId);
+  if (!ctx) return false;
+  if (ctx.status !== 'running') return false;
+  if (ctx.cancelled) return true;
+  ctx.cancelled = true;
+  ctx.lastAccess = Date.now();
+  publishLog(ctx, 'warn', '收到取消请求，将在当前节点结束后停止');
+  return true;
 }
 
 export function disposeRun(runId: string): void {

@@ -4,6 +4,8 @@ import { Button } from '../components/ui/button.js';
 import { api, ApiClientError } from '../api';
 import type { WorkflowConnectionNode, WorkflowDetail } from '../types';
 import { WorkflowDesigner, type DesignerAdapter } from '@hustserver/workflow-designer';
+import { canvasTheme } from '../features/theme/themes.js';
+import { useCanvasThemeOnDocument } from '../features/theme/themeStore.js';
 import type {
   ColumnMeta,
   NodeResultEvent,
@@ -40,6 +42,7 @@ interface RunSnapshot {
 /** 平台侧运行状态 → 设计器运行状态。 */
 function mapRunStatus(status: string): RunStatusEvent['status'] {
   if (status === 'success') return 'success';
+  if (status === 'canceled') return 'canceled';
   if (status === 'running' || status === 'pending' || status === 'queued') return 'running';
   return 'error';
 }
@@ -96,10 +99,8 @@ export function WorkflowDesignerPage() {
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    document.documentElement.classList.add('dark');
-    return () => document.documentElement.classList.remove('dark');
-  }, []);
+  // 画布主题（设置中可切换）；不论深浅都按主题的 colorMode 设置 html.dark。
+  const theme = useCanvasThemeOnDocument();
 
   useEffect(() => {
     let cancelled = false;
@@ -225,6 +226,23 @@ export function WorkflowDesignerPage() {
       unpinCache: async (cacheToken) => {
         await api.del(`/api/runs/cache/${encodeURIComponent(cacheToken)}`);
       },
+      // 取消运行：引擎在当前节点结束后停止，剩余节点标记为跳过。
+      cancelRun: async (runId) => {
+        await api.post(`/api/runs/${encodeURIComponent(runId)}/cancel`);
+      },
+      // 补拉运行日志：SSE 订阅晚于运行结束时用于补齐历史。
+      loadLogs: async (runId) => {
+        const res = await api.get<{
+          items: Array<{ ts: number; level: RunLogEvent['level']; node_id: string | null; message: string }>;
+        }>(`/api/runs/${encodeURIComponent(runId)}/logs?limit=2000`);
+        return res.items.map((row) => ({
+          runId,
+          level: row.level,
+          message: row.message,
+          ts: row.ts,
+          ...(row.node_id ? { nodeId: row.node_id } : {}),
+        }));
+      },
       // 订阅运行事件流；SSE 不重放历史事件，故在终态 / done 时用快照补齐。
       subscribeRun: (runId, handlers) => {
         const es = new EventSource(`/api/runs/${runId}/events`);
@@ -340,6 +358,7 @@ export function WorkflowDesignerPage() {
     <WorkflowDesigner
       initialWorkflow={workflow}
       adapter={adapter}
+      colorMode={canvasTheme(theme).colorMode}
       onExit={() => navigate(isNew ? '/workflows' : `/workflows/${id}`)}
     />
   );

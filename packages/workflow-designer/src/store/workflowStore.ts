@@ -18,6 +18,25 @@ import type {
 /** 运行日志最多保留的条数。 */
 const MAX_LOGS = 2000;
 
+/** 撤销栈最多保留的快照数。 */
+const MAX_HISTORY = 60;
+/** 连续同类操作（拖动/连续输入）在该毫秒窗口内合并为一步撤销。 */
+const HISTORY_MERGE_MS = 700;
+
+/** 撤销/重做使用的画布快照。 */
+interface GraphSnapshot {
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  selectedNodeId: string | null;
+}
+
+/** 节点剪贴板（模块级，不参与渲染）。 */
+let clipboard: WorkflowNode | null = null;
+/** 最近一次记录历史的操作键与时间，用于合并连续操作。 */
+let lastHistoryKey: string | null = null;
+let lastHistoryAt = 0;
+
+
 /** 预览条目：按节点缓存加载态与数据。 */
 export interface PreviewEntry {
   loading?: boolean;
@@ -155,6 +174,10 @@ interface WorkflowState {
   selectedNodeId: string | null;
   dirty: boolean;
 
+  /* 撤销/重做历史（节点与连线快照） */
+  past: GraphSnapshot[];
+  future: GraphSnapshot[];
+
   /* 各节点输出列（运行成功后回填，用于配置面板列下拉） */
   nodeColumns: Record<string, ColumnMeta[]>;
 
@@ -167,7 +190,7 @@ interface WorkflowState {
 
   /* 运行状态 */
   runId: string | null;
-  runStatus: 'idle' | 'running' | 'success' | 'error';
+  runStatus: 'idle' | 'running' | 'success' | 'error' | 'canceled';
   nodeStatus: Record<string, NodeRunStatus>;
   nodeResults: Record<string, NodeResultState>;
   logs: RunLogEvent[];
@@ -198,6 +221,10 @@ interface WorkflowState {
   clearCache: () => Promise<void>;
   loadPreview: (nodeId: string, limit?: number) => Promise<void>;
   fetchSchemas: (runId: string, nodeIds: string[]) => Promise<void>;
+  /** 请求取消当前运行。 */
+  cancel: () => Promise<void>;
+  /** 从服务端补拉日志（SSE 订阅竞态时补齐）。 */
+  loadRunLogs: (runId: string) => Promise<void>;
   clearLogs: () => void;
   clearRunState: () => void;
   updateSettings: (patch: Partial<AppSettings>) => void;
@@ -212,10 +239,22 @@ interface WorkflowState {
   updateNodeName: (nodeId: string, name: string) => void;
   updateNodeConfig: (nodeId: string, config: Record<string, unknown>) => void;
   setNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
+  /** 批量更新节点坐标（多选拖动）。 */
+  setNodePositions: (positions: Record<string, { x: number; y: number }>) => void;
   removeNode: (nodeId: string) => void;
+  /** 切换节点禁用状态（运行时 bypass）。 */
+  toggleNodeDisabled: (nodeId: string) => void;
   addEdge: (edge: { source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null }) => void;
   removeEdge: (edgeId: string) => void;
   selectNode: (nodeId: string | null) => void;
+
+  /* 编辑历史与剪贴板 */
+  undo: () => void;
+  redo: () => void;
+  copyNode: (nodeId?: string) => boolean;
+  pasteNode: () => void;
+  /** 复制并粘贴指定节点（右键菜单「复制节点」）。 */
+  duplicateNode: (nodeId: string) => void;
 
   /* 工作流操作 */
   setWorkflowName: (name: string) => void;
@@ -267,6 +306,29 @@ function reachable(edges: WorkflowEdge[], from: string, to: string): boolean {
   return false;
 }
 
+/**
+ * 在变更前记录一份快照。
+ * key 相同的连续操作（拖动节点、连续改配置）在 HISTORY_MERGE_MS 内合并为一步。
+ */
+function withHistory(
+  state: WorkflowState,
+  key?: string,
+): Partial<Pick<WorkflowState, 'past' | 'future'>> {
+  const now = Date.now();
+  if (key && lastHistoryKey === key && now - lastHistoryAt < HISTORY_MERGE_MS) {
+    lastHistoryAt = now;
+    return {};
+  }
+  lastHistoryKey = key ?? null;
+  lastHistoryAt = now;
+  const snapshot: GraphSnapshot = {
+    nodes: state.nodes,
+    edges: state.edges,
+    selectedNodeId: state.selectedNodeId,
+  };
+  return { past: [...state.past, snapshot].slice(-MAX_HISTORY), future: [] };
+}
+
 export const useWorkflowStore = create<WorkflowState>()((set, get) => ({
   workflowId: null,
   workflowName: '未命名工作流',
@@ -275,6 +337,8 @@ export const useWorkflowStore = create<WorkflowState>()((set, get) => ({
   edges: [],
   selectedNodeId: null,
   dirty: false,
+  past: [],
+  future: [],
 
   nodeColumns: {},
   inputSchemas: {},
@@ -442,6 +506,10 @@ export const useWorkflowStore = create<WorkflowState>()((set, get) => ({
             if (selected) void get().loadPreview(selected);
             void get().fetchSchemas(runId, runScopeIds);
           }
+          if (event.status !== 'running') {
+            // 终态补拉日志：快速运行的日志可能早于订阅建立。
+            void get().loadRunLogs(runId);
+          }
         },
         onError: () => {
           /* EventSource 断开会由宿主自动重连；结束时由 onRunStatus 关闭 */
@@ -523,8 +591,63 @@ export const useWorkflowStore = create<WorkflowState>()((set, get) => ({
     set({ nodeColumns: columns });
   },
 
-  clearLogs: () => set({ logs: [] }),
+  cancel: async () => {
+    const { runId, runHost, runStatus } = get();
+    if (!runId || runStatus !== 'running' || !runHost?.cancelRun) return;
+    try {
+      await runHost.cancelRun(runId);
+      set((state) => ({
+        logs: [
+          ...state.logs,
+          {
+            runId,
+            level: 'warn' as const,
+            message: '已请求取消，将在当前节点结束后停止。',
+            ts: Date.now(),
+          },
+        ],
+      }));
+    } catch (error) {
+      set((state) => ({
+        logs: [
+          ...state.logs,
+          {
+            runId,
+            level: 'error' as const,
+            message: `取消失败：${error instanceof Error ? error.message : String(error)}`,
+            ts: Date.now(),
+          },
+        ],
+      }));
+    }
+  },
 
+  loadRunLogs: async (runId) => {
+    const { runHost } = get();
+    if (!runId || !runHost?.loadLogs) return;
+    let fetched: RunLogEvent[];
+    try {
+      fetched = await runHost.loadLogs(runId);
+    } catch {
+      return;
+    }
+    if (fetched.length === 0) return;
+    set((state) => {
+      const seen = new Set(state.logs.map((item) => `${item.ts}|${item.level}|${item.message}`));
+      const merged = [...state.logs];
+      for (const item of fetched) {
+        const key = `${item.ts}|${item.level}|${item.message}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(item);
+        }
+      }
+      merged.sort((a, b) => a.ts - b.ts);
+      return { logs: merged.slice(-MAX_LOGS) };
+    });
+  },
+
+  clearLogs: () => set({ logs: [] }),
   clearRunState: () => {
     unsubscribe?.();
     unsubscribe = null;
@@ -567,6 +690,7 @@ export const useWorkflowStore = create<WorkflowState>()((set, get) => ({
       config: structuredClone(meta.defaultConfig),
     };
     set((state) => ({
+      ...withHistory(state),
       nodes: [...state.nodes, node],
       selectedNodeId: node.id,
       dirty: true,
@@ -575,12 +699,14 @@ export const useWorkflowStore = create<WorkflowState>()((set, get) => ({
 
   updateNodeName: (nodeId, name) =>
     set((state) => ({
+      ...withHistory(state, `rename:${nodeId}`),
       nodes: state.nodes.map((node) => (node.id === nodeId ? { ...node, name } : node)),
       dirty: true,
     })),
 
   updateNodeConfig: (nodeId, config) =>
     set((state) => ({
+      ...withHistory(state, `config:${nodeId}`),
       nodes: state.nodes.map((node) => (node.id === nodeId ? { ...node, config } : node)),
       dirty: true,
       previews: {},
@@ -588,16 +714,41 @@ export const useWorkflowStore = create<WorkflowState>()((set, get) => ({
 
   setNodePosition: (nodeId, position) =>
     set((state) => ({
+      ...withHistory(state, `move:${nodeId}`),
       nodes: state.nodes.map((node) => (node.id === nodeId ? { ...node, position } : node)),
       dirty: true,
     })),
 
+  setNodePositions: (positions) =>
+    set((state) => {
+      const ids = Object.keys(positions);
+      if (ids.length === 0) return {};
+      return {
+        ...withHistory(state, `move:${ids.slice().sort().join(',')}`),
+        nodes: state.nodes.map((node) =>
+          positions[node.id] ? { ...node, position: positions[node.id] } : node,
+        ),
+        dirty: true,
+      };
+    }),
+
   removeNode: (nodeId) =>
     set((state) => ({
+      ...withHistory(state),
       nodes: state.nodes.filter((node) => node.id !== nodeId),
       edges: state.edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
       selectedNodeId: state.selectedNodeId === nodeId ? null : state.selectedNodeId,
       dirty: true,
+    })),
+
+  toggleNodeDisabled: (nodeId) =>
+    set((state) => ({
+      ...withHistory(state),
+      nodes: state.nodes.map((node) =>
+        node.id === nodeId ? { ...node, disabled: !node.disabled } : node,
+      ),
+      dirty: true,
+      previews: {},
     })),
 
   addEdge: ({ source, target, sourceHandle, targetHandle }) => {
@@ -645,16 +796,81 @@ export const useWorkflowStore = create<WorkflowState>()((set, get) => ({
       sourceHandle: srcHandle,
       targetHandle: handle,
     };
-    set({ edges: [...edges, edge], dirty: true });
+    set((state) => ({ ...withHistory(state), edges: [...state.edges, edge], dirty: true }));
   },
 
   removeEdge: (edgeId) =>
     set((state) => ({
+      ...withHistory(state),
       edges: state.edges.filter((edge) => edge.id !== edgeId),
       dirty: true,
     })),
 
   selectNode: (nodeId) => set({ selectedNodeId: nodeId }),
+
+  undo: () => {
+    const { past, future, nodes, edges, selectedNodeId } = get();
+    const previous = past[past.length - 1];
+    if (!previous) return;
+    lastHistoryKey = null;
+    set({
+      past: past.slice(0, -1),
+      future: [...future, { nodes, edges, selectedNodeId }].slice(-MAX_HISTORY),
+      nodes: previous.nodes,
+      edges: previous.edges,
+      selectedNodeId: previous.selectedNodeId,
+      dirty: true,
+      previews: {},
+    });
+  },
+
+  redo: () => {
+    const { past, future, nodes, edges, selectedNodeId } = get();
+    const next = future[future.length - 1];
+    if (!next) return;
+    lastHistoryKey = null;
+    set({
+      past: [...past, { nodes, edges, selectedNodeId }].slice(-MAX_HISTORY),
+      future: future.slice(0, -1),
+      nodes: next.nodes,
+      edges: next.edges,
+      selectedNodeId: next.selectedNodeId,
+      dirty: true,
+      previews: {},
+    });
+  },
+
+  copyNode: (nodeId) => {
+    const targetId = nodeId ?? get().selectedNodeId;
+    const node = targetId ? get().nodes.find((item) => item.id === targetId) : undefined;
+    if (!node) return false;
+    clipboard = structuredClone(node);
+    return true;
+  },
+
+  pasteNode: () => {
+    if (!clipboard) return;
+    const state = get();
+    const base = structuredClone(clipboard);
+    const node: WorkflowNode = {
+      ...base,
+      id: nextNodeId(state.nodes),
+      // 每次粘贴向右下错开，连续粘贴不会重叠。
+      position: { x: base.position.x + 40, y: base.position.y + 40 },
+    };
+    clipboard = structuredClone(node);
+    set({
+      ...withHistory(state),
+      nodes: [...state.nodes, node],
+      selectedNodeId: node.id,
+      dirty: true,
+    });
+  },
+
+  duplicateNode: (nodeId) => {
+    if (!get().copyNode(nodeId)) return;
+    get().pasteNode();
+  },
 
   setWorkflowName: (name) => set({ workflowName: name, dirty: true }),
 
@@ -679,6 +895,8 @@ export const useWorkflowStore = create<WorkflowState>()((set, get) => ({
       })),
       selectedNodeId: null,
       dirty: false,
+      past: [],
+      future: [],
       inputSchemas: {},
       inputSchemaSignatures: {},
       nodeColumns: {},

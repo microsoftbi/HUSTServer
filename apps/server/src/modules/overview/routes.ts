@@ -18,6 +18,7 @@ const SOURCES = {
   connections: 'connections',
   jobs: 'jobs',
   users: 'users',
+  audits: 'audit_logs',
 } as const;
 
 type Source = keyof typeof SOURCES;
