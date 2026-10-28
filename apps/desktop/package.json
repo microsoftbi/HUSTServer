@@ -1,0 +1,19 @@
+{
+  "name": "@hustserver/desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "个人数据工作台 macOS 桌面版",
+  "main": "dist/main.js",
+  "scripts": {
+    "build:main": "node scripts/build-main.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "dev": "pnpm build:main && HUSTSERVER_DESKTOP_DEV=1 electron .",
+    "dist": "node scripts/package.mjs"
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.25.12",
+    "typescript": "^5.6.3"
+  }
+}

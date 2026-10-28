@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Copy,
   Download,
+  FileSpreadsheet,
   Image,
   Filter,
   Layers,
@@ -76,6 +77,8 @@ import type {
   Column,
   DashboardTheme,
   FilterCondition,
+  Measure,
+  NamedMeasure,
   PageConfig,
   PageViewFit,
   SlicerConfig,
@@ -90,7 +93,8 @@ import { DEFAULT_WIDGET_STYLE, PAGE_PRESETS, matchPreset, pageOf } from "@bi/lib
 import { BUTTON_ACTIONS, BUTTON_LABELS, defaultDecoration, isDecoration } from "@bi/lib/decoration";
 import { conditionFilters } from "@bi/lib/filter";
 import { setChartPalette } from "./lib/chart";
-import { copyImageToClipboard, downloadCsv, downloadPdf, downloadPng, timestamp } from "./lib/export";
+import { copyImageToClipboard, downloadBlob, downloadCsv, downloadPdf, downloadPng, timestamp, toCsv } from "./lib/export";
+import { downloadExcel, type ExportSheet } from "./lib/xlsx";
 import { widgetTable } from "./lib/widgetData";
 import { DataTable } from "./components/DataTable";
 
@@ -795,8 +799,34 @@ export function DashboardView({
     } else if (!enc.series) {
       updateWidget(target.id, { encoding: { ...enc, series: col.name } });
     } else {
-      updateWidget(target.id, { encoding: { ...enc, dimension: col.name } });
+      // 替换主维度时清空多字段层级，避免残留旧层级
+      updateWidget(target.id, {
+        encoding: { ...enc, dimension: col.name, extraDimensions: undefined },
+      });
     }
+  }
+
+  /** 点击数据窗格里的命名度量：与数值字段一样进入度量井 */
+  function handlePickMeasure(m: NamedMeasure) {
+    let target = selected;
+    const needNew =
+      !target ||
+      isDecoration(target.type) ||
+      target.type === "filter" ||
+      target.datasetId !== browseDataset?.id;
+    if (!target || needNew) {
+      target = createWidget("bar");
+      if (!target) return;
+    }
+    const measure: Measure = { field: m.name, agg: "sum", measureId: m.id };
+    const enc = target.encoding;
+    if (target.type === "decomposition") {
+      updateWidget(target.id, { encoding: { ...enc, measures: [measure] } });
+      return;
+    }
+    updateWidget(target.id, {
+      encoding: { ...enc, measures: [...enc.measures, measure] },
+    });
   }
 
   function handleSelectDataset(id: string) {
@@ -1041,6 +1071,72 @@ export function DashboardView({
     toast.success("已导出数据");
   }
 
+  function exportWidgetExcel(widget: ChartWidget) {
+    const table = tableOf(widget);
+    if (table.headers.length === 0) {
+      toast.error("该视觉对象暂无可导出的数据");
+      return;
+    }
+    const name = widget.title.trim() || "视觉对象";
+    downloadExcel(`${name}-${timestamp()}.xlsx`, [
+      { name, headers: table.headers, rows: table.rows },
+    ]);
+    toast.success("已导出 Excel");
+  }
+
+  /** 可导出的视觉对象：跳过装饰元素、切片器、隐藏项与无度量的图表 */
+  function exportableWidgets(): ChartWidget[] {
+    return widgets.filter(
+      (w) =>
+        !w.hidden &&
+        !isDecoration(w.type) &&
+        w.type !== "filter" &&
+        w.encoding.measures.length > 0,
+    );
+  }
+
+  /** 导出当前页全部视觉对象：每个视觉对象一张工作表 */
+  function exportPageExcel() {
+    const sheets: ExportSheet[] = [];
+    exportableWidgets().forEach((w, i) => {
+      const table = tableOf(w);
+      if (table.headers.length === 0) return;
+      sheets.push({
+        name: w.title.trim() || `视觉对象 ${i + 1}`,
+        headers: table.headers,
+        rows: table.rows,
+      });
+    });
+    if (sheets.length === 0) {
+      toast.error("当前页暂无可导出的数据");
+      return;
+    }
+    downloadExcel(`${active?.name || "仪表板"}-${timestamp()}.xlsx`, sheets);
+    toast.success(`已导出 ${sheets.length} 个视觉对象`);
+  }
+
+  /** 导出当前页全部视觉对象：单个 CSV，按视觉对象分节（# 标题 + 表头 + 数据） */
+  function exportPageCsv() {
+    const blocks: string[] = [];
+    exportableWidgets().forEach((w, i) => {
+      const table = tableOf(w);
+      if (table.headers.length === 0) return;
+      blocks.push(
+        `# ${w.title.trim() || `视觉对象 ${i + 1}`}`,
+        toCsv(table.headers, table.rows),
+      );
+    });
+    if (blocks.length === 0) {
+      toast.error("当前页暂无可导出的数据");
+      return;
+    }
+    downloadBlob(
+      new Blob([`\ufeff${blocks.join("\r\n\r\n")}`], { type: "text/csv;charset=utf-8" }),
+      `${active?.name || "仪表板"}-${timestamp()}.csv`,
+    );
+    toast.success("已导出 CSV");
+  }
+
   /** 焦点模式下导出图像 */
   async function exportFocusImage() {
     const node = focusCardRef.current;
@@ -1182,6 +1278,18 @@ export function DashboardView({
                     label="复制图像"
                     disabled={!active}
                     onClick={() => void copyPageImage()}
+                  />
+                  <RibbonButton
+                    Icon={FileSpreadsheet}
+                    label="导出 Excel"
+                    disabled={!active}
+                    onClick={exportPageExcel}
+                  />
+                  <RibbonButton
+                    Icon={FileSpreadsheet}
+                    label="导出 CSV"
+                    disabled={!active}
+                    onClick={exportPageCsv}
                   />
                 </RibbonGroup>
                 <div className="mx-1 w-px self-stretch bg-border" />
@@ -1364,6 +1472,24 @@ export function DashboardView({
                 <Download className="h-3.5 w-3.5" />
                 PDF
               </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 gap-1 px-2 text-xs"
+                onClick={exportPageExcel}
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                Excel
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 gap-1 px-2 text-xs"
+                onClick={exportPageCsv}
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                CSV
+              </Button>
             </div>
           ) : null}
 
@@ -1514,6 +1640,7 @@ export function DashboardView({
               datasetId={browseDataset?.id ?? null}
               onSelectDataset={handleSelectDataset}
               onPickField={handlePickField}
+              onPickMeasure={handlePickMeasure}
               onAddDataset={onAddDataset}
             />
             {selectionOpen && (
@@ -1652,6 +1779,17 @@ export function DashboardView({
                     <Download className="h-3.5 w-3.5" />
                     导出数据（CSV）
                   </button>
+                  <button
+                    type="button"
+                    className={item}
+                    onClick={() => {
+                      exportWidgetExcel(target);
+                      setMenu(null);
+                    }}
+                  >
+                    <FileSpreadsheet className="h-3.5 w-3.5" />
+                    导出数据（Excel）
+                  </button>
                 </div>
               </>
             );
@@ -1750,6 +1888,12 @@ export function DashboardView({
               onClick={() => dataWidget && exportWidgetCsv(dataWidget)}
             >
               导出 CSV
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => dataWidget && exportWidgetExcel(dataWidget)}
+            >
+              导出 Excel
             </Button>
             <Button onClick={() => setDataId(null)}>关闭</Button>
           </DialogFooter>

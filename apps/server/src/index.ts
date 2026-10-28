@@ -1,6 +1,4 @@
 import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import fastifyStatic from '@fastify/static';
 import { ensureBootstrapAdmin } from './bootstrap.js';
 import { ensureDirs, loadConfig, type AppConfig } from './config.js';
@@ -42,9 +40,8 @@ async function main(): Promise<void> {
   await ensureBootstrapAdmin(db, runtimeConfig, app.log);
 
   // 前端静态资源 + SPA 回退（/api/* 仍返回 JSON 404）。
-  // src 与 dist 下此处均解析到 apps/web/dist。
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const webDir = path.resolve(here, '../../web/dist');
+  // 默认解析到 apps/web/dist；桌面版通过 HUSTSERVER_WEB_DIR 指向应用内资源目录。
+  const webDir = cfg.webDir;
   if (fs.existsSync(webDir)) {
     await app.register(fastifyStatic, { root: webDir, prefix: '/' });
     app.setNotFoundHandler((req, reply) => {

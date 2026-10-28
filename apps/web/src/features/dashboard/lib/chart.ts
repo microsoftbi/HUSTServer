@@ -1,4 +1,5 @@
 import type { AggregateFn, ChartType, Measure, WidgetEncoding } from "@bi/types";
+import { axisFields } from "./aggregate";
 
 export const CHART_COLORS = [
   "#2563eb",
@@ -89,9 +90,9 @@ export function measureLabel(m: Measure): string {
  */
 export function autoTitle(encoding: WidgetEncoding): string {
   const measures = encoding.measures.map(measureLabel).join("、");
-  if (encoding.dimension) {
-    return measures ? `${measures} 按 ${encoding.dimension}` : encoding.dimension;
-  }
+  // X 轴多字段自动成层时，标题体现完整层级
+  const axis = axisFields(encoding).join(" / ");
+  if (axis) return measures ? `${measures} 按 ${axis}` : axis;
   return measures;
 }
 

@@ -17,6 +17,78 @@ export interface FieldFormat {
   thousands: boolean;
   /** 显示单位 */
   unit: NumberUnit;
+  /** 以百分比显示（值先 ×100 并追加 %） */
+  percent?: boolean;
+}
+
+/** 条件格式：数据条 / 色阶 / 图标 / 规则（对齐 Power BI 的条件格式） */
+export type ConditionalMode = 'none' | 'dataBar' | 'colorScale' | 'iconSet' | 'rules';
+
+/** 规则型条件格式的比较方式 */
+export type ConditionalOperator = 'gt' | 'gte' | 'lt' | 'lte' | 'eq';
+
+/** 规则阈值的来源：固定值，或当前列/系列的统计量（动态阈值） */
+export type ConditionalThreshold = 'value' | 'avg' | 'median' | 'max' | 'min';
+
+export interface ConditionalRule {
+  id: string;
+  operator: ConditionalOperator;
+  /** 阈值来源：固定值 / 均值 / 中位数 / 最大 / 最小 */
+  threshold: ConditionalThreshold;
+  /** 固定阈值（threshold === 'value' 时使用） */
+  value?: number;
+  /** 命中后的文字颜色 */
+  color?: string;
+  /** 命中后的填充色 */
+  background?: string;
+  bold?: boolean;
+}
+
+export interface ConditionalFormat {
+  mode: ConditionalMode;
+  /** 作用于哪些度量列（聚合 key）；空数组表示全部数值列 */
+  fields?: string[];
+  /** 数据条颜色 */
+  barColor: string;
+  /** 色阶：最小值色 / 中间值色 / 最大值色 */
+  minColor: string;
+  midColor: string;
+  maxColor: string;
+  /** 是否使用三色色阶（false 则 min→max 双色） */
+  threeColor: boolean;
+  /** 图标集颜色 */
+  iconColor: string;
+  /** 规则列表（mode === 'rules' 生效，命中第一条即止） */
+  rules: ConditionalRule[];
+}
+
+/** 参考线（均值 / 中位数 / 目标值 / 固定值） */
+export type ReferenceKind = 'avg' | 'median' | 'max' | 'min' | 'target' | 'value';
+
+export interface ReferenceLine {
+  id: string;
+  kind: ReferenceKind;
+  /** 目标值 / 固定值的数值（kind 为 target / value 时必填） */
+  value?: number;
+  label?: string;
+  color: string;
+  dashed: boolean;
+}
+
+/** 目标带（区间阴影） */
+export interface ReferenceBand {
+  id: string;
+  from: number;
+  to: number;
+  label?: string;
+  color: string;
+  /** 填充不透明度（0-100） */
+  opacity: number;
+}
+
+export interface WidgetReference {
+  lines: ReferenceLine[];
+  bands: ReferenceBand[];
 }
 
 export type ChartType =
@@ -149,15 +221,77 @@ export interface DecompositionConfig {
   expansions: Record<string, string>;
 }
 
+/** 时间对比：同比（YoY）/ 环比（MoM 等），在聚合结果上按日期维度错位求值 */
+export type TimeCompareKind = 'yoy' | 'mom' | 'qoq' | 'wow' | 'dod';
+
+export interface TimeCompare {
+  kind: TimeCompareKind;
+  /** 用于分片的日期字段（缺省取视觉对象的日期维度） */
+  field?: string;
+}
+
+/**
+ * 命名度量（对齐 Power BI 的「度量值」）：把重复的 `sum(amount)` 收成一个可复用表达式。
+ * 表达式语法：SUM/AVG/MIN/MAX/COUNT([字段])、[其它度量名]、+ - * / 、括号、divide(a,b)。
+ */
+export interface NamedMeasure {
+  id: string;
+  name: string;
+  /** 表达式文本，字段名与度量名用 [] 包裹 */
+  expression: string;
+  /** 显示格式（覆盖字段格式） */
+  format?: FieldFormat;
+  /** 时间对比（每行与上一周期对齐） */
+  timeCompare?: TimeCompare;
+}
+
 export interface Measure {
   field: string;
   agg: AggregateFn;
+  /** 指向命名度量：存在时忽略 field / agg 的语义，按表达式求值 */
+  measureId?: string;
 }
 
 export interface WidgetEncoding {
+  /** 主维度字段（第 1 层） */
   dimension?: string;
+  /**
+   * X 轴第 2 层起的字段（按顺序）：拖入多个维度时自动构成层级，
+   * 与 `dimension` 一起由轴向聚合、下钻与展开共用同一套口径。
+   */
+  extraDimensions?: string[];
   measures: Measure[];
   series?: string;
+}
+
+/** 视觉对象级排序（对齐 Power BI 的「排序轴 / 按值排序」） */
+export interface WidgetSort {
+  /** 排序依据：维度标签，或某个度量 */
+  by: 'dimension' | 'measure';
+  /** 度量 key（`agg(field)`）；by === 'measure' 时缺省使用首个度量 */
+  measure?: string;
+  /** 是否降序 */
+  desc: boolean;
+}
+
+/** 视觉对象级「前 N 项」（对齐 Power BI 的 Top N 筛选） */
+export interface WidgetTopN {
+  /** 保留的项数 */
+  n: number;
+  /** 其余项合并为「其它」 */
+  other: boolean;
+}
+
+/** 钻取层级：可逐层下钻的字段路径与当前所在层 */
+export interface DrillState {
+  /** 钻取井中的额外层级字段（排在 X 轴字段之后） */
+  path: string[];
+  /** 当前层级下标（从 0 开始，相对「X 轴字段 + 钻取字段」的完整层级） */
+  level: number;
+  /** 各上层已选中的标签值，长度等于 level */
+  selections: string[];
+  /** 显示方式：drill 只显示当前层（默认）；expand 同时显示 0…level 各层 */
+  mode?: 'drill' | 'expand';
 }
 
 export interface WidgetLayout {
@@ -317,7 +451,14 @@ export interface ChartWidget {
   showTitle?: boolean;
   showLegend?: boolean;
   mapRegion?: MapRegion;
+  /** 数据透视表 / 表格是否显示行列总计 */
   showTotals?: boolean;
+  /** 视觉对象级排序：按维度或某个度量 */
+  sort?: WidgetSort;
+  /** 视觉对象级前 N 项：只保留前 N 个分组，可把其余合并为「其它」 */
+  topN?: WidgetTopN;
+  /** 钻取层级：配置后可在图表上逐层下钻 */
+  drill?: DrillState;
   /** 仅树状图使用：配色、标签与间距配置 */
   treemap?: TreemapConfig;
   /** 仅分解树使用：可依次用于展开节点的维度字段 */
@@ -328,6 +469,10 @@ export interface ChartWidget {
   filterFields?: string[];
   /** 仅切片器使用：外观与交互配置 */
   slicer?: SlicerConfig;
+  /** 条件格式：数据条 / 色阶 / 图标 / 规则（表格、矩阵、柱形图） */
+  conditional?: ConditionalFormat;
+  /** 参考线与目标带（柱形图 / 折线图等直角坐标系图表） */
+  reference?: WidgetReference;
   /** 视图 → 选择窗格：隐藏视觉对象（保留在列表中，画布与展示均不渲染） */
   hidden?: boolean;
   /** 视图 → 选择窗格 → Tab 顺序：键盘导航顺序（越小越靠前） */
@@ -385,6 +530,8 @@ export interface QueryResult {
   columns: QueryColumn[];
   rows: CellValue[][];
   truncated: boolean;
+  /** 查询返回的总行数（未截断时等于 rows.length） */
+  totalRows?: number;
 }
 
 export type DatasetSource = 'csv' | 'excel' | 'sql' | 'model';
@@ -401,6 +548,8 @@ export interface SavedDataset {
   def: DatasetDef;
   /** 字段级数值格式：列名 → 格式 */
   formats?: Record<string, FieldFormat>;
+  /** 命名度量：id → 定义（表达式 / 格式 / 时间对比） */
+  measures?: Record<string, NamedMeasure>;
 }
 
 /** 运行时数据集：在 tinybi 的 Dataset 上多带 def，便于回写定义。 */
@@ -414,6 +563,14 @@ export interface Dataset {
   def: DatasetDef;
   /** 字段级数值格式：列名 → 格式 */
   formats?: Record<string, FieldFormat>;
+  /** 命名度量：id → 定义 */
+  measures?: Record<string, NamedMeasure>;
+  /** 最近一次取数时间（ISO），用于展示数据新鲜度 */
+  fetchedAt?: string;
+  /** 源数据总行数；截断时大于 rows.length */
+  rowCount?: number;
+  /** 是否只取回了部分行（聚合需要下推到服务端） */
+  truncated?: boolean;
 }
 
 /** 落库的 JSON 结构。 */

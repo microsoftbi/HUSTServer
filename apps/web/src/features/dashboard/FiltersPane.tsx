@@ -5,6 +5,7 @@ import { Input } from "@bi/components/ui/input";
 import { isDecoration } from "@bi/lib/decoration";
 import { distinctValues } from "@bi/lib/slicer";
 import { filterIsActive } from "@bi/lib/filter";
+import { usePushedDistinct } from "./services/pushdown";
 import { cn, uid } from "@bi/lib/utils";
 import type { ChartWidget, Dataset, FilterCondition, FilterMode } from "@bi/types";
 
@@ -51,9 +52,11 @@ function FilterCard({
   const locked = !!condition.locked;
   const hidden = !!condition.hidden;
 
+  // 截断数据集的候选值走服务端去重，其余保持本地枚举
+  const pushedValues = usePushedDistinct(dataset, condition.field, 1000);
   const values = useMemo(
-    () => distinctValues(dataset, condition.field, 1000),
-    [dataset, condition.field],
+    () => pushedValues ?? distinctValues(dataset, condition.field, 1000),
+    [pushedValues, dataset, condition.field],
   );
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();

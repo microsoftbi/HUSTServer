@@ -64,6 +64,9 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(cookie, { secret: deps.config.sessionSecret });
   await app.register(multipart, { limits: { fileSize: 200 * 1024 * 1024 } });
 
+  // 就绪探测：桌面版主进程轮询该接口后再打开窗口，免鉴权。
+  app.get('/api/health', async () => ({ status: 'ok' }));
+
   const users = usersRepo(deps.db);
   const sessions = sessionsRepo(deps.db);
   const loginLogs = loginLogsRepo(deps.db);

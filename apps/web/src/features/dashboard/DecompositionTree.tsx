@@ -21,14 +21,22 @@ import {
   collectColumns,
   decompositionOf,
   layoutDecomposition,
+  ROOT_KEY,
   valueRatio,
   type DecompBox,
   type DecompNode,
+  type RootLevelAggregate,
 } from "@bi/lib/decomposition";
+import type { CrossFilter, ValueFilter } from "@bi/lib/highlight";
+import { usePushedAggregate } from "./services/pushdown";
 
 interface DecompositionTreeProps {
   widget: ChartWidget;
   dataset: Dataset;
+  /** 仪表板筛选器取值：首层下推时一并传给服务端 */
+  filters?: ValueFilter[] | null;
+  /** 交叉筛选条件：首层下推时一并传给服务端 */
+  crossFilter?: CrossFilter | null;
   /** 展开状态写回视觉对象配置（随仪表板落库） */
   onChange?: (patch: Partial<ChartWidget>) => void;
 }
@@ -58,6 +66,8 @@ const MAX_COL_W = 260;
 export function DecompositionTree({
   widget,
   dataset,
+  filters = null,
+  crossFilter = null,
   onChange,
 }: DecompositionTreeProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -81,15 +91,69 @@ export function DecompositionTree({
   /** 度量字段的数值格式 */
   const valueFormat = dataset.formats?.[measure?.field ?? ""];
 
+  /**
+   * 首层下推：数据集被截断时浏览器只有部分行，本地首层分组会偏小。
+   * 仅当首层展开字段已固定（非 AI 拆分）且聚合可加时才改用服务端聚合。
+   */
+  const rootFieldRaw = config.expansions[ROOT_KEY];
+  const rootField =
+    rootFieldRaw && explainBy.includes(rootFieldRaw) ? rootFieldRaw : undefined;
+  const additive = measure?.agg === "sum" || measure?.agg === "count";
+  const canPushRoot = Boolean(measure && rootField && additive);
+
+  const pushWidget = useMemo<ChartWidget>(() => {
+    if (!canPushRoot || !measure) {
+      // 不存在的度量会让下推规格直接失效，避免多余请求
+      return {
+        ...widget,
+        encoding: { ...widget.encoding, measures: [{ field: "", agg: "sum" }] },
+      };
+    }
+    return {
+      ...widget,
+      encoding: {
+        ...widget.encoding,
+        dimension: rootField,
+        measures: [measure],
+        series: undefined,
+      },
+      drill: undefined,
+    };
+  }, [widget, canPushRoot, measure, rootField]);
+
+  const pushedRoot = usePushedAggregate(pushWidget, dataset, filters, crossFilter);
+
+  const rootLevel = useMemo<RootLevelAggregate | null>(() => {
+    if (!canPushRoot || !rootField || !pushedRoot) return null;
+    const valueKey = pushedRoot.measureKeys[0];
+    if (!valueKey) return null;
+    return {
+      field: rootField,
+      groups: pushedRoot.data.map((row) => ({
+        name: String(row[pushedRoot.dimensionKey] ?? ""),
+        value: Number(row[valueKey] ?? 0),
+      })),
+    };
+  }, [canPushRoot, rootField, pushedRoot]);
+
   const root = useMemo(
     () =>
       measure
         ? buildDecomposition(dataset, measure, explainBy, config.expansions, {
             maxBars: config.maxBars,
             aiSplits: config.aiSplits,
+            rootLevel,
           })
         : null,
-    [dataset, measure, explainBy, config.expansions, config.maxBars, config.aiSplits],
+    [
+      dataset,
+      measure,
+      explainBy,
+      config.expansions,
+      config.maxBars,
+      config.aiSplits,
+      rootLevel,
+    ],
   );
 
   /** 展开状态写回配置：field 为空表示折叠 */

@@ -12,6 +12,8 @@ export interface QueryResult {
   columns: QueryColumn[];
   rows: QueryCell[][];
   truncated: boolean;
+  /** 查询返回的总行数（未截断时等于 rows.length） */
+  totalRows?: number;
 }
 
 export interface TableInfo {
@@ -36,7 +38,7 @@ function inferColumnType(values: unknown[]): QueryColumn['type'] {
   return 'unknown';
 }
 
-function toCell(v: unknown): QueryCell {
+export function toCell(v: unknown): QueryCell {
   if (v === null || v === undefined) return null;
   if (v instanceof Date) return v.toISOString();
   if (typeof v === 'number' || typeof v === 'boolean') return v;
@@ -61,6 +63,7 @@ export async function runQuery(
       columns: names.map((name) => ({ name, type: inferColumnType(recordset.map((r) => r[name])) })),
       rows: recordset.slice(0, cap).map((r) => names.map((n) => toCell(r[n]))),
       truncated: recordset.length > cap,
+      totalRows: recordset.length,
     };
   } finally {
     await pool.close().catch(() => undefined);

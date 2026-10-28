@@ -2,12 +2,20 @@ import { useEffect, useRef, useState } from "react";
 import type {
   ButtonAction,
   ChartWidget,
+  Dataset,
   DecorationConfig,
   TextAlign,
   VerticalAlign,
 } from "@bi/types";
 import { BUTTON_ICONS, decorationOf } from "@bi/lib/decoration";
 import { ShapePath } from "@bi/lib/shapes";
+import {
+  hasPlaceholder,
+  resolveTitleTemplate,
+  titleFormatOf,
+  titleValues,
+} from "@bi/lib/title";
+import type { ValueFilter } from "@bi/lib/highlight";
 
 interface DecorationViewProps {
   widget: ChartWidget;
@@ -15,6 +23,9 @@ interface DecorationViewProps {
   onChange?: (patch: Partial<ChartWidget>) => void;
   /** 按钮点击：按动作类型执行（由仪表板层处理） */
   onButtonAction?: (action: ButtonAction) => void;
+  /** 动态文本占位符 `{sum(销售额)}` 的取数来源 */
+  dataset?: Dataset;
+  filters?: ValueFilter[] | null;
 }
 
 const JUSTIFY: Record<TextAlign, string> = {
@@ -30,7 +41,13 @@ const ALIGN: Record<VerticalAlign, string> = {
 };
 
 /** 装饰元素渲染：文本框 / 图像 / 形状 / 按钮 */
-export function DecorationView({ widget, onChange, onButtonAction }: DecorationViewProps) {
+export function DecorationView({
+  widget,
+  onChange,
+  onButtonAction,
+  dataset,
+  filters,
+}: DecorationViewProps) {
   const cfg = decorationOf(widget);
 
   if (widget.type === "image") {
@@ -54,6 +71,8 @@ export function DecorationView({ widget, onChange, onButtonAction }: DecorationV
       cfg={cfg}
       editable={!!onChange}
       onCommit={(text) => onChange?.({ decoration: { ...cfg, text } })}
+      dataset={dataset}
+      filters={filters}
     />
   );
 }
@@ -62,10 +81,14 @@ function TextDecor({
   cfg,
   editable,
   onCommit,
+  dataset,
+  filters,
 }: {
   cfg: DecorationConfig;
   editable: boolean;
   onCommit: (text: string) => void;
+  dataset?: Dataset;
+  filters?: ValueFilter[] | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(cfg.text);
@@ -95,6 +118,16 @@ function TextDecor({
     setEditing(false);
     if (draft !== cfg.text) onCommit(draft);
   }
+
+  // 动态文本：`本月销售额 {sum(销售额)}` 按当前筛选结果实时计算
+  const display =
+    dataset && hasPlaceholder(cfg.text)
+      ? resolveTitleTemplate(
+          cfg.text,
+          titleValues(cfg.text, dataset, filters),
+          (expr) => titleFormatOf(expr, dataset),
+        )
+      : cfg.text;
 
   return (
     <div
@@ -132,7 +165,7 @@ function TextDecor({
             if (editable) setEditing(true);
           }}
         >
-          {cfg.text || (
+          {display || (
             <span className="text-muted-foreground/60">
               {editable ? "双击编辑文本" : ""}
             </span>

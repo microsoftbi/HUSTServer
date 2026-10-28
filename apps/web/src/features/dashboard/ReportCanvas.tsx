@@ -28,6 +28,7 @@ import type {
 } from "@bi/types";
 import type { HighlightSelection, ValueFilter } from "@bi/lib/highlight";
 import { conditionFilters } from "@bi/lib/filter";
+import { hasPlaceholder, resolveTitleTemplate, titleFormatOf, titleValues } from "@bi/lib/title";
 
 interface ReportCanvasProps {
   widgets: ChartWidget[];
@@ -509,7 +510,11 @@ export function ReportCanvas({
                       : undefined
                 }
               >
-                {title}
+                {hasPlaceholder(title) ? (
+                  <TitleText title={title} dataset={dataset} filters={widgetFilters} />
+                ) : (
+                  title
+                )}
               </div>
             ) : null}
 
@@ -616,4 +621,28 @@ export function ReportCanvas({
       ))}
     </div>
   );
+}
+
+/** 动态标题：把 `{sum(销售额)}` / `{度量名}` 替换为按当前筛选计算出的数值 */
+function TitleText({
+  title,
+  dataset,
+  filters,
+}: {
+  title: string;
+  dataset: Dataset | undefined;
+  filters: ValueFilter[];
+}) {
+  // 筛选条件每次渲染都是新数组，用序列化结果做缓存键，避免无谓重复聚合
+  const filterKey = JSON.stringify(filters);
+  const text = useMemo(() => {
+    if (!dataset) return title;
+    return resolveTitleTemplate(
+      title,
+      titleValues(title, dataset, filters),
+      (expr) => titleFormatOf(expr, dataset),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, dataset, filterKey]);
+  return <>{text}</>;
 }

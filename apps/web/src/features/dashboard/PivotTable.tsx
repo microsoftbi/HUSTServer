@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { buildPivot } from "@bi/lib/pivot";
 import { formatCell } from "@bi/lib/format";
-import type { FieldFormat } from "@bi/types";
+import type { CellDecor } from "@bi/lib/conditional";
+import type { CellValue, FieldFormat } from "@bi/types";
 import { cellOpacity, type HighlightSelection } from "@bi/lib/highlight";
 
 interface PivotTableProps {
@@ -17,6 +18,8 @@ interface PivotTableProps {
   highlight?: HighlightSelection | null;
   /** 字段级数值格式（key 为列名） */
   formats?: Record<string, FieldFormat>;
+  /** 条件格式装饰：按列名与单元格值返回装饰（数据条 / 色阶 / 图标 / 规则） */
+  decor?: (column: string, value: CellValue) => CellDecor | null;
   /** 点击行回调：field 为行字段，value 为行标签 */
   onPointClick?: (field: string, value: string, additive: boolean) => void;
 }
@@ -29,6 +32,7 @@ export function PivotTable({
   showTotals = true,
   highlight = null,
   formats,
+  decor,
   onPointClick,
 }: PivotTableProps) {
   const pivot = useMemo(
@@ -94,14 +98,46 @@ export function PivotTable({
               >
                 {row.label}
               </th>
-              {row.cells.map((v, ci) => (
-                <td
-                  key={ci}
-                  className={`${bodyCell} text-right tabular-nums`}
-                >
-                  {formatCell(v, formats?.[pivot.columns[ci]])}
-                </td>
-              ))}
+              {row.cells.map((v, ci) => {
+                const key = pivot.columns[ci];
+                const d = decor?.(key, v);
+                return (
+                  <td
+                    key={ci}
+                    className={`${bodyCell} relative text-right tabular-nums ${
+                      d?.bold ? "font-semibold" : ""
+                    }`}
+                    style={{
+                      background: d?.background,
+                      color: d?.color,
+                    }}
+                  >
+                    {d?.bar ? (
+                      <span
+                        aria-hidden
+                        className="absolute inset-y-0 left-0"
+                        style={{
+                          width: `${Math.round(d.bar.ratio * 100)}%`,
+                          background: d.bar.color,
+                          opacity: 0.28,
+                        }}
+                      />
+                    ) : null}
+                    <span className="relative inline-flex items-center gap-1">
+                      {d?.icon ? (
+                        <span
+                          aria-hidden
+                          className="text-[10px] leading-none"
+                          style={{ color: d.iconColor }}
+                        >
+                          {d.icon === "up" ? "▲" : d.icon === "flat" ? "■" : "▼"}
+                        </span>
+                      ) : null}
+                      {formatCell(v, formats?.[key])}
+                    </span>
+                  </td>
+                );
+              })}
               {showTotals ? (
                 <td className={`${bodyCell} text-right font-medium tabular-nums`}>
                   {formatCell(row.total, formats?.[pivot.columns[0]])}

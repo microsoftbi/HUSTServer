@@ -17,6 +17,7 @@ import {
   type StoredColumnType,
 } from './columnTypes.js';
 import { dataModelsRepo, modelColumnConfigsRepo, modelLabelsRepo } from './repo.js';
+import { parseAggregateSpec } from '../data/aggregate.js';
 import {
   MODEL_NAME_RE,
   PIVOT_AGGS,
@@ -305,6 +306,23 @@ export function modelRoutes(app: FastifyInstance, deps: ModelRouteDeps): void {
       return reply
         .code(400)
         .send({ error: '透视失败', detail: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  /** 聚合下推：截断数据集在服务端完成分组与聚合，浏览器只拿聚合结果。 */
+  app.post('/api/models/aggregate', { preHandler: [auth, requireCap('dashboard.view')] }, async (req, reply) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    if (!name) return reply.code(400).send({ error: '缺少模型名' });
+    const parsed = parseAggregateSpec(body);
+    if ('error' in parsed) return reply.code(400).send({ error: parsed.error });
+    if (!repo.findByName(name)) return reply.code(404).send({ error: '模型不存在' });
+    try {
+      return await deps.modelStore.aggregate(name, parsed.spec);
+    } catch (err) {
+      return reply
+        .code(400)
+        .send({ error: '聚合失败', detail: err instanceof Error ? err.message : String(err) });
     }
   });
 

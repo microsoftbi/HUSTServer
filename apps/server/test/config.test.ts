@@ -15,6 +15,7 @@ describe('loadConfig', () => {
     expect(cfg.dbFile).toBe('/tmp/hustserver-test/metadata.sqlite');
     expect(cfg.modelDbFile).toBe('/tmp/hustserver-test/models.duckdb');
     expect(cfg.uploadDir).toBe('/tmp/hustserver-test/uploads');
+    expect(cfg.resourceDir).toBe('/tmp/hustserver-test/resources');
     expect(cfg.encryptionKey.length).toBe(32);
     expect(cfg.tz).toBe('Asia/Shanghai');
     expect(cfg.maxConcurrentRuns).toBe(2);
@@ -31,5 +32,11 @@ describe('loadConfig', () => {
   it('解析共享目录列表', () => {
     const cfg = loadConfig({ ...base, HUSTSERVER_SHARED_DIRS: '/data/a, /data/b ,' });
     expect(cfg.sharedDirs).toEqual(['/data/a', '/data/b']);
+  });
+
+  it('HUSTSERVER_WEB_DIR 覆盖前端产物目录', () => {
+    const cfg = loadConfig({ ...base, HUSTSERVER_WEB_DIR: '/app/Resources/web' });
+    expect(cfg.webDir).toBe('/app/Resources/web');
+    expect(loadConfig(base).webDir.endsWith('/web/dist')).toBe(true);
   });
 });

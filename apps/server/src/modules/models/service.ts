@@ -22,6 +22,14 @@ import type { AppConfig } from '../../config.js';
 import { decryptConfig } from '../connections/crypto.js';
 import { connectionsRepo } from '../connections/repo.js';
 import type { QueryCell, QueryColumn, QueryResult } from '../data/query.js';
+import {
+  aggregateColumns,
+  aggregateLimit,
+  buildAggregateSql,
+  DUCKDB_DIALECT,
+  type AggregateResult,
+  type AggregateSpec,
+} from '../data/aggregate.js';
 import { resolveResourcePath } from '../resources/paths.js';
 import { createSemaphore } from '../runs/queue.js';
 import {
@@ -95,6 +103,8 @@ export interface ModelStore {
   /** 数据探索：在模型库上执行只读 SQL（调用方须先做只读校验） */
   rawQuery(sqlText: string, limit?: number): Promise<QueryResult>;
   pivot(req: PivotSpec): Promise<PivotResult>;
+  /** 聚合下推：分组、筛选与聚合全部在 DuckDB 内完成，只返回聚合结果 */
+  aggregate(name: string, spec: AggregateSpec): Promise<AggregateResult>;
   distinctValues(name: string, field: string, limit?: number): Promise<DistinctResult>;
   stats(name: string): Promise<StatsResult>;
   rename(oldName: string, newName: string): Promise<void>;
@@ -457,7 +467,7 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
         return override ? coerceCell(cell, override) : cell;
       }),
     );
-    return { columns, rows, truncated: total > rows.length };
+    return { columns, rows, truncated: total > rows.length, totalRows: total };
   }
 
   /** 数据探索：在模型库上执行只读 SQL（表名即模型名，可 join 多个模型）。 */
@@ -513,6 +523,37 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
       columnFields: [...req.columns],
       values: req.values.map((v) => ({ ...v, label: `${v.agg}(${v.field})` })),
       columns,
+      rows: kept.map((r) => r.map((v) => toCell(v))),
+      truncated,
+      totalRows: total,
+    };
+  }
+
+  /** 聚合下推：维度/系列标签与前端 normalizeLabel 对齐，度量按数值计算。 */
+  async function doAggregate(name: string, spec: AggregateSpec): Promise<AggregateResult> {
+    const connection = await conn();
+    const known = knownColumns(repo, name);
+    if (!known) throw new Error('模型不存在');
+    const requested = [
+      ...spec.dimensions,
+      ...(spec.series ? [spec.series] : []),
+      ...spec.measures.map((m) => m.field),
+      ...spec.filters.map((f) => f.field),
+    ];
+    const unknown = requested.find((f) => !known.has(f));
+    if (unknown) throw new Error(`未知字段：${unknown}`);
+
+    const cap = aggregateLimit(spec);
+    const total = await countRows(connection, name);
+    // 多取一行用于判定分组是否被截断
+    const reader = await connection.runAndReadAll(
+      buildAggregateSql(spec, quoteIdent(name), DUCKDB_DIALECT, cap + 1),
+    );
+    const raw = reader.getRowsJS() as unknown[][];
+    const truncated = raw.length > cap;
+    const kept = truncated ? raw.slice(0, cap) : raw;
+    return {
+      columns: aggregateColumns(spec),
       rows: kept.map((r) => r.map((v) => toCell(v))),
       truncated,
       totalRows: total,
@@ -628,6 +669,7 @@ export function createModelStore(deps: { db: Database; config: AppConfig }): Mod
     query: (name, limit) => sem.run(() => doQuery(name, limit)),
     rawQuery: (sqlText, limit) => sem.run(() => doRawQuery(sqlText, limit)),
     pivot: (req) => sem.run(() => doPivot(req)),
+    aggregate: (name, spec) => sem.run(() => doAggregate(name, spec)),
     distinctValues: (name, field, limit) => sem.run(() => doDistinctValues(name, field, limit)),
     stats: (name) => sem.run(() => doStats(name)),
     rename: (oldName, newName) => sem.run(() => doRename(oldName, newName)),

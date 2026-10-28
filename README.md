@@ -135,7 +135,7 @@ Power BI 风格的报表编辑器：左侧切换「仪表板 / 数据」两个�
 
 ### 资源库
 
-平台内的文件工作区（默认根目录为 `apps/web/DATA`，可用 `HUSTSERVER_RESOURCE_DIR` 覆盖），以文件夹树组织：上传 CSV / Excel、新建文件夹、重命名、拖拽移动、下载与删除。资源库中的文件可被工作流输入节点与「加载成模型」步骤引用。
+平台内的文件工作区（默认根目录为 `~/.hustserver/resources`，可用 `HUSTSERVER_RESOURCE_DIR` 覆盖），以文件夹树组织：上传 CSV / Excel、新建文件夹、重命名、拖拽移动、下载与删除。资源库中的文件可被工作流输入节点与「加载成模型」步骤引用。
 
 ![资源库](docs/images/resources.png)
 
@@ -191,8 +191,8 @@ Power BI 风格的报表编辑器：左侧切换「仪表板 / 数据」两个�
 HUSTServer/
 ├── apps/
 │   ├── server/            # Fastify 5 + better-sqlite3（API、调度、运行 / Job 编排、静态托管）
-│   └── web/               # React 19 + Vite + Tailwind v4 管理控制台（含仪表板编辑器）
-│       └── DATA/          # 资源库默认根目录（HUSTSERVER_RESOURCE_DIR 可覆盖）
+│   ├── web/               # React 19 + Vite + Tailwind v4 管理控制台（含仪表板编辑器）
+│   └── desktop/           # Electron 45 桌面外壳（内置本地服务，打包为 macOS 应用）
 ├── packages/
 │   ├── engine/            # HUSTERYX 执行引擎移植（DuckDB + mssql，基线 39451d8）
 │   └── workflow-designer/ # HUSTERYX 前端画布复用包（基线 836b22a，适配器注入平台能力）
@@ -281,6 +281,7 @@ flowchart LR
 | | xlsx 0.18 | Excel 读写 |
 | 工程 | pnpm workspace | monorepo（`@hustserver/*` 包约定） |
 | | vitest 2 | 单元测试（server / engine） |
+| 桌面端 | Electron 45 + electron-builder 26 | macOS 应用外壳，内置本地服务（`ELECTRON_RUN_AS_NODE`） |
 
 ## 快速开始
 
@@ -307,7 +308,7 @@ node apps/server/dist/index.js
 |---|---|---|
 | `HUSTSERVER_HOST` / `HUSTSERVER_PORT` | `127.0.0.1` / `8787` | 监听地址与端口 |
 | `HUSTSERVER_DATA_DIR` | `~/.hustserver` | 数据目录（SQLite、上传、输出、模型库 `models.duckdb`） |
-| `HUSTSERVER_RESOURCE_DIR` | `apps/web/DATA` | 资源库根目录 |
+| `HUSTSERVER_RESOURCE_DIR` | `~/.hustserver/resources` | 资源库根目录 |
 | `SESSION_SECRET` | 必填 | 会话签名密钥 |
 | `SESSION_TTL_MS` | `604800000`（7 天） | 会话有效期 |
 | `ENCRYPTION_KEY` | 必填 | 64 位十六进制（32 字节）连接密码加密密钥 |
@@ -325,6 +326,21 @@ node apps/server/dist/index.js
 pnpm dev            # 并行启动 server（tsx watch）与 web（vite，/api 代理到 8787）
 pnpm test           # 运行全部单元测试
 ```
+
+### macOS 桌面版
+
+桌面版由 Electron 主进程拉起内置的本地服务（随机端口、仅监听 `127.0.0.1`），再用窗口加载控制台，无需手动启动服务或配置环境变量。
+
+```bash
+pnpm desktop:dev    # 开发态：复用仓库构建产物 + 系统 Node 启动 Electron
+pnpm desktop:dist   # 打包：产出 apps/desktop/release/HUSTServer-<version>-arm64.dmg
+```
+
+- **数据目录**：沿用 `~/.hustserver`（SQLite、模型库 `models.duckdb`、资源库 `resources/`、上传与输出），与网页端共用同一份；首次启动自动生成 `desktop-secrets.json`（会话密钥与加密密钥，权限 `0600`），无需手工配置 `SESSION_SECRET` / `ENCRYPTION_KEY`
+- **日志**：服务端输出写入 `~/.hustserver/logs/desktop.log`，可从「文件 → 打开服务日志」直接查看
+- **菜单**：文件菜单可打开数据目录 / 资源库目录 / 服务日志或在浏览器中打开当前服务地址
+- **未签名**：当前构建未做 Apple 签名与公证，首次打开需在 Finder 中右键 →「打开」，或执行 `xattr -dr com.apple.quarantine /Applications/HUSTServer.app`
+- **仅支持 Apple Silicon**（arm64）：DuckDB 原生扩展按架构分发
 
 ## 安全设计
 

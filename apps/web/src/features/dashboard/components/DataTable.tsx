@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { CellValue, FieldFormat } from "@bi/types";
 import { formatCell } from "@bi/lib/format";
+import type { CellDecor } from "@bi/lib/conditional";
 import { filterRows, paginate, sortRows, type SortState } from "@bi/lib/datatable";
 import { Input } from "@bi/components/ui/input";
 import { cn } from "@bi/lib/utils";
@@ -27,8 +28,16 @@ interface DataTableProps {
   searchable?: boolean;
   /** 字段级数值格式：列名 → 格式 */
   formats?: Record<string, FieldFormat>;
+  /** 条件格式装饰：按列名与单元格值返回装饰（数据条 / 色阶 / 图标 / 规则） */
+  decor?: (column: string, value: CellValue) => CellDecor | null;
   className?: string;
 }
+
+const ICON_TEXT: Record<NonNullable<CellDecor["icon"]>, string> = {
+  up: "▲",
+  flat: "■",
+  down: "▼",
+};
 
 /** 通用数据预览表格（数据源预览 / 查询结果预览共用） */
 export function DataTable({
@@ -37,6 +46,7 @@ export function DataTable({
   pageSize = 50,
   searchable = true,
   formats,
+  decor,
   className,
 }: DataTableProps) {
   const [query, setQuery] = useState("");
@@ -138,14 +148,47 @@ export function DataTable({
                 <td className="border-b border-r px-2 py-1.5 text-right text-xs text-muted-foreground">
                   {startIndex + ri}
                 </td>
-                {columns.map((col, ci) => (
-                  <td
-                    key={ci}
-                    className="max-w-[320px] truncate whitespace-nowrap border-b border-r px-3 py-1.5"
-                  >
-                    {formatCell(row[ci] ?? null, formats?.[col.name])}
-                  </td>
-                ))}
+                {columns.map((col, ci) => {
+                  const value = row[ci] ?? null;
+                  const d = decor?.(col.name, value);
+                  return (
+                    <td
+                      key={ci}
+                      className={cn(
+                        "relative max-w-[320px] truncate whitespace-nowrap border-b border-r px-3 py-1.5",
+                        d?.bold && "font-semibold",
+                      )}
+                      style={{
+                        background: d?.background,
+                        color: d?.color,
+                      }}
+                    >
+                      {d?.bar ? (
+                        <span
+                          aria-hidden
+                          className="absolute inset-y-0 left-0"
+                          style={{
+                            width: `${Math.round(d.bar.ratio * 100)}%`,
+                            background: d.bar.color,
+                            opacity: 0.28,
+                          }}
+                        />
+                      ) : null}
+                      <span className="relative inline-flex items-center gap-1">
+                        {d?.icon ? (
+                          <span
+                            aria-hidden
+                            className="text-[10px] leading-none"
+                            style={{ color: d.iconColor }}
+                          >
+                            {ICON_TEXT[d.icon]}
+                          </span>
+                        ) : null}
+                        {formatCell(value, formats?.[col.name])}
+                      </span>
+                    </td>
+                  );
+                })}
               </tr>
             ))}
             {pageRows.length === 0 ? (

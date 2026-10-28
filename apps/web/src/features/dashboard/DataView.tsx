@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Database, FileSpreadsheet, Plus, SlidersHorizontal, Table2, Trash2 } from 'lucide-react';
+import { Database, FileSpreadsheet, Plus, Sigma, SlidersHorizontal, Table2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@bi/components/ui/button';
 import { Badge } from '@bi/components/ui/badge';
@@ -31,6 +31,7 @@ import {
 import { api, ApiClientError } from '../../api.js';
 import { cn } from '@bi/lib/utils';
 import { loadFileDataset, loadModelDataset, querySqlDataset } from '@bi/services/dataSource';
+import { MeasureDialog } from './MeasureDialog';
 import { useDatasetStore } from '@bi/stores/datasetStore';
 import {
   DECIMAL_OPTIONS,
@@ -88,6 +89,7 @@ export function DataView() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addMode, setAddMode] = useState<AddMode | null>(null);
   const [formatOpen, setFormatOpen] = useState(false);
+  const [measureOpen, setMeasureOpen] = useState(false);
 
   const selected =
     datasets.find((d) => d.id === selectedId) ?? datasets[0] ?? null;
@@ -204,6 +206,20 @@ export function DataView() {
                 size="sm"
                 variant="outline"
                 className="ml-auto h-7 gap-1.5 text-xs"
+                onClick={() => setMeasureOpen(true)}
+              >
+                <Sigma className="h-3.5 w-3.5" />
+                度量值
+                {Object.keys(selected.measures ?? {}).length > 0 ? (
+                  <span className="text-[10px] text-muted-foreground">
+                    {Object.keys(selected.measures ?? {}).length}
+                  </span>
+                ) : null}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-xs"
                 onClick={() => setFormatOpen(true)}
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -237,6 +253,14 @@ export function DataView() {
           dataset={selected}
           open={formatOpen}
           onClose={() => setFormatOpen(false)}
+        />
+      ) : null}
+
+      {selected ? (
+        <MeasureDialog
+          dataset={selected}
+          open={measureOpen}
+          onClose={() => setMeasureOpen(false)}
         />
       ) : null}
     </div>

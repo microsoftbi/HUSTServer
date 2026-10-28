@@ -172,18 +172,30 @@ function resolveField(
   return explainBy.includes(requested) ? requested : null;
 }
 
+/** 首层下推结果：截断数据集上用服务端聚合替换根节点的分组 */
+export interface RootLevelAggregate {
+  field: string;
+  groups: Array<{ name: string; value: number }>;
+}
+
 /**
  * 构建分解树：从合计节点出发，按 `expansions` 中记录的字段逐层拆分。
  * - 每层按值降序，只保留前 `maxBars` 个节点（与 Power BI 一致）；
  * - 子节点值来自与父节点相同的行集合，保证父子金额一致；
- * - 空值与缺失字段自动跳过，不会抛错。
+ * - 空值与缺失字段自动跳过，不会抛错；
+ * - 传入 `rootLevel` 时，首层分组与根节点合计改用服务端聚合结果
+ *   （数据被截断时本地只有部分行，首层会失真）。
  */
 export function buildDecomposition(
   dataset: Dataset,
   measure: Measure,
   explainBy: string[],
   expansions: Record<string, string>,
-  options: { maxBars?: number; aiSplits?: boolean } = {},
+  options: {
+    maxBars?: number;
+    aiSplits?: boolean;
+    rootLevel?: RootLevelAggregate | null;
+  } = {},
 ): DecompNode | null {
   const measureIdx = dataset.columns.findIndex((c) => c.name === measure.field);
   if (measureIdx < 0) return null;
@@ -194,14 +206,18 @@ export function buildDecomposition(
     dataset.columns.some((c) => c.name === f),
   );
 
+  const rootLevel = options.rootLevel ?? null;
   const root: DecompNode = {
     key: ROOT_KEY,
     name: measure.field,
+    // 首层下推时用服务端合计，避免截断数据让根节点偏小
     value:
-      applyAgg(
-        dataset.rows.map((r) => r[measureIdx]),
-        measure.agg,
-      ) ?? 0,
+      rootLevel !== null
+        ? rootLevel.groups.reduce((sum, g) => sum + g.value, 0)
+        : (applyAgg(
+            dataset.rows.map((r) => r[measureIdx]),
+            measure.agg,
+          ) ?? 0),
     depth: 0,
     children: [],
   };
@@ -221,10 +237,26 @@ export function buildDecomposition(
     const fieldIdx = dataset.columns.findIndex((c) => c.name === field);
     if (fieldIdx < 0) return;
 
-    node.children = groupRows(rows, fieldIdx, measureIdx, measure.agg)
-      .filter((g) => g.value !== 0)
-      .sort((a, b) => b.value - a.value)
-      .slice(0, maxBars)
+    // 首层且服务端给了该字段的聚合时，用下推结果替换本地分组（本地行可能被截断）
+    const useServerGroups =
+      node.depth === 0 && rootLevel !== null && rootLevel.field === field;
+    const groups: RowGroup[] = useServerGroups
+      ? rootLevel.groups
+          .filter((g) => g.value !== 0)
+          .sort((a, b) => b.value - a.value)
+          .slice(0, maxBars)
+          .map((g) => ({
+            name: g.name,
+            value: g.value,
+            // 子节点继续下钻时仍需要行，用本地行近似（截断时由 PartialRowsHint 提示）
+            rows: rows.filter((r) => normalizeLabel(r[fieldIdx]) === g.name),
+          }))
+      : groupRows(rows, fieldIdx, measureIdx, measure.agg)
+          .filter((g) => g.value !== 0)
+          .sort((a, b) => b.value - a.value)
+          .slice(0, maxBars);
+
+    node.children = groups
       .map((group) => {
         const childConditions = [...conditions, { field, value: group.name }];
         const child: DecompNode = {

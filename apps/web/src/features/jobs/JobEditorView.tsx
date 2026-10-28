@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ReactFlowProvider } from '@xyflow/react';
 import { Toaster, toast } from 'sonner';
 import { api } from '../../api.js';
+import { UnsavedChangesDialog } from '../../components/ui/unsaved-changes-dialog.js';
 import type {
   JobDetail, JobRunSummary, JobStepRunSummary, JobStepType, WorkflowSummary,
 } from '../../types.js';
@@ -64,6 +65,8 @@ export function JobEditorView({ job, workflows, connections, resourceFiles }: Jo
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** 有未保存更改时点返回：弹出保存确认 */
+  const [exitOpen, setExitOpen] = useState(false);
 
   const [runId, setRunId] = useState<string | null>(null);
   const [runSummary, setRunSummary] = useState<JobRunSummary | null>(null);
@@ -250,7 +253,23 @@ export function JobEditorView({ job, workflows, connections, resourceFiles }: Jo
   }
 
   function goBack(): void {
-    if (dirty && !window.confirm('有未保存的修改，确定离开？')) return;
+    if (dirty) {
+      setExitOpen(true);
+      return;
+    }
+    navigate('/jobs');
+  }
+
+  /** 保存成功后离开；校验或保存失败时保持对话框，由 toast 说明原因 */
+  async function saveAndLeave(): Promise<void> {
+    if (await save()) {
+      setExitOpen(false);
+      navigate('/jobs');
+    }
+  }
+
+  function discardAndLeave(): void {
+    setExitOpen(false);
     navigate('/jobs');
   }
 
@@ -309,6 +328,15 @@ export function JobEditorView({ job, workflows, connections, resourceFiles }: Jo
         open={settingsOpen}
         locked={locked}
         onClose={() => setSettingsOpen(false)}
+      />
+
+      <UnsavedChangesDialog
+        open={exitOpen}
+        saving={saving}
+        onCancel={() => setExitOpen(false)}
+        onDiscard={discardAndLeave}
+        onSave={() => void saveAndLeave()}
+        description="当前 Job 有未保存的更改，离开后将丢失。是否保存？"
       />
 
       <Toaster position="top-center" theme={colorMode} />

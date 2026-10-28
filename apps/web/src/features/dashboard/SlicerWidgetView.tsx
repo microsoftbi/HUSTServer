@@ -19,6 +19,7 @@ import {
 } from "@bi/components/ui/select";
 import { cn } from "@bi/lib/utils";
 import { normalizeLabel } from "@bi/lib/aggregate";
+import { usePushedDistinct } from "./services/pushdown";
 import type {
   CellValue,
   ChartWidget,
@@ -154,6 +155,10 @@ function SlicerBody({
   onChange: (patch: Partial<SlicerConfig>) => void;
 }) {
   const state = cfg.state;
+  // 截断数据集的候选值需要覆盖全量行，走服务端去重；hook 须在早返回之前调用
+  const listField =
+    cfg.type === "list" || cfg.type === "dropdown" ? fields[0] : undefined;
+  const pushedValues = usePushedDistinct(dataset, listField);
 
   if (cfg.type === "relativeDate") {
     return (
@@ -190,7 +195,7 @@ function SlicerBody({
   }
 
   const field = fields[0];
-  const values = distinctValues(dataset, field);
+  const values = pushedValues ?? distinctValues(dataset, field);
   const selected = state.selections[field] ?? [];
   const toggle = (value: string, additive: boolean) =>
     onChange({

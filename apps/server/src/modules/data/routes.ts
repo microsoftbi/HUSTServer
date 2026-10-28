@@ -8,6 +8,11 @@ import type { UsersRepo } from '../users/repo.js';
 import { decryptConfig } from '../connections/crypto.js';
 import { connectionsRepo } from '../connections/repo.js';
 import { listTables, runQuery } from './query.js';
+import {
+  parseAggregateSpec,
+  runAggregateOnSqlServer,
+  runDistinctOnSqlServer,
+} from './aggregate.js';
 
 export interface DataRouteDeps {
   db: Database;
@@ -50,6 +55,52 @@ export function dataRoutes(app: FastifyInstance, deps: DataRouteDeps): void {
       return { tables: await listTables(conn) };
     } catch (err) {
       return reply.code(400).send({ error: '获取数据表失败', detail: (err as Error).message });
+    }
+  });
+
+  /** 聚合下推：把用户 SQL 包成子查询，在库内完成分组与聚合（权限校验同 /api/data/query）。 */
+  app.post('/api/data/aggregate', { preHandler: [auth, requireCap('connection.use')] }, async (req, reply) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const connectionId = typeof body.connectionId === 'string' ? body.connectionId : '';
+    if (!connectionId) return reply.code(400).send({ error: '缺少连接 ID' });
+    const query = typeof body.query === 'string' ? body.query.trim() : '';
+    if (!query) return reply.code(400).send({ error: '缺少 SQL 语句' });
+    const parsed = parseAggregateSpec(body);
+    if ('error' in parsed) return reply.code(400).send({ error: parsed.error });
+    const row = repo.findById(connectionId);
+    if (!row) return reply.code(404).send({ error: '连接不存在' });
+    const canUse = req.auth!.caps.has('admin') || row.shared === 1 || row.owner_id === req.auth!.userId;
+    if (!canUse) return reply.code(403).send({ error: '无权使用该连接' });
+    const conn = decryptConfig(row.config_encrypted, deps.config.encryptionKey) as unknown as SqlServerConnection;
+    try {
+      return await runAggregateOnSqlServer(conn, query, parsed.spec);
+    } catch (err) {
+      return reply
+        .code(400)
+        .send({ error: '聚合失败', detail: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  /** 去重值：截断数据集上切片器/筛选器的候选值需要覆盖全量行。 */
+  app.post('/api/data/distinct', { preHandler: [auth, requireCap('connection.use')] }, async (req, reply) => {
+    const body = (req.body ?? {}) as { connectionId?: unknown; query?: unknown; field?: unknown; limit?: unknown };
+    const connectionId = typeof body.connectionId === 'string' ? body.connectionId : '';
+    if (!connectionId) return reply.code(400).send({ error: '缺少连接 ID' });
+    const query = typeof body.query === 'string' ? body.query.trim() : '';
+    if (!query) return reply.code(400).send({ error: '缺少 SQL 语句' });
+    const field = typeof body.field === 'string' ? body.field.trim() : '';
+    if (!field) return reply.code(400).send({ error: '缺少列名' });
+    const row = repo.findById(connectionId);
+    if (!row) return reply.code(404).send({ error: '连接不存在' });
+    const canUse = req.auth!.caps.has('admin') || row.shared === 1 || row.owner_id === req.auth!.userId;
+    if (!canUse) return reply.code(403).send({ error: '无权使用该连接' });
+    const conn = decryptConfig(row.config_encrypted, deps.config.encryptionKey) as unknown as SqlServerConnection;
+    try {
+      return await runDistinctOnSqlServer(conn, query, field, typeof body.limit === 'number' ? body.limit : 200);
+    } catch (err) {
+      return reply
+        .code(400)
+        .send({ error: '读取列值失败', detail: err instanceof Error ? err.message : String(err) });
     }
   });
 }

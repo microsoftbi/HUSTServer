@@ -1,0 +1,36 @@
+appId: com.microsoftbi.hustserver
+productName: HUSTServer
+copyright: Copyright © 2026 HUSTServer
+
+directories:
+  output: release
+  buildResources: build-resources
+
+files:
+  - dist/**/*
+  - package.json
+
+extraResources:
+  # 放在一层目录下：electron-builder 会过滤 from 根部的 node_modules
+  - from: build/stage
+    to: runtime
+
+asar: true
+npmRebuild: false
+
+electronDownload:
+  mirror: https://npmmirror.com/mirrors/electron/
+
+mac:
+  category: public.app-category.productivity
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  target:
+    - target: dmg
+      arch:
+        - arm64
+
+dmg:
+  title: 个人数据工作台
+  artifactName: HUSTServer-${version}-${arch}.${ext}

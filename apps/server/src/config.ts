@@ -15,6 +15,8 @@ export interface AppConfig {
   spillDir: string;
   /** 资源库根目录：web 前端项目的 DATA 文件夹。 */
   resourceDir: string;
+  /** 前端构建产物目录；桌面版由 HUSTSERVER_WEB_DIR 指定。 */
+  webDir: string;
   sessionSecret: string;
   encryptionKey: Buffer;
   sessionTtlMs: number;
@@ -30,9 +32,13 @@ export interface AppConfig {
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const dataDir = env.HUSTSERVER_DATA_DIR || path.join(os.homedir(), '.hustserver');
-  // 资源库默认落在 web 前端项目的 DATA 文件夹；src 与 dist 下此处均解析到 apps/web/DATA。
+  // 资源库默认放在数据目录内，网页端与桌面版共用同一份。
+  const resourceDir = env.HUSTSERVER_RESOURCE_DIR || path.join(dataDir, 'resources');
+  // 前端产物默认解析到 apps/web/dist（src 与 dist 下结果一致）。
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const resourceDir = env.HUSTSERVER_RESOURCE_DIR || path.resolve(here, '../../web/DATA');
+  const webDir = env.HUSTSERVER_WEB_DIR
+    ? path.resolve(env.HUSTSERVER_WEB_DIR)
+    : path.resolve(here, '../../web/dist');
   const sessionSecret = env.SESSION_SECRET;
   if (!sessionSecret) throw new Error('缺少环境变量 SESSION_SECRET');
   const keyHex = env.ENCRYPTION_KEY;
@@ -49,6 +55,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     outputDir: path.join(dataDir, 'outputs'),
     spillDir: path.join(dataDir, 'spill'),
     resourceDir,
+    webDir,
     sessionSecret,
     encryptionKey: Buffer.from(keyHex, 'hex'),
     sessionTtlMs: Number(env.SESSION_TTL_MS || 7 * 24 * 60 * 60 * 1000),

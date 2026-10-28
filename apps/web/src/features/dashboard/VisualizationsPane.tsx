@@ -23,8 +23,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@bi/components/ui/select";
-import { cn } from "@bi/lib/utils";
+import { cn, uid } from "@bi/lib/utils";
 import { AGG_LABELS, autoTitle, CHART_TYPE_LABELS, wellLabels } from "@bi/lib/chart";
+import { axisFields, measureKey } from "@bi/lib/aggregate";
 import {
   SLICER_TYPE_LABELS,
   slicerOf,
@@ -35,28 +36,87 @@ import { BUTTON_ACTIONS, isDecoration } from "@bi/lib/decoration";
 import { decorationOf } from "@bi/lib/decoration";
 import { SHAPE_GROUPS } from "@bi/lib/shapes";
 import { DEFAULT_WIDGET_STYLE, styleOf } from "@bi/lib/style";
+import {
+  CONDITIONAL_MODES,
+  DEFAULT_CONDITIONAL,
+  OPERATOR_OPTIONS,
+  THRESHOLD_OPTIONS,
+  conditionalOf,
+} from "@bi/lib/conditional";
 import type {
   AggregateFn,
   ButtonAction,
   ChartType,
   ChartWidget,
   Column,
+  ConditionalFormat,
+  ConditionalRule,
   Dataset,
   DecorationConfig,
   DecompositionConfig,
   MapRegion,
   Measure,
+  ReferenceBand,
+  ReferenceLine,
   SlicerConfig,
   SlicerSelectionMode,
   SlicerType,
   TreemapColorMode,
   TreemapConfig,
+  WidgetReference,
   WidgetShadow,
   WidgetStyle,
+  WidgetTopN,
 } from "@bi/types";
 
 const CHART_TYPES = Object.keys(CHART_ICONS) as ChartType[];
 const AGG_FNS = Object.keys(AGG_LABELS) as AggregateFn[];
+
+/** 支持钻取的图表类型（矩阵/表格/分解树有各自的层级机制） */
+const DRILLABLE: ChartType[] = [
+  "bar",
+  "stackedBar",
+  "stackedBar100",
+  "horizontalBar",
+  "horizontalStackedBar",
+  "line",
+  "area",
+  "stackedArea",
+  "combo",
+  "pie",
+  "donut",
+  "funnel",
+  "radialBar",
+  "map",
+];
+
+/** 支持 X 轴多字段自动成层的图表类型（地图的位置为单字段） */
+const MULTI_AXIS: ChartType[] = DRILLABLE.filter((t) => t !== "map");
+
+/** 支持条件格式的视觉对象（先覆盖表格、矩阵与柱形图） */
+const CONDITIONAL_TYPES: ChartType[] = [
+  "table",
+  "matrix",
+  "bar",
+  "stackedBar",
+  "stackedBar100",
+  "horizontalBar",
+  "horizontalStackedBar",
+  "combo",
+];
+
+/** 支持参考线与目标带的视觉对象（直角坐标系图表） */
+const REFERENCE_TYPES: ChartType[] = [
+  "bar",
+  "stackedBar",
+  "stackedBar100",
+  "horizontalBar",
+  "horizontalStackedBar",
+  "line",
+  "area",
+  "stackedArea",
+  "combo",
+];
 
 type WellKind = "dimension" | "series" | "measure";
 type PaneTab = "build" | "format";
@@ -107,6 +167,48 @@ export function VisualizationsPane({
       setEncoding({
         measures: [...widget.encoding.measures, { field, agg: defaultAgg(field) }],
       });
+  }
+
+  /** 命名度量：field 存名称（同时也是聚合列 key），measureId 指向表达式定义 */
+  function addNamedMeasure(id: string) {
+    const def = dataset?.measures?.[id];
+    if (!widget || !def) return;
+    const measure: Measure = { field: def.name, agg: "sum", measureId: id };
+    if (widget.type === "decomposition") setEncoding({ measures: [measure] });
+    else setEncoding({ measures: [...widget.encoding.measures, measure] });
+  }
+
+  /**
+   * 写入 X 轴字段序列：第 1 个为主维度，其余依次成层。
+   * 层级变化后原来的下钻位置失效，统一回到顶层；已成为 X 轴层的字段从钻取井移除。
+   */
+  function setAxisFields(next: string[]) {
+    if (!widget) return;
+    const [first, ...extra] = next;
+    const path = (widget.drill?.path ?? []).filter((f) => !next.includes(f));
+    onChange({
+      encoding: {
+        ...widget.encoding,
+        dimension: first,
+        extraDimensions: extra.length > 0 ? extra : undefined,
+      },
+      drill:
+        path.length > 0
+          ? { path, level: 0, selections: [], mode: "drill" }
+          : undefined,
+    });
+  }
+
+  function addDimensionField(field: string) {
+    if (!widget) return;
+    const current = axisFields(widget.encoding);
+    if (current.includes(field)) return;
+    setAxisFields([...current, field]);
+  }
+
+  function removeDimensionField(field: string) {
+    if (!widget) return;
+    setAxisFields(axisFields(widget.encoding).filter((f) => f !== field));
   }
 
   function updateMeasure(i: number, patch: Partial<Measure>) {
@@ -163,9 +265,58 @@ export function VisualizationsPane({
     onChange({ explainBy: (widget.explainBy ?? []).filter((f) => f !== field) });
   }
 
+  /** 钻取层级：追加 / 移除层级字段（顺序即下钻顺序） */
+  function addDrillField(field: string) {
+    if (!widget) return;
+    const path = widget.drill?.path ?? [];
+    // 已是 X 轴层级或已在钻取井中的字段不重复加入
+    if (path.includes(field) || axisFields(widget.encoding).includes(field)) return;
+    onChange({
+      drill: { path: [...path, field], level: 0, selections: [], mode: "drill" },
+    });
+  }
+
+  function removeDrillField(field: string) {
+    if (!widget) return;
+    const path = (widget.drill?.path ?? []).filter((f) => f !== field);
+    // 层级变化后原有的下钻位置失效，回到顶层
+    onChange({
+      drill:
+        path.length > 0
+          ? { path, level: 0, selections: [], mode: "drill" }
+          : undefined,
+    });
+  }
+
+  /** 视觉对象级排序：`none` 清除，`dimension` 按维度，其余为度量 key */
+  function setSort(value: string) {
+    if (!widget) return;
+    if (value === "none") {
+      onChange({ sort: undefined });
+      return;
+    }
+    const prev = widget.sort;
+    onChange({
+      sort:
+        value === "dimension"
+          ? { by: "dimension", desc: prev?.desc ?? false }
+          : { by: "measure", measure: value, desc: prev?.desc ?? true },
+    });
+  }
+
+  function setTopN(patch: Partial<WidgetTopN>) {
+    if (!widget) return;
+    const next = { ...(widget.topN ?? { n: 10, other: true }), ...patch };
+    onChange({ topN: next.n > 0 ? next : undefined });
+  }
+
   const columns: Column[] = dataset?.columns ?? [];
   const labels = wellLabels(widget?.type ?? "bar");
   const isDecomp = widget?.type === "decomposition";
+  const drillable = Boolean(widget && DRILLABLE.includes(widget.type));
+  /** X 轴是否支持多字段自动成层 */
+  const multiAxis = Boolean(widget && MULTI_AXIS.includes(widget.type));
+  const axisFieldList = widget ? axisFields(widget.encoding) : [];
 
   return (
     <div
@@ -364,66 +515,123 @@ export function VisualizationsPane({
                       </Well>
                     ) : (
                       <Well
-                        title={labels.dimension}
-                        placeholder="将字段拖到此处"
-                        field={widget.encoding.dimension}
-                        onDropField={(f) => addField(f, "dimension")}
-                        onClear={() => setEncoding({ dimension: undefined })}
-                      />
+                        title={
+                          multiAxis
+                            ? `${labels.dimension}（可添加多个，自动成层）`
+                            : labels.dimension
+                        }
+                        placeholder={
+                          multiAxis
+                            ? "将维度字段拖到此处，多个字段按顺序成层"
+                            : "将字段拖到此处"
+                        }
+                        empty={axisFieldList.length === 0}
+                        onDropField={(f) =>
+                          multiAxis ? addDimensionField(f) : addField(f, "dimension")
+                        }
+                      >
+                        {multiAxis
+                          ? axisFieldList.map((f, i) => (
+                              <div
+                                key={f}
+                                className="flex items-center gap-1 rounded bg-secondary px-1.5 py-1 text-xs"
+                              >
+                                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-muted text-[10px] text-muted-foreground">
+                                  {i + 1}
+                                </span>
+                                <span className="flex-1 truncate">{f}</span>
+                                <button
+                                  type="button"
+                                  aria-label="移除轴字段"
+                                  onClick={() => removeDimensionField(f)}
+                                  className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))
+                          : null}
+                      </Well>
                     )}
                     <Well
                       title={labels.measures}
                       placeholder="将字段拖到此处，或点击字段添加"
                       empty={widget.encoding.measures.length === 0}
                       onDropField={(f) => addField(f, "measure")}
+                      onDropMeasure={addNamedMeasure}
                     >
-                      {widget.encoding.measures.map((m, i) => (
-                        <div
-                          key={`${m.field}-${i}`}
-                          className="flex items-center gap-1 rounded bg-secondary px-1.5 py-1 text-xs"
-                        >
-                          <Select
-                            value={m.agg}
-                            onValueChange={(agg) =>
-                              updateMeasure(i, { agg: agg as AggregateFn })
-                            }
+                      {widget.encoding.measures.map((m, i) =>
+                        m.measureId ? (
+                          <div
+                            key={`${m.field}-${i}`}
+                            className="flex items-center gap-1 rounded bg-secondary px-1.5 py-1 text-xs"
                           >
-                            <SelectTrigger className="h-6 w-20 border-0 bg-transparent px-1.5 text-xs shadow-none">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {AGG_FNS.map((a) => (
-                                <SelectItem key={a} value={a} className="text-xs">
-                                  {AGG_LABELS[a]}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Select
-                            value={m.field}
-                            onValueChange={(field) => updateMeasure(i, { field })}
+                            <span className="shrink-0 rounded-sm bg-muted px-1 text-[10px] text-muted-foreground">
+                              度量值
+                            </span>
+                            <span
+                              className="flex-1 truncate"
+                              title={dataset?.measures?.[m.measureId]?.expression}
+                            >
+                              {m.field}
+                            </span>
+                            <button
+                              type="button"
+                              aria-label="移除度量"
+                              onClick={() => removeMeasure(i)}
+                              className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            key={`${m.field}-${i}`}
+                            className="flex items-center gap-1 rounded bg-secondary px-1.5 py-1 text-xs"
                           >
-                            <SelectTrigger className="h-6 flex-1 border-0 bg-transparent px-1.5 text-xs shadow-none">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {columns.map((c) => (
-                                <SelectItem key={c.name} value={c.name} className="text-xs">
-                                  {c.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <button
-                            type="button"
-                            aria-label="移除度量"
-                            onClick={() => removeMeasure(i)}
-                            className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ))}
+                            <Select
+                              value={m.agg}
+                              onValueChange={(agg) =>
+                                updateMeasure(i, { agg: agg as AggregateFn })
+                              }
+                            >
+                              <SelectTrigger className="h-6 w-20 border-0 bg-transparent px-1.5 text-xs shadow-none">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {AGG_FNS.map((a) => (
+                                  <SelectItem key={a} value={a} className="text-xs">
+                                    {AGG_LABELS[a]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Select
+                              value={m.field}
+                              onValueChange={(field) => updateMeasure(i, { field })}
+                            >
+                              <SelectTrigger className="h-6 flex-1 border-0 bg-transparent px-1.5 text-xs shadow-none">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {columns.map((c) => (
+                                  <SelectItem key={c.name} value={c.name} className="text-xs">
+                                    {c.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <button
+                              type="button"
+                              aria-label="移除度量"
+                              onClick={() => removeMeasure(i)}
+                              className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ),
+                      )}
                     </Well>
                     {isDecomp ? null : (
                       <Well
@@ -434,6 +642,31 @@ export function VisualizationsPane({
                         onClear={() => setEncoding({ series: undefined })}
                       />
                     )}
+                    {drillable ? (
+                      <Well
+                        title="钻取"
+                        placeholder="将维度字段拖到此处，可逐层下钻"
+                        empty={(widget.drill?.path ?? []).length === 0}
+                        onDropField={addDrillField}
+                      >
+                        {(widget.drill?.path ?? []).map((f) => (
+                          <div
+                            key={f}
+                            className="flex items-center gap-1 rounded bg-secondary px-1.5 py-1 text-xs"
+                          >
+                            <span className="flex-1 truncate">{f}</span>
+                            <button
+                              type="button"
+                              aria-label="移除钻取字段"
+                              onClick={() => removeDrillField(f)}
+                              className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </Well>
+                    ) : null}
 
                     <Button
                       size="sm"
@@ -494,6 +727,35 @@ function FormatSection({
   const setDeco = (patch: Partial<DecorationConfig>) =>
     onChange({ decoration: { ...deco, ...patch } });
 
+  // 排序 / Top N：KPI 的合计会被截断，分解树有自己的层级机制，均不提供
+  const sortable =
+    !isDecor && widget.type !== "kpi" && widget.type !== "decomposition";
+  const sortValue = widget.sort
+    ? widget.sort.by === "dimension"
+      ? "dimension"
+      : (widget.sort.measure ?? "none")
+    : "none";
+  const measureOptions = widget.encoding.measures.map((m) => ({
+    value: measureKey(m),
+    label: `${AGG_LABELS[m.agg]} ${m.field}`,
+  }));
+  const setSort = (value: string) => {
+    if (value === "none") {
+      onChange({ sort: undefined });
+      return;
+    }
+    onChange({
+      sort:
+        value === "dimension"
+          ? { by: "dimension", desc: widget.sort?.desc ?? false }
+          : { by: "measure", measure: value, desc: widget.sort?.desc ?? true },
+    });
+  };
+  const setTopN = (patch: Partial<WidgetTopN>) => {
+    const next = { ...(widget.topN ?? { n: 10, other: true }), ...patch };
+    onChange({ topN: next.n > 0 ? next : undefined });
+  };
+
   return (
     <div className="space-y-1.5">
       {!isDecor ? (
@@ -515,6 +777,12 @@ function FormatSection({
               placeholder={autoTitle(widget.encoding) || "留空则按字段自动生成"}
               className="h-7 text-xs"
             />
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              可嵌入实时数值，如
+              <code className="mx-0.5 rounded bg-muted px-1">本月销售额 {"{sum(销售额)}"}</code>
+              或引用度量名
+              <code className="mx-0.5 rounded bg-muted px-1">{"{客单价}"}</code>
+            </p>
           </div>
           <NumberRow
             id="fmt-title-size"
@@ -572,6 +840,9 @@ function FormatSection({
               rows={3}
               className="text-xs"
             />
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              文本同样支持 {"{sum(字段)}"} / {"{度量名}"} 占位符，按当前筛选实时计算。
+            </p>
           </div>
           <NumberRow
             id="fmt-decor-font"
@@ -797,6 +1068,69 @@ function FormatSection({
           />
         </FormatGroup>
       ) : null}
+      {CONDITIONAL_TYPES.includes(widget.type) ? (
+        <ConditionalFormatSection
+          widget={widget}
+          onChange={onChange}
+          measureOptions={measureOptions}
+        />
+      ) : null}
+      {REFERENCE_TYPES.includes(widget.type) ? (
+        <ReferenceSection widget={widget} onChange={onChange} />
+      ) : null}
+      {sortable ? (
+        <FormatGroup title="排序与 Top N">
+          <SelectRow
+            id="fmt-sort-by"
+            label="排序依据"
+            value={sortValue}
+            options={[
+              { value: "none", label: "默认" },
+              { value: "dimension", label: "维度" },
+              ...measureOptions,
+            ]}
+            onChange={setSort}
+          />
+          <SelectRow
+            id="fmt-sort-dir"
+            label="排序方向"
+            value={widget.sort?.desc ? "desc" : "asc"}
+            options={[
+              { value: "desc", label: "降序" },
+              { value: "asc", label: "升序" },
+            ]}
+            onChange={(v) =>
+              onChange({
+                sort: {
+                  by: widget.sort?.by ?? "dimension",
+                  ...(widget.sort?.by === "measure" && widget.sort.measure
+                    ? { measure: widget.sort.measure }
+                    : {}),
+                  desc: v === "desc",
+                },
+              })
+            }
+          />
+          <NumberRow
+            id="fmt-topn"
+            label="前 N 项（0 为不限）"
+            min={0}
+            max={100}
+            value={widget.topN?.n ?? 0}
+            onChange={(v) => setTopN({ n: v })}
+          />
+          <ToggleRow
+            id="fmt-topn-other"
+            label="其余合并为「其它」"
+            checked={widget.topN?.other ?? true}
+            disabled={!widget.topN}
+            onChange={(v) => setTopN({ other: v })}
+          />
+          <p className="pt-1 text-[11px] leading-relaxed text-muted-foreground">
+            仅 sum / count 聚合会把其余项合并为「其它」。
+          </p>
+        </FormatGroup>
+      ) : null}
       {widget.type === "map" ? (
         <FormatGroup title="地图" defaultOpen>
           <div className="space-y-1 pt-1">
@@ -845,6 +1179,455 @@ function FormatSection({
         <DecompositionFormat widget={widget} onChange={onChange} />
       ) : null}
     </div>
+  );
+}
+
+/** 条件格式分区：数据条 / 色阶 / 图标 / 规则（表格、矩阵、柱形图） */
+function ConditionalFormatSection({
+  widget,
+  onChange,
+  measureOptions,
+}: {
+  widget: ChartWidget;
+  onChange: (patch: Partial<ChartWidget>) => void;
+  measureOptions: Array<{ value: string; label: string }>;
+}) {
+  const cfg = conditionalOf(widget) ?? DEFAULT_CONDITIONAL;
+  const update = (patch: Partial<ConditionalFormat>) =>
+    onChange({ conditional: { ...cfg, ...patch } });
+  const setRule = (id: string, patch: Partial<ConditionalRule>) =>
+    update({ rules: cfg.rules.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
+  const addRule = () =>
+    update({
+      rules: [
+        ...cfg.rules,
+        {
+          id: uid("rule"),
+          operator: "gt",
+          threshold: "avg",
+          background: "#fde2e1",
+          color: "#9f1239",
+        },
+      ],
+    });
+  const removeRule = (id: string) =>
+    update({ rules: cfg.rules.filter((r) => r.id !== id) });
+
+  return (
+    <FormatGroup title="条件格式">
+      <SelectRow
+        id="fmt-cond-mode"
+        label="类型"
+        value={cfg.mode}
+        options={CONDITIONAL_MODES.map((m) => ({ value: m.value, label: m.label }))}
+        onChange={(v) => update({ mode: v as ConditionalFormat["mode"] })}
+      />
+      {cfg.mode !== "none" ? (
+        <>
+          <SelectRow
+            id="fmt-cond-field"
+            label="作用列"
+            value={cfg.fields?.[0] ?? ""}
+            options={[{ value: "", label: "全部数值列" }, ...measureOptions]}
+            onChange={(v) => update({ fields: v ? [v] : [] })}
+          />
+          {cfg.mode === "dataBar" ? (
+            <ColorRow
+              id="fmt-cond-bar"
+              label="数据条颜色"
+              value={cfg.barColor}
+              onChange={(v) => update({ barColor: v })}
+            />
+          ) : null}
+          {cfg.mode === "colorScale" ? (
+            <>
+              <ToggleRow
+                id="fmt-cond-three"
+                label="三色色阶"
+                checked={cfg.threeColor}
+                onChange={(v) => update({ threeColor: v })}
+              />
+              <ColorRow
+                id="fmt-cond-min"
+                label="最小值颜色"
+                value={cfg.minColor}
+                onChange={(v) => update({ minColor: v })}
+              />
+              {cfg.threeColor ? (
+                <ColorRow
+                  id="fmt-cond-mid"
+                  label="中间值颜色"
+                  value={cfg.midColor}
+                  onChange={(v) => update({ midColor: v })}
+                />
+              ) : null}
+              <ColorRow
+                id="fmt-cond-max"
+                label="最大值颜色"
+                value={cfg.maxColor}
+                onChange={(v) => update({ maxColor: v })}
+              />
+            </>
+          ) : null}
+          {cfg.mode === "iconSet" ? (
+            <ColorRow
+              id="fmt-cond-icon"
+              label="图标颜色"
+              value={cfg.iconColor}
+              onChange={(v) => update({ iconColor: v })}
+            />
+          ) : null}
+          {cfg.mode === "rules" ? (
+            <>
+              {cfg.rules.map((rule) => (
+                <div key={rule.id} className="space-y-1 rounded border p-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-muted-foreground">规则</span>
+                    <button
+                      type="button"
+                      title="删除规则"
+                      aria-label="删除规则"
+                      onClick={() => removeRule(rule.id)}
+                      className="rounded p-0.5 text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <SelectRow
+                    id={`rule-op-${rule.id}`}
+                    label="条件"
+                    value={rule.operator}
+                    options={OPERATOR_OPTIONS.map((o) => ({
+                      value: o.value,
+                      label: o.label,
+                    }))}
+                    onChange={(v) =>
+                      setRule(rule.id, {
+                        operator: v as ConditionalRule["operator"],
+                      })
+                    }
+                  />
+                  <SelectRow
+                    id={`rule-th-${rule.id}`}
+                    label="阈值"
+                    value={rule.threshold}
+                    options={THRESHOLD_OPTIONS.map((o) => ({
+                      value: o.value,
+                      label: o.label,
+                    }))}
+                    onChange={(v) =>
+                      setRule(rule.id, {
+                        threshold: v as ConditionalRule["threshold"],
+                      })
+                    }
+                  />
+                  {rule.threshold === "value" ? (
+                    <div className="flex items-center justify-between py-1">
+                      <Label
+                        htmlFor={`rule-v-${rule.id}`}
+                        className="text-xs font-normal"
+                      >
+                        数值
+                      </Label>
+                      <Input
+                        id={`rule-v-${rule.id}`}
+                        type="number"
+                        step="any"
+                        value={rule.value ?? ""}
+                        onChange={(e) =>
+                          setRule(rule.id, {
+                            value:
+                              e.target.value === ""
+                                ? undefined
+                                : Number(e.target.value),
+                          })
+                        }
+                        className="h-6 w-20 text-xs"
+                      />
+                    </div>
+                  ) : null}
+                  <ColorRow
+                    id={`rule-bg-${rule.id}`}
+                    label="填充色"
+                    value={rule.background ?? "#fde2e1"}
+                    onChange={(v) => setRule(rule.id, { background: v })}
+                  />
+                  <ColorRow
+                    id={`rule-fg-${rule.id}`}
+                    label="文字色"
+                    value={rule.color ?? "#9f1239"}
+                    onChange={(v) => setRule(rule.id, { color: v })}
+                  />
+                  <ToggleRow
+                    id={`rule-bold-${rule.id}`}
+                    label="加粗"
+                    checked={rule.bold ?? false}
+                    onChange={(v) => setRule(rule.id, { bold: v })}
+                  />
+                </div>
+              ))}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 w-full justify-start px-1 text-xs text-muted-foreground hover:text-foreground"
+                onClick={addRule}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                添加规则
+              </Button>
+            </>
+          ) : null}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 w-full justify-start px-1 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => onChange({ conditional: undefined })}
+          >
+            清除条件格式
+          </Button>
+        </>
+      ) : null}
+    </FormatGroup>
+  );
+}
+
+const LINE_KIND_OPTIONS: Array<{ value: ReferenceLine["kind"]; label: string }> = [
+  { value: "avg", label: "平均值线" },
+  { value: "median", label: "中位数线" },
+  { value: "max", label: "最大值线" },
+  { value: "min", label: "最小值线" },
+  { value: "target", label: "目标值" },
+  { value: "value", label: "固定值" },
+];
+
+/** 参考线与目标带分区（均值线 / 目标值 / 区间阴影） */
+function ReferenceSection({
+  widget,
+  onChange,
+}: {
+  widget: ChartWidget;
+  onChange: (patch: Partial<ChartWidget>) => void;
+}) {
+  const cfg: WidgetReference = widget.reference ?? { lines: [], bands: [] };
+  const update = (patch: Partial<WidgetReference>) =>
+    onChange({ reference: { ...cfg, ...patch } });
+  const setLine = (id: string, patch: Partial<ReferenceLine>) =>
+    update({
+      lines: cfg.lines.map((l) => (l.id === id ? { ...l, ...patch } : l)),
+    });
+  const setBand = (id: string, patch: Partial<ReferenceBand>) =>
+    update({
+      bands: cfg.bands.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+    });
+  const needsValue = (kind: ReferenceLine["kind"]) =>
+    kind === "target" || kind === "value";
+
+  return (
+    <FormatGroup title="参考线与目标带">
+      {cfg.lines.map((line) => (
+        <div key={line.id} className="space-y-1 rounded border p-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-muted-foreground">参考线</span>
+            <button
+              type="button"
+              title="删除参考线"
+              aria-label="删除参考线"
+              onClick={() =>
+                update({ lines: cfg.lines.filter((l) => l.id !== line.id) })
+              }
+              className="rounded p-0.5 text-muted-foreground hover:text-destructive"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+          <SelectRow
+            id={`ref-line-kind-${line.id}`}
+            label="类型"
+            value={line.kind}
+            options={LINE_KIND_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+            onChange={(v) =>
+              setLine(line.id, { kind: v as ReferenceLine["kind"] })
+            }
+          />
+          {needsValue(line.kind) ? (
+            <div className="flex items-center justify-between py-1">
+              <Label
+                htmlFor={`ref-line-value-${line.id}`}
+                className="text-xs font-normal"
+              >
+                数值
+              </Label>
+              <Input
+                id={`ref-line-value-${line.id}`}
+                type="number"
+                step="any"
+                value={line.value ?? ""}
+                onChange={(e) =>
+                  setLine(line.id, {
+                    value:
+                      e.target.value === "" ? undefined : Number(e.target.value),
+                  })
+                }
+                className="h-6 w-20 text-xs"
+              />
+            </div>
+          ) : null}
+          <div className="flex items-center justify-between py-1">
+            <Label
+              htmlFor={`ref-line-label-${line.id}`}
+              className="text-xs font-normal"
+            >
+              标签
+            </Label>
+            <Input
+              id={`ref-line-label-${line.id}`}
+              value={line.label ?? ""}
+              onChange={(e) => setLine(line.id, { label: e.target.value })}
+              placeholder="留空自动生成"
+              className="h-6 w-28 text-xs"
+            />
+          </div>
+          <ColorRow
+            id={`ref-line-color-${line.id}`}
+            label="颜色"
+            value={line.color}
+            onChange={(v) => setLine(line.id, { color: v })}
+          />
+          <ToggleRow
+            id={`ref-line-dash-${line.id}`}
+            label="虚线"
+            checked={line.dashed}
+            onChange={(v) => setLine(line.id, { dashed: v })}
+          />
+        </div>
+      ))}
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 w-full justify-start px-1 text-xs text-muted-foreground hover:text-foreground"
+        onClick={() =>
+          update({
+            lines: [
+              ...cfg.lines,
+              {
+                id: uid("ref"),
+                kind: "avg",
+                color: "#64748b",
+                dashed: true,
+              },
+            ],
+          })
+        }
+      >
+        <Plus className="h-3.5 w-3.5" />
+        添加参考线
+      </Button>
+
+      {cfg.bands.map((band) => (
+        <div key={band.id} className="space-y-1 rounded border p-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-muted-foreground">目标带</span>
+            <button
+              type="button"
+              title="删除目标带"
+              aria-label="删除目标带"
+              onClick={() =>
+                update({ bands: cfg.bands.filter((b) => b.id !== band.id) })
+              }
+              className="rounded p-0.5 text-muted-foreground hover:text-destructive"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+          <div className="flex items-center justify-between py-1">
+            <Label
+              htmlFor={`ref-band-from-${band.id}`}
+              className="text-xs font-normal"
+            >
+              起点 / 终点
+            </Label>
+            <div className="flex items-center gap-1">
+              <Input
+                id={`ref-band-from-${band.id}`}
+                type="number"
+                step="any"
+                value={band.from}
+                onChange={(e) =>
+                  setBand(band.id, { from: Number(e.target.value) || 0 })
+                }
+                className="h-6 w-16 text-xs"
+              />
+              <Input
+                aria-label="终点"
+                type="number"
+                step="any"
+                value={band.to}
+                onChange={(e) =>
+                  setBand(band.id, { to: Number(e.target.value) || 0 })
+                }
+                className="h-6 w-16 text-xs"
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between py-1">
+            <Label
+              htmlFor={`ref-band-label-${band.id}`}
+              className="text-xs font-normal"
+            >
+              标签
+            </Label>
+            <Input
+              id={`ref-band-label-${band.id}`}
+              value={band.label ?? ""}
+              onChange={(e) => setBand(band.id, { label: e.target.value })}
+              placeholder="可选"
+              className="h-6 w-28 text-xs"
+            />
+          </div>
+          <ColorRow
+            id={`ref-band-color-${band.id}`}
+            label="颜色"
+            value={band.color}
+            onChange={(v) => setBand(band.id, { color: v })}
+          />
+          <NumberRow
+            id={`ref-band-opacity-${band.id}`}
+            label="不透明度"
+            min={0}
+            max={100}
+            value={band.opacity}
+            onChange={(v) => setBand(band.id, { opacity: v })}
+          />
+        </div>
+      ))}
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 w-full justify-start px-1 text-xs text-muted-foreground hover:text-foreground"
+        onClick={() =>
+          update({
+            bands: [
+              ...cfg.bands,
+              {
+                id: uid("band"),
+                from: 0,
+                to: 100,
+                color: "#94a3b8",
+                opacity: 12,
+              },
+            ],
+          })
+        }
+      >
+        <Plus className="h-3.5 w-3.5" />
+        添加目标带
+      </Button>
+      {cfg.lines.length === 0 && cfg.bands.length === 0 ? (
+        <p className="pt-1 text-[11px] leading-relaxed text-muted-foreground">
+          参考线按当前聚合数据计算统计量；目标值 / 固定值直接使用输入的数值。
+        </p>
+      ) : null}
+    </FormatGroup>
   );
 }
 
@@ -1424,6 +2207,8 @@ interface WellProps {
   children?: ReactNode;
   empty?: boolean;
   onDropField: (field: string) => void;
+  /** 接受命名度量拖放（不传则忽略度量拖放） */
+  onDropMeasure?: (measureId: string) => void;
   onClear?: () => void;
 }
 
@@ -1435,6 +2220,7 @@ function Well({
   children,
   empty,
   onDropField,
+  onDropMeasure,
   onClear,
 }: WellProps) {
   const [over, setOver] = useState(false);
@@ -1453,6 +2239,11 @@ function Well({
         onDrop={(e) => {
           e.preventDefault();
           setOver(false);
+          const measureId = e.dataTransfer.getData("application/x-bi-measure");
+          if (measureId) {
+            onDropMeasure?.(measureId);
+            return;
+          }
           const f =
             e.dataTransfer.getData("application/x-bi-field") ||
             e.dataTransfer.getData("text/plain") ||

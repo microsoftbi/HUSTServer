@@ -2,6 +2,14 @@ import { useState } from 'react';
 import { Loader2, Play, Redo2, Save, Square, Undo2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useDesignerHost } from '@/context';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -15,6 +23,8 @@ export function Toolbar() {
   const markSaved = useWorkflowStore((s) => s.markSaved);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  /** 有未保存更改时点返回：弹出保存确认 */
+  const [exitOpen, setExitOpen] = useState(false);
 
   const workflowId = useWorkflowStore((s) => s.workflowId);
   const nodeCount = useWorkflowStore((s) => s.nodes.length);
@@ -37,26 +47,54 @@ export function Toolbar() {
         ? '当前宿主不支持运行'
         : undefined;
 
-  async function handleSave() {
+  /** 保存并返回是否成功；失败时错误文案留在工具栏 / 对话框中 */
+  async function persist(): Promise<boolean> {
     setSaving(true);
     setSaveError(null);
     try {
       await adapter.onSave(snapshot());
       markSaved();
+      return true;
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : '保存失败');
+      return false;
     } finally {
       setSaving(false);
     }
   }
 
+  async function handleSave() {
+    await persist();
+  }
+
+  function handleExit() {
+    if (dirty) {
+      setExitOpen(true);
+      return;
+    }
+    onExit?.();
+  }
+
+  async function handleSaveAndExit() {
+    if (await persist()) {
+      setExitOpen(false);
+      onExit?.();
+    }
+  }
+
+  function handleDiscardAndExit() {
+    setExitOpen(false);
+    onExit?.();
+  }
+
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-card/60 px-3">
-      {onExit && (
-        <Button variant="ghost" size="sm" onClick={() => onExit?.()}>
-          返回
-        </Button>
-      )}
+    <>
+      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-card/60 px-3">
+        {onExit && (
+          <Button variant="ghost" size="sm" onClick={handleExit}>
+            返回
+          </Button>
+        )}
 
       <div className="flex items-center gap-2">
         <div className="flex size-6 items-center justify-center rounded bg-primary text-[11px] font-bold text-primary-foreground">
@@ -133,7 +171,37 @@ export function Toolbar() {
         </Button>
 
         {saveError && <span className="text-xs text-destructive">{saveError}</span>}
-      </div>
-    </header>
+        </div>
+      </header>
+
+      <Dialog
+        open={exitOpen}
+        onOpenChange={(open) => {
+          if (!open && !saving) setExitOpen(false);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>未保存的更改</DialogTitle>
+            <DialogDescription>
+              当前工作流有未保存的更改，离开后将丢失。是否保存？
+            </DialogDescription>
+          </DialogHeader>
+          {saveError && <span className="text-xs text-destructive">{saveError}</span>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExitOpen(false)} disabled={saving}>
+              取消
+            </Button>
+            <Button variant="outline" onClick={handleDiscardAndExit} disabled={saving}>
+              不保存离开
+            </Button>
+            <Button onClick={() => void handleSaveAndExit()} disabled={saving}>
+              {saving && <Loader2 className="animate-spin" />}
+              保存并离开
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

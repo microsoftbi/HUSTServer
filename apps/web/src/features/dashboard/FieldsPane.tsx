@@ -5,6 +5,7 @@ import {
   Hash,
   Plus,
   Search,
+  Sigma,
   ToggleLeft,
   Type,
   type LucideIcon,
@@ -18,7 +19,7 @@ import {
   SelectValue,
 } from "@bi/components/ui/select";
 import { cn } from "@bi/lib/utils";
-import type { Column, ColumnType, Dataset } from "@bi/types";
+import type { Column, ColumnType, Dataset, NamedMeasure } from "@bi/types";
 
 const TYPE_META: Record<ColumnType, { label: string; Icon: LucideIcon }> = {
   number: { label: "数字", Icon: Hash },
@@ -33,6 +34,8 @@ interface FieldsPaneProps {
   datasetId: string | null;
   onSelectDataset: (id: string) => void;
   onPickField: (field: Column) => void;
+  /** 点击命名度量（度量管理里定义的可复用表达式） */
+  onPickMeasure?: (measure: NamedMeasure) => void;
   onAddDataset?: () => void;
   /** 展开时占据的 flex 比例（折叠后仅保留标题栏） */
   grow?: number;
@@ -45,6 +48,7 @@ export function FieldsPane({
   datasetId,
   onSelectDataset,
   onPickField,
+  onPickMeasure,
   onAddDataset,
   grow = 2,
   className,
@@ -58,6 +62,13 @@ export function FieldsPane({
     const all = dataset?.columns ?? [];
     const q = query.trim().toLowerCase();
     return q ? all.filter((c) => c.name.toLowerCase().includes(q)) : all;
+  }, [dataset, query]);
+
+  /** 命名度量：与字段一起参与搜索，单独成组展示 */
+  const measures = useMemo(() => {
+    const all = Object.values(dataset?.measures ?? {});
+    const q = query.trim().toLowerCase();
+    return q ? all.filter((m) => m.name.toLowerCase().includes(q)) : all;
   }, [dataset, query]);
 
   return (
@@ -131,46 +142,94 @@ export function FieldsPane({
 
       <div className="min-h-0 flex-1 overflow-auto px-2 pb-3">
         {dataset ? (
-          <ul className="space-y-0.5">
-            {fields.map((c) => {
-              const meta = TYPE_META[c.type] ?? TYPE_META.unknown;
-              const { Icon } = meta;
-              return (
-                <li key={c.name}>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData("text/plain", c.name);
-                      e.dataTransfer.setData("text", c.name);
-                      e.dataTransfer.setData("application/x-bi-field", c.name);
-                      e.dataTransfer.effectAllowed = "copy";
-                    }}
-                    onClick={() => onPickField(c)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onPickField(c);
-                      }
-                    }}
-                    className="flex cursor-grab items-center gap-2 rounded-md px-2.5 py-1.5 text-sm hover:bg-accent active:cursor-grabbing"
-                  >
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span className="flex-1 truncate">{c.name}</span>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">
-                      {meta.label}
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
-            {fields.length === 0 ? (
-              <li className="px-2 py-4 text-center text-xs text-muted-foreground">
-                无匹配字段
-              </li>
+          <div className="space-y-1">
+            {measures.length > 0 ? (
+              <div>
+                <div className="px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                  度量值
+                </div>
+                <ul className="space-y-0.5">
+                  {measures.map((m) => (
+                    <li key={m.id}>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("text/plain", m.name);
+                          e.dataTransfer.setData("text", m.name);
+                          e.dataTransfer.setData("application/x-bi-measure", m.id);
+                          e.dataTransfer.effectAllowed = "copy";
+                        }}
+                        onClick={() => onPickMeasure?.(m)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onPickMeasure?.(m);
+                          }
+                        }}
+                        title={m.expression}
+                        className="flex cursor-grab items-center gap-2 rounded-md px-2.5 py-1.5 text-sm hover:bg-accent active:cursor-grabbing"
+                      >
+                        <Sigma className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="flex-1 truncate">{m.name}</span>
+                        <span className="shrink-0 text-[10px] text-muted-foreground">
+                          度量值
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
-          </ul>
+            <div>
+              {measures.length > 0 ? (
+                <div className="px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                  字段
+                </div>
+              ) : null}
+              <ul className="space-y-0.5">
+                {fields.map((c) => {
+                  const meta = TYPE_META[c.type] ?? TYPE_META.unknown;
+                  const { Icon } = meta;
+                  return (
+                    <li key={c.name}>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("text/plain", c.name);
+                          e.dataTransfer.setData("text", c.name);
+                          e.dataTransfer.setData("application/x-bi-field", c.name);
+                          e.dataTransfer.effectAllowed = "copy";
+                        }}
+                        onClick={() => onPickField(c)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onPickField(c);
+                          }
+                        }}
+                        className="flex cursor-grab items-center gap-2 rounded-md px-2.5 py-1.5 text-sm hover:bg-accent active:cursor-grabbing"
+                      >
+                        <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="flex-1 truncate">{c.name}</span>
+                        <span className="shrink-0 text-[10px] text-muted-foreground">
+                          {meta.label}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+                {fields.length === 0 ? (
+                  <li className="px-2 py-4 text-center text-xs text-muted-foreground">
+                    无匹配字段
+                  </li>
+                ) : null}
+              </ul>
+            </div>
+          </div>
         ) : null}
       </div>
         </>

@@ -60,15 +60,17 @@ export function formatNumber(value: number, format?: FieldFormat | null): string
   if (!format) {
     return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(6)));
   }
-  const scaled = value / UNIT_DIVISOR[format.unit];
+  const scaled = (format.percent ? value * 100 : value) / UNIT_DIVISOR[format.unit];
+  // 百分比默认保留 2 位（“自动”精度下 0.12345 会显示成 12.345% 太长）
+  const decimals = format.percent && format.decimals < 0 ? 2 : format.decimals;
   let text: string;
-  if (format.decimals < 0) {
+  if (decimals < 0) {
     text = Number.isInteger(scaled) ? String(scaled) : String(Number(scaled.toFixed(6)));
   } else {
-    text = scaled.toFixed(format.decimals);
+    text = scaled.toFixed(decimals);
   }
   if (format.thousands) text = groupThousands(text);
-  return `${text}${UNIT_SUFFIX[format.unit]}`;
+  return `${text}${UNIT_SUFFIX[format.unit]}${format.percent ? "%" : ""}`;
 }
 
 /** 表格/预览展示用的格式化 */

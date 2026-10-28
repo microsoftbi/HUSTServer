@@ -75,7 +75,7 @@ describe('GET /api/models', () => {
 });
 
 describe('POST /api/models/query', () => {
-  it('返回 { columns, rows, truncated }', async () => {
+  it('返回 { columns, rows, truncated, totalRows }', async () => {
     const res = await app.inject({
       method: 'POST', url: '/api/models/query', headers: { cookie: authorCookie },
       payload: { name: 'sales_model' },
@@ -85,6 +85,7 @@ describe('POST /api/models/query', () => {
       columns: [{ name: 'id', type: 'number' }, { name: 'amount', type: 'number' }],
       rows: [[1, 10], [2, 20], [3, 30]],
       truncated: false,
+      totalRows: 3,
     });
   });
 

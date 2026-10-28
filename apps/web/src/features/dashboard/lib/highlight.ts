@@ -1,7 +1,7 @@
 /** 交叉筛选/高亮：其它视觉对象按选中值过滤行后重新聚合，源视觉对象仅调整透明度 */
 
-import type { Dataset } from "@bi/types";
-import { normalizeLabel } from "./aggregate";
+import type { ChartWidget, Dataset } from "@bi/types";
+import { hierarchyFields, normalizeLabel } from "./aggregate";
 
 /** 作用于其它视觉对象的行级筛选条件 */
 export interface CrossFilter {
@@ -104,6 +104,30 @@ export function applyValueFilters(
     }
     return filterByDateRange(ds, f.field, f.from, f.to);
   }, dataset);
+}
+
+/**
+ * 钻取层级 → 行级筛选条件：上钻路径中每一层已选中的标签值都作为值筛选，
+ * 让本地聚合与服务端下推得到同一份「当前层级」数据。
+ * 完整层级为 X 轴字段 → 钻取井字段，第 i 层对应 selections[i]。
+ */
+export function drillValueFilters(widget: ChartWidget): ValueFilter[] {
+  const drill = widget.drill;
+  if (!drill || drill.selections.length === 0) return [];
+  const fields = hierarchyFields(widget.encoding, drill);
+  const depth = Math.min(
+    drill.level,
+    fields.length - 1,
+    drill.selections.length,
+  );
+  const filters: ValueFilter[] = [];
+  for (let i = 0; i < depth; i += 1) {
+    const field = fields[i];
+    const value = drill.selections[i];
+    if (!field || value === undefined) continue;
+    filters.push({ kind: "values", field, values: [value] });
+  }
+  return filters;
 }
 
 export interface HighlightSelection {
