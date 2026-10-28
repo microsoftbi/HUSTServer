@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 572" width="100%" height="auto" role="img" aria-label="工作流导入向导线框图">
+  <rect width="720" height="572" fill="#f8fafc"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="24" y="36" font-size="16" font-weight="600" fill="#0f172a">工作流</text>
+    <rect x="496" y="16" width="104" height="32" rx="8" fill="#2563eb"/>
+    <text x="548" y="36" font-size="12" fill="#ffffff" text-anchor="middle">上传工作流</text>
+    <rect x="608" y="16" width="88" height="32" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="652" y="36" font-size="12" fill="#334155" text-anchor="middle">新建画布</text>
+
+    <!-- 工作流列表 -->
+    <rect x="24" y="60" width="672" height="112" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <path d="M24 70a10 10 0 0 1 10-10h652a10 10 0 0 1 10 10v22H24z" fill="#f8fafc"/>
+    <line x1="24" y1="92" x2="696" y2="92" stroke="#e2e8f0"/>
+    <text x="40" y="81" font-size="10.5" fill="#64748b">名称</text>
+    <text x="300" y="81" font-size="10.5" fill="#64748b">节点数</text>
+    <text x="364" y="81" font-size="10.5" fill="#64748b">输入</text>
+    <text x="420" y="81" font-size="10.5" fill="#64748b">输出</text>
+    <text x="482" y="81" font-size="10.5" fill="#64748b">更新时间</text>
+    <text x="612" y="81" font-size="10.5" fill="#64748b">操作</text>
+    <text x="40" y="116" font-size="12" fill="#0f172a">月度销售汇总</text>
+    <text x="310" y="116" font-size="12" fill="#475569">12</text>
+    <text x="370" y="116" font-size="12" fill="#475569">3</text>
+    <text x="426" y="116" font-size="12" fill="#475569">2</text>
+    <text x="482" y="116" font-size="11.5" fill="#64748b">10-25 09:12</text>
+    <text x="612" y="116" font-size="11" fill="#2563eb">打开</text>
+    <text x="650" y="116" font-size="11" fill="#dc2626">删除</text>
+    <line x1="40" y1="132" x2="680" y2="132" stroke="#f1f5f9"/>
+    <text x="40" y="156" font-size="12" fill="#94a3b8">…</text>
+
+    <!-- 上传向导 -->
+    <rect x="24" y="192" width="672" height="360" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="40" y="220" font-size="13" font-weight="600" fill="#0f172a">上传工作流</text>
+    <text x="120" y="220" font-size="10.5" fill="#94a3b8">支持 .htyx，文件不超过 5MB</text>
+
+    <circle cx="44" cy="250" r="9" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="44" y="254" font-size="10" fill="#2563eb" text-anchor="middle">1</text>
+    <text x="60" y="254" font-size="11.5" font-weight="600" fill="#334155">选择文件</text>
+    <rect x="40" y="262" width="632" height="46" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-dasharray="4 3"/>
+    <text x="56" y="290" font-size="11" fill="#94a3b8">点击或拖拽 .htyx 文件到此处</text>
+    <rect x="452" y="272" width="204" height="26" rx="13" fill="#eff6ff"/>
+    <text x="554" y="289" font-size="10.5" fill="#2563eb" text-anchor="middle">monthly_sales.htyx 已选择</text>
+
+    <circle cx="44" cy="332" r="9" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="44" y="336" font-size="10" fill="#2563eb" text-anchor="middle">2</text>
+    <text x="60" y="336" font-size="11.5" font-weight="600" fill="#334155">工作流名称</text>
+    <rect x="160" y="320" width="280" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="170" y="337" font-size="11" fill="#0f172a">月度销售汇总</text>
+
+    <circle cx="44" cy="376" r="9" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="44" y="380" font-size="10" fill="#2563eb" text-anchor="middle">3</text>
+    <text x="60" y="380" font-size="11.5" font-weight="600" fill="#334155">输入绑定</text>
+    <text x="126" y="380" font-size="10.5" fill="#94a3b8">为每个输入选择数据来源</text>
+
+    <text x="40" y="402" font-size="11" fill="#334155">输入-门店明细（CSV）</text>
+    <text x="250" y="402" font-size="11" fill="#2563eb">●</text>
+    <text x="262" y="402" font-size="10.5" fill="#334155">上传文件</text>
+    <text x="336" y="402" font-size="11" fill="#94a3b8">○</text>
+    <text x="348" y="402" font-size="10.5" fill="#64748b">服务端路径</text>
+    <rect x="40" y="410" width="300" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="52" y="427" font-size="10.5" fill="#475569">store_detail.csv（12.3MB）</text>
+    <rect x="350" y="410" width="76" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="388" y="427" font-size="10.5" fill="#334155" text-anchor="middle">选择文件</text>
+
+    <text x="40" y="454" font-size="11" fill="#334155">输入-目标表（CSV）</text>
+    <text x="250" y="454" font-size="11" fill="#94a3b8">○</text>
+    <text x="262" y="454" font-size="10.5" fill="#64748b">上传文件</text>
+    <text x="336" y="454" font-size="11" fill="#2563eb">●</text>
+    <text x="348" y="454" font-size="10.5" fill="#334155">服务端路径</text>
+    <rect x="40" y="462" width="470" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="52" y="479" font-size="10.5" fill="#0f172a">/data/target.csv</text>
+
+    <circle cx="44" cy="510" r="9" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="44" y="514" font-size="10" fill="#2563eb" text-anchor="middle">4</text>
+    <text x="60" y="514" font-size="11.5" font-weight="600" fill="#334155">输出</text>
+    <rect x="104" y="498" width="164" height="24" rx="12" fill="#f5f3ff"/>
+    <text x="186" y="514" font-size="10.5" fill="#7c3aed" text-anchor="middle">数据模型 sales_monthly</text>
+    <rect x="276" y="498" width="120" height="24" rx="12" fill="#f1f5f9"/>
+    <text x="336" y="514" font-size="10.5" fill="#475569" text-anchor="middle">CSV result.csv</text>
+
+    <rect x="492" y="512" width="56" height="28" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="520" y="530" font-size="11" fill="#475569" text-anchor="middle">取消</text>
+    <rect x="556" y="512" width="104" height="28" rx="7" fill="#2563eb"/>
+    <text x="608" y="530" font-size="11" fill="#ffffff" text-anchor="middle">创建工作流</text>
+  </g>
+</svg>

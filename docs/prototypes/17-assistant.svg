@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 520" width="100%" height="auto" role="img" aria-label="AI 智能体线框图">
+  <rect width="720" height="520" fill="#f8fafc"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="24" y="36" font-size="16" font-weight="600" fill="#0f172a">AI 智能体</text>
+
+    <rect x="24" y="56" width="672" height="440" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <line x1="200" y1="56" x2="200" y2="496" stroke="#e2e8f0"/>
+
+    <!-- 会话列表 -->
+    <rect x="40" y="72" width="144" height="28" rx="6" fill="#2563eb"/>
+    <text x="112" y="90" font-size="10.5" fill="#ffffff" text-anchor="middle">+ 新建对话</text>
+
+    <rect x="32" y="112" width="160" height="28" rx="6" fill="#eff6ff"/>
+    <text x="44" y="130" font-size="10.5" font-weight="600" fill="#1d4ed8">销售分析</text>
+    <text x="44" y="158" font-size="10.5" fill="#64748b">库存问题</text>
+    <text x="44" y="184" font-size="10.5" fill="#64748b">区域对比</text>
+
+    <line x1="32" y1="202" x2="192" y2="202" stroke="#f1f5f9"/>
+    <text x="32" y="222" font-size="9" fill="#94a3b8">会话可重命名 / 删除</text>
+    <text x="32" y="238" font-size="9" fill="#94a3b8">历史消息始终可回看</text>
+
+    <!-- 对话头部 -->
+    <text x="216" y="80" font-size="11.5" font-weight="600" fill="#0f172a">对话：销售分析</text>
+    <text x="322" y="80" font-size="9" fill="#94a3b8">基于数据模型与数据标签回答</text>
+    <rect x="598" y="66" width="82" height="24" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="639" y="82" font-size="9" fill="#475569" text-anchor="middle">ⓘ 会话长度</text>
+    <line x1="216" y1="96" x2="680" y2="96" stroke="#f1f5f9"/>
+
+    <!-- 用户消息 -->
+    <rect x="366" y="112" width="314" height="44" rx="10" fill="#eff6ff"/>
+    <text x="380" y="132" font-size="10" fill="#1e3a8a">🧑 上个月各地区销售额是多少？</text>
+    <text x="380" y="147" font-size="8" fill="#60a5fa">10:24</text>
+
+    <!-- 助手回复 -->
+    <rect x="216" y="172" width="464" height="196" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="232" y="194" font-size="10.5" fill="#0f172a">🤖 上月共 5 个地区，合计 2,340 万；华中占比最高（34.7%）。</text>
+
+    <rect x="232" y="206" width="300" height="80" rx="6" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="232" y="206" width="300" height="22" rx="6" fill="#f1f5f9"/>
+    <text x="244" y="221" font-size="8.5" fill="#64748b">地区</text>
+    <text x="360" y="221" font-size="8.5" fill="#64748b">销售额（万）</text>
+    <text x="456" y="221" font-size="8.5" fill="#64748b">占比</text>
+    <text x="244" y="244" font-size="9" fill="#0f172a">华中</text>
+    <text x="360" y="244" font-size="9" fill="#334155">812</text>
+    <text x="456" y="244" font-size="9" fill="#334155">34.7%</text>
+    <line x1="232" y1="252" x2="532" y2="252" stroke="#f1f5f9"/>
+    <text x="244" y="268" font-size="9" fill="#0f172a">华东</text>
+    <text x="360" y="268" font-size="9" fill="#334155">604</text>
+    <text x="456" y="268" font-size="9" fill="#334155">25.8%</text>
+
+    <text x="556" y="224" font-size="8.5" fill="#94a3b8">引用模型</text>
+    <rect x="548" y="230" width="116" height="20" rx="10" fill="#f5f3ff"/>
+    <text x="606" y="244" font-size="8.5" fill="#7c3aed" text-anchor="middle">sales_monthly</text>
+    <text x="556" y="268" font-size="8.5" fill="#94a3b8">口径来自数据标签</text>
+
+    <rect x="232" y="300" width="120" height="22" rx="5" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="244" y="315" font-size="8.5" fill="#2563eb">▸ 查看所用 SQL</text>
+    <text x="232" y="340" font-size="8.5" fill="#94a3b8">SQL 由系统生成，经只读校验后执行；结果超限自动截断。</text>
+    <text x="232" y="356" font-size="8.5" fill="#94a3b8">未配置 API Key 时提示前往「设置 → AI 智能体」。</text>
+
+    <!-- 输入区 -->
+    <text x="216" y="396" font-size="9" fill="#64748b">限定模型</text>
+    <rect x="272" y="384" width="150" height="24" rx="5" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="282" y="400" font-size="9" fill="#334155">sales_monthly</text>
+    <text x="406" y="400" font-size="8" fill="#94a3b8">▾</text>
+    <text x="436" y="400" font-size="8.5" fill="#94a3b8">限定后仅按该模型口径回答</text>
+
+    <rect x="216" y="418" width="392" height="40" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="230" y="443" font-size="10" fill="#cbd5e1">输入问题，Enter 发送…</text>
+    <text x="600" y="443" font-size="8" fill="#94a3b8">0 / 4000</text>
+    <rect x="616" y="424" width="64" height="28" rx="6" fill="#2563eb"/>
+    <text x="648" y="443" font-size="10" fill="#ffffff" text-anchor="middle">发送</text>
+
+    <text x="216" y="478" font-size="8.5" fill="#94a3b8">会话长度：消息 24 条 · 上下文 38.2K 字符 —— 点击「压缩历史」把旧消息压缩为摘要后继续对话。</text>
+  </g>
+</svg>

@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 480" width="100%" height="auto" role="img" aria-label="运行与实时监控线框图">
+  <rect width="720" height="480" fill="#f8fafc"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="24" y="34" font-size="14" font-weight="600" fill="#0f172a">工作流 · 月度销售汇总</text>
+    <rect x="508" y="16" width="88" height="30" rx="7" fill="#2563eb"/>
+    <text x="552" y="35" font-size="11.5" fill="#ffffff" text-anchor="middle">立即运行</text>
+    <rect x="604" y="16" width="92" height="30" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="640" y="35" font-size="11" fill="#334155" text-anchor="middle">运行 ▾</text>
+    <text x="656" y="35" font-size="9" fill="#94a3b8">▾</text>
+
+    <!-- 节点结果 -->
+    <rect x="24" y="60" width="672" height="204" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="40" y="86" font-size="12.5" font-weight="600" fill="#0f172a">节点结果</text>
+    <text x="104" y="86" font-size="9.5" fill="#94a3b8">实时刷新</text>
+    <text x="540" y="86" font-size="9.5" fill="#64748b">队列：1 运行中 / 上限 2</text>
+    <rect x="596" y="70" width="80" height="24" rx="6" fill="#ffffff" stroke="#fecaca"/>
+    <text x="636" y="86" font-size="10" fill="#dc2626" text-anchor="middle">取消运行</text>
+    <line x1="40" y1="98" x2="680" y2="98" stroke="#f1f5f9"/>
+
+    <text x="40" y="118" font-size="9" fill="#94a3b8">节点</text>
+    <text x="320" y="118" font-size="9" fill="#94a3b8">状态</text>
+    <text x="452" y="118" font-size="9" fill="#94a3b8">输出行数</text>
+    <text x="556" y="118" font-size="9" fill="#94a3b8">耗时</text>
+
+    <circle cx="44" cy="140" r="4" fill="#16a34a"/>
+    <text x="58" y="144" font-size="11" fill="#0f172a">CSV 输入 · 门店明细</text>
+    <rect x="320" y="130" width="56" height="20" rx="10" fill="#ecfdf5"/>
+    <text x="348" y="144" font-size="9.5" fill="#15803d" text-anchor="middle">✔ 成功</text>
+    <text x="452" y="144" font-size="10.5" fill="#475569">12,300 行</text>
+    <text x="556" y="144" font-size="10.5" fill="#475569">2.1s</text>
+    <line x1="40" y1="154" x2="680" y2="154" stroke="#f8fafc"/>
+
+    <circle cx="44" cy="174" r="4" fill="#16a34a"/>
+    <text x="58" y="178" font-size="11" fill="#0f172a">筛选 · 销售额 &gt; 0</text>
+    <rect x="320" y="164" width="56" height="20" rx="10" fill="#ecfdf5"/>
+    <text x="348" y="178" font-size="9.5" fill="#15803d" text-anchor="middle">✔ 成功</text>
+    <text x="452" y="178" font-size="10.5" fill="#475569">11,872 行</text>
+    <text x="556" y="178" font-size="10.5" fill="#475569">0.3s</text>
+    <line x1="40" y1="188" x2="680" y2="188" stroke="#f8fafc"/>
+
+    <circle cx="44" cy="208" r="4" fill="#2563eb"/>
+    <text x="58" y="212" font-size="11" fill="#0f172a">联接 · inner join</text>
+    <rect x="320" y="198" width="64" height="20" rx="10" fill="#eff6ff"/>
+    <text x="352" y="212" font-size="9.5" fill="#1d4ed8" text-anchor="middle">◐ 运行中</text>
+    <text x="452" y="212" font-size="10.5" fill="#94a3b8">—</text>
+    <text x="556" y="212" font-size="10.5" fill="#475569">3.2s</text>
+    <line x1="40" y1="222" x2="680" y2="222" stroke="#f8fafc"/>
+
+    <circle cx="44" cy="242" r="4" fill="#cbd5e1"/>
+    <text x="58" y="246" font-size="11" fill="#94a3b8">数据模型 · sales_monthly</text>
+    <rect x="320" y="232" width="56" height="20" rx="10" fill="#f1f5f9"/>
+    <text x="348" y="246" font-size="9.5" fill="#64748b" text-anchor="middle">○ 等待</text>
+    <text x="452" y="246" font-size="10.5" fill="#cbd5e1">—</text>
+    <text x="556" y="246" font-size="10.5" fill="#cbd5e1">—</text>
+
+    <!-- 输出预览 -->
+    <rect x="24" y="280" width="672" height="180" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="40" y="306" font-size="12.5" font-weight="600" fill="#0f172a">节点输出预览</text>
+    <text x="132" y="306" font-size="9.5" fill="#94a3b8">点击上方节点切换</text>
+
+    <rect x="484" y="290" width="86" height="24" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="496" y="306" font-size="9.5" fill="#475569">从缓存续跑</text>
+    <text x="558" y="306" font-size="8.5" fill="#94a3b8">▾</text>
+    <rect x="576" y="290" width="104" height="24" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="586" y="306" font-size="9.5" fill="#cbd5e1">粘贴缓存令牌</text>
+
+    <rect x="40" y="326" width="640" height="94" rx="6" fill="#fbfdff" stroke="#e2e8f0"/>
+    <rect x="40" y="326" width="640" height="24" rx="6" fill="#f1f5f9"/>
+    <text x="52" y="342" font-size="9.5" fill="#64748b">门店ID</text>
+    <text x="140" y="342" font-size="9.5" fill="#64748b">门店名</text>
+    <text x="300" y="342" font-size="9.5" fill="#64748b">销售额</text>
+    <text x="440" y="342" font-size="9.5" fill="#64748b">日期</text>
+    <text x="560" y="342" font-size="9.5" fill="#64748b">区域</text>
+    <text x="52" y="370" font-size="10" fill="#0f172a">S001</text>
+    <text x="140" y="370" font-size="10" fill="#334155">汉口店</text>
+    <text x="300" y="370" font-size="10" fill="#334155">52,300</text>
+    <text x="440" y="370" font-size="10" fill="#334155">2026-10-25</text>
+    <text x="560" y="370" font-size="10" fill="#334155">华中</text>
+    <line x1="40" y1="380" x2="680" y2="380" stroke="#f1f5f9"/>
+    <text x="52" y="398" font-size="10" fill="#0f172a">S002</text>
+    <text x="140" y="398" font-size="10" fill="#334155">武昌店</text>
+    <text x="300" y="398" font-size="10" fill="#334155">48,120</text>
+    <text x="440" y="398" font-size="10" fill="#334155">2026-10-25</text>
+    <text x="560" y="398" font-size="10" fill="#334155">华中</text>
+    <text x="40" y="440" font-size="9.5" fill="#94a3b8">显示 1–2 / 共 11,872 行</text>
+    <text x="552" y="440" font-size="9.5" fill="#94a3b8">预览最多 1000 行</text>
+  </g>
+</svg>

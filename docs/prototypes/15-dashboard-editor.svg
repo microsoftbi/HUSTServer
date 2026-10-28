@@ -1,0 +1,222 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 560" width="100%" height="auto" role="img" aria-label="仪表板编辑器线框图">
+  <defs>
+    <pattern id="dots15" width="16" height="16" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="1" fill="#e8eef6"/>
+    </pattern>
+  </defs>
+  <rect width="720" height="560" fill="#ffffff"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <!-- 标题栏 -->
+    <text x="20" y="28" font-size="12.5" font-weight="600" fill="#0f172a">月度销售分析</text>
+    <text x="106" y="28" font-size="9.5" fill="#94a3b8">已保存 · 1280×720</text>
+    <rect x="512" y="10" width="56" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="540" y="27" font-size="10.5" fill="#334155" text-anchor="middle">保存</text>
+    <rect x="576" y="10" width="56" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="604" y="27" font-size="10.5" fill="#334155" text-anchor="middle">预览</text>
+    <rect x="640" y="10" width="64" height="26" rx="6" fill="#2563eb"/>
+    <text x="668" y="27" font-size="10.5" fill="#ffffff" text-anchor="middle">导出 ▾</text>
+
+    <!-- Ribbon 页签 -->
+    <line x1="0" y1="40" x2="720" y2="40" stroke="#e2e8f0"/>
+    <text x="20" y="60" font-size="10.5" font-weight="600" fill="#1d4ed8">开始</text>
+    <text x="60" y="60" font-size="10.5" fill="#64748b">插入</text>
+    <text x="100" y="60" font-size="10.5" fill="#64748b">页面</text>
+    <text x="140" y="60" font-size="10.5" fill="#64748b">导出</text>
+    <text x="180" y="60" font-size="10.5" fill="#64748b">主题</text>
+    <text x="220" y="60" font-size="10.5" fill="#64748b">对齐</text>
+    <text x="260" y="60" font-size="10.5" fill="#64748b">视觉对象</text>
+    <text x="320" y="60" font-size="10.5" fill="#64748b">元素</text>
+    <text x="360" y="60" font-size="10.5" fill="#64748b">视图</text>
+    <text x="400" y="60" font-size="10.5" fill="#64748b">显示</text>
+    <text x="440" y="60" font-size="10.5" fill="#64748b">窗格</text>
+    <line x1="20" y1="66" x2="48" y2="66" stroke="#2563eb" stroke-width="2"/>
+
+    <!-- Ribbon 命令条 -->
+    <rect x="0" y="70" width="720" height="26" fill="#f8fafc"/>
+    <line x1="0" y1="96" x2="720" y2="96" stroke="#e2e8f0"/>
+    <rect x="20" y="75" width="18" height="16" rx="3" fill="#e2e8f0"/>
+    <rect x="42" y="75" width="18" height="16" rx="3" fill="#e2e8f0"/>
+    <rect x="64" y="75" width="18" height="16" rx="3" fill="#e2e8f0"/>
+    <line x1="92" y1="74" x2="92" y2="92" stroke="#e2e8f0"/>
+    <rect x="102" y="75" width="18" height="16" rx="3" fill="#e2e8f0"/>
+    <rect x="124" y="75" width="38" height="16" rx="3" fill="#e2e8f0"/>
+    <line x1="172" y1="74" x2="172" y2="92" stroke="#e2e8f0"/>
+    <rect x="182" y="75" width="18" height="16" rx="3" fill="#e2e8f0"/>
+    <rect x="204" y="75" width="18" height="16" rx="3" fill="#e2e8f0"/>
+    <rect x="226" y="75" width="18" height="16" rx="3" fill="#e2e8f0"/>
+    <line x1="254" y1="74" x2="254" y2="92" stroke="#e2e8f0"/>
+    <rect x="264" y="75" width="18" height="16" rx="3" fill="#e2e8f0"/>
+    <rect x="286" y="75" width="34" height="16" rx="3" fill="#e2e8f0"/>
+    <line x1="330" y1="74" x2="330" y2="92" stroke="#e2e8f0"/>
+    <rect x="340" y="75" width="18" height="16" rx="3" fill="#e2e8f0"/>
+    <rect x="362" y="75" width="18" height="16" rx="3" fill="#e2e8f0"/>
+    <rect x="384" y="75" width="18" height="16" rx="3" fill="#e2e8f0"/>
+    <line x1="412" y1="74" x2="412" y2="92" stroke="#e2e8f0"/>
+    <rect x="422" y="75" width="18" height="16" rx="3" fill="#e2e8f0"/>
+    <rect x="444" y="75" width="18" height="16" rx="3" fill="#e2e8f0"/>
+    <rect x="466" y="75" width="18" height="16" rx="3" fill="#e2e8f0"/>
+    <text x="500" y="87" font-size="8.5" fill="#94a3b8">10 个命令分组 · 折叠为图标</text>
+
+    <!-- 左：数据面板 -->
+    <rect x="0" y="96" width="150" height="420" fill="#ffffff"/>
+    <line x1="150" y1="96" x2="150" y2="516" stroke="#e2e8f0"/>
+    <text x="16" y="118" font-size="10" font-weight="600" fill="#334155">数据</text>
+    <text x="16" y="140" font-size="10" fill="#64748b">▾ 数据集</text>
+    <rect x="24" y="148" width="110" height="20" rx="5" fill="#eff6ff"/>
+    <text x="32" y="162" font-size="9.5" fill="#1d4ed8">门店明细</text>
+    <text x="32" y="184" font-size="9.5" fill="#475569">销售模型</text>
+    <line x1="12" y1="196" x2="138" y2="196" stroke="#f1f5f9"/>
+
+    <text x="16" y="216" font-size="9.5" fill="#94a3b8">字段</text>
+    <rect x="18" y="226" width="9" height="9" rx="2" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="34" y="234" font-size="9.5" fill="#475569">门店</text>
+    <rect x="18" y="246" width="9" height="9" rx="2" fill="#2563eb"/>
+    <text x="34" y="254" font-size="9.5" fill="#334155">区域</text>
+    <rect x="18" y="266" width="9" height="9" rx="2" fill="#2563eb"/>
+    <text x="34" y="274" font-size="9.5" fill="#334155">销售额</text>
+    <rect x="18" y="286" width="9" height="9" rx="2" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="34" y="294" font-size="9.5" fill="#475569">日期</text>
+
+    <line x1="12" y1="308" x2="138" y2="308" stroke="#f1f5f9"/>
+    <text x="16" y="328" font-size="9.5" fill="#94a3b8">筛选器</text>
+    <rect x="16" y="336" width="118" height="22" rx="5" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="26" y="351" font-size="9" fill="#64748b">所有页面 / 此页 / 对象</text>
+    <text x="16" y="378" font-size="9.5" fill="#94a3b8">书签</text>
+    <rect x="16" y="386" width="118" height="22" rx="5" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="26" y="401" font-size="9" fill="#64748b">视图 1 · 区域=华中</text>
+
+    <!-- 画布 -->
+    <rect x="150" y="96" width="340" height="420" fill="#f6f9fc"/>
+    <rect x="150" y="96" width="340" height="420" fill="url(#dots15)"/>
+    <rect x="164" y="110" width="312" height="296" rx="3" fill="#ffffff" stroke="#dbe3ec"/>
+
+    <!-- 切片器 -->
+    <rect x="176" y="122" width="82" height="112" rx="4" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="186" y="138" font-size="8.5" fill="#64748b">区域</text>
+    <rect x="182" y="146" width="70" height="16" rx="3" fill="#f1f5f9"/>
+    <text x="188" y="157" font-size="7.5" fill="#475569">全部 ▾</text>
+    <text x="185" y="177" font-size="7.5" fill="#2563eb">☑ 华中</text>
+    <text x="185" y="193" font-size="7.5" fill="#64748b">☐ 华东</text>
+    <text x="185" y="209" font-size="7.5" fill="#64748b">☐ 华南</text>
+
+    <!-- 柱形图 -->
+    <text x="272" y="138" font-size="8.5" fill="#334155">各门店销售额</text>
+    <line x1="272" y1="216" x2="464" y2="216" stroke="#e2e8f0"/>
+    <rect x="284" y="176" width="16" height="40" fill="#2563eb"/>
+    <rect x="312" y="158" width="16" height="58" fill="#2563eb"/>
+    <rect x="340" y="170" width="16" height="46" fill="#2563eb"/>
+    <rect x="368" y="146" width="16" height="70" fill="#2563eb"/>
+    <rect x="396" y="166" width="16" height="50" fill="#2563eb"/>
+    <rect x="424" y="152" width="16" height="64" fill="#2563eb"/>
+    <text x="284" y="228" font-size="7" fill="#94a3b8">汉口</text>
+    <text x="340" y="228" font-size="7" fill="#94a3b8">武昌</text>
+    <text x="396" y="228" font-size="7" fill="#94a3b8">光谷</text>
+    <text x="440" y="228" font-size="7" fill="#94a3b8">硚口</text>
+
+    <!-- 折线图 -->
+    <rect x="176" y="246" width="288" height="92" rx="4" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="186" y="262" font-size="8.5" fill="#334155">月度趋势</text>
+    <polyline points="188,320 222,306 256,312 290,292 324,298 358,276 392,282 426,264 452,268" fill="none" stroke="#2563eb" stroke-width="1.6"/>
+    <line x1="186" y1="326" x2="452" y2="326" stroke="#f1f5f9"/>
+    <text x="188" y="334" font-size="6.5" fill="#94a3b8">05</text>
+    <text x="252" y="334" font-size="6.5" fill="#94a3b8">07</text>
+    <text x="316" y="334" font-size="6.5" fill="#94a3b8">09</text>
+    <text x="380" y="334" font-size="6.5" fill="#94a3b8">10</text>
+    <text x="438" y="334" font-size="6.5" fill="#94a3b8">12</text>
+
+    <!-- 表格 -->
+    <rect x="176" y="346" width="288" height="50" rx="4" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="176" y="346" width="288" height="16" rx="4" fill="#f8fafc"/>
+    <text x="184" y="357" font-size="7" fill="#64748b">门店</text>
+    <text x="270" y="357" font-size="7" fill="#64748b">销售额</text>
+    <text x="356" y="357" font-size="7" fill="#64748b">完成率</text>
+    <text x="430" y="357" font-size="7" fill="#64748b">区域</text>
+    <text x="184" y="375" font-size="7" fill="#334155">汉口店</text>
+    <text x="270" y="375" font-size="7" fill="#334155">523,000</text>
+    <text x="356" y="375" font-size="7" fill="#334155">96.2%</text>
+    <text x="430" y="375" font-size="7" fill="#334155">华中</text>
+    <line x1="176" y1="380" x2="464" y2="380" stroke="#f1f5f9"/>
+    <text x="184" y="391" font-size="7" fill="#334155">武昌店</text>
+    <text x="270" y="391" font-size="7" fill="#334155">481,200</text>
+    <text x="356" y="391" font-size="7" fill="#334155">89.4%</text>
+    <text x="430" y="391" font-size="7" fill="#334155">华中</text>
+
+    <text x="164" y="424" font-size="8" fill="#94a3b8">画布 1280×720，缩放 62%</text>
+
+    <!-- 右：可视化面板 -->
+    <rect x="490" y="96" width="230" height="420" fill="#ffffff"/>
+    <line x1="490" y1="96" x2="490" y2="516" stroke="#e2e8f0"/>
+    <text x="504" y="118" font-size="10" font-weight="600" fill="#334155">可视化</text>
+    <text x="566" y="118" font-size="8.5" fill="#94a3b8">共 25 种</text>
+
+    <rect x="502" y="128" width="46" height="28" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+    <rect x="510" y="138" width="6" height="10" fill="#2563eb"/>
+    <rect x="519" y="134" width="6" height="14" fill="#2563eb"/>
+    <rect x="528" y="141" width="6" height="7" fill="#2563eb"/>
+    <rect x="554" y="128" width="46" height="28" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+    <rect x="562" y="134" width="8" height="16" fill="#2563eb"/>
+    <rect x="572" y="138" width="8" height="12" fill="#2563eb"/>
+    <rect x="582" y="141" width="8" height="9" fill="#2563eb"/>
+    <rect x="606" y="128" width="46" height="28" rx="4" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+    <polyline points="614,148 624,138 634,144 644,132" fill="none" stroke="#2563eb" stroke-width="1.4"/>
+    <rect x="658" y="128" width="46" height="28" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+    <circle cx="681" cy="142" r="9" fill="none" stroke="#2563eb" stroke-width="1.5"/>
+    <path d="M681 133v9h9" fill="none" stroke="#2563eb" stroke-width="1.5"/>
+
+    <rect x="502" y="162" width="46" height="28" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+    <circle cx="525" cy="176" r="7" fill="none" stroke="#2563eb" stroke-width="1.4"/>
+    <circle cx="521" cy="174" r="1.6" fill="#2563eb"/>
+    <circle cx="529" cy="179" r="1.6" fill="#2563eb"/>
+    <rect x="554" y="162" width="46" height="28" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+    <path d="M562 184h30v-16z" fill="#bfdbfe"/>
+    <rect x="606" y="162" width="46" height="28" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+    <rect x="614" y="170" width="14" height="12" fill="#bfdbfe"/>
+    <rect x="632" y="174" width="10" height="8" fill="#93c5fd"/>
+    <rect x="658" y="162" width="46" height="28" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+    <rect x="664" y="170" width="34" height="4" fill="#cbd5e1"/>
+    <rect x="664" y="177" width="24" height="4" fill="#e2e8f0"/>
+
+    <rect x="502" y="196" width="46" height="28" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+    <circle cx="525" cy="210" r="8" fill="none" stroke="#93c5fd" stroke-width="1.4"/>
+    <path d="M525 202a8 8 0 0 1 8 8h-8z" fill="#2563eb"/>
+    <rect x="554" y="196" width="46" height="28" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+    <rect x="560" y="202" width="34" height="16" rx="2" fill="#e2e8f0"/>
+    <rect x="606" y="196" width="46" height="28" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="629" y="214" font-size="10" fill="#94a3b8" text-anchor="middle">T</text>
+    <rect x="658" y="196" width="46" height="28" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="681" y="214" font-size="10" fill="#94a3b8" text-anchor="middle">▦</text>
+
+    <text x="504" y="242" font-size="8" fill="#94a3b8">柱形 / 条形 / 折线 / 面积 / 饼环 / 散点 / 地图 / 树图 / 表格 …</text>
+
+    <line x1="502" y1="252" x2="708" y2="252" stroke="#f1f5f9"/>
+    <text x="504" y="270" font-size="9.5" font-weight="600" fill="#334155">字段</text>
+    <text x="538" y="270" font-size="9.5" fill="#94a3b8">格式</text>
+    <line x1="504" y1="276" x2="532" y2="276" stroke="#2563eb" stroke-width="1.5"/>
+
+    <text x="504" y="294" font-size="9" fill="#64748b">轴</text>
+    <rect x="524" y="282" width="180" height="22" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="532" y="297" font-size="9" fill="#334155">月份</text>
+    <text x="504" y="326" font-size="9" fill="#64748b">值</text>
+    <rect x="524" y="314" width="180" height="22" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="532" y="329" font-size="9" fill="#334155">销售额</text>
+    <text x="504" y="358" font-size="9" fill="#64748b">图例</text>
+    <rect x="536" y="346" width="168" height="22" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="544" y="361" font-size="9" fill="#94a3b8">拖入字段</text>
+
+    <line x1="502" y1="382" x2="708" y2="382" stroke="#f1f5f9"/>
+    <text x="504" y="400" font-size="9.5" fill="#64748b">筛选器</text>
+    <text x="504" y="420" font-size="8.5" fill="#94a3b8">所有页面 / 此页 / 此视觉对象</text>
+    <text x="504" y="444" font-size="9.5" fill="#64748b">书签</text>
+    <text x="504" y="464" font-size="8.5" fill="#94a3b8">捕获筛选与显隐状态，一键应用</text>
+    <text x="504" y="492" font-size="8.5" fill="#94a3b8">右键视觉对象：查看数据 / 导出数据 / 焦点模式</text>
+
+    <!-- 底部页面标签 -->
+    <line x1="0" y1="516" x2="720" y2="516" stroke="#e2e8f0"/>
+    <rect x="12" y="524" width="64" height="26" rx="5" fill="#eff6ff" stroke="#2563eb"/>
+    <text x="44" y="541" font-size="9.5" fill="#1d4ed8" text-anchor="middle">第 1 页</text>
+    <rect x="82" y="524" width="64" height="26" rx="5" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="114" y="541" font-size="9.5" fill="#64748b" text-anchor="middle">第 2 页</text>
+    <rect x="152" y="524" width="26" height="26" rx="5" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="165" y="541" font-size="11" fill="#64748b" text-anchor="middle">+</text>
+  </g>
+</svg>

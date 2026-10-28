@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 440" width="100%" height="auto" role="img" aria-label="工作流数据连接绑定线框图">
+  <rect width="720" height="440" fill="#f8fafc"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="24" y="34" font-size="14" font-weight="600" fill="#0f172a">工作流 · 月度销售汇总</text>
+
+    <text x="24" y="68" font-size="11.5" fill="#64748b">概览</text>
+    <text x="72" y="68" font-size="11.5" fill="#64748b">设计器</text>
+    <text x="120" y="68" font-size="11.5" font-weight="600" fill="#1d4ed8">数据连接</text>
+    <text x="184" y="68" font-size="11.5" fill="#64748b">文件</text>
+    <text x="224" y="68" font-size="11.5" fill="#64748b">运行历史</text>
+    <line x1="120" y1="78" x2="176" y2="78" stroke="#2563eb" stroke-width="2"/>
+    <line x1="24" y1="80" x2="696" y2="80" stroke="#e2e8f0"/>
+
+    <!-- 输入节点卡片 -->
+    <rect x="24" y="96" width="672" height="248" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="40" y="124" font-size="12.5" font-weight="600" fill="#0f172a">输入节点「门店明细」</text>
+    <rect x="572" y="110" width="108" height="20" rx="10" fill="#eff6ff"/>
+    <text x="626" y="124" font-size="9.5" fill="#2563eb" text-anchor="middle">SQL Server 输入</text>
+
+    <text x="40" y="154" font-size="10.5" fill="#64748b">连接方式</text>
+    <text x="110" y="154" font-size="11" fill="#2563eb">●</text>
+    <text x="122" y="154" font-size="10.5" fill="#334155">系统连接</text>
+    <rect x="186" y="142" width="150" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="196" y="159" font-size="10.5" fill="#0f172a">核心ERP</text>
+    <text x="318" y="159" font-size="9" fill="#94a3b8">▾</text>
+    <text x="360" y="154" font-size="11" fill="#94a3b8">○</text>
+    <text x="372" y="154" font-size="10.5" fill="#64748b">私有连接</text>
+
+    <text x="40" y="190" font-size="10" fill="#64748b">服务器</text>
+    <text x="240" y="190" font-size="10" fill="#64748b">端口</text>
+    <text x="340" y="190" font-size="10" fill="#64748b">数据库</text>
+    <rect x="40" y="198" width="180" height="26" rx="6" fill="#f1f5f9" stroke="#e2e8f0"/>
+    <text x="50" y="215" font-size="10.5" fill="#64748b">192.168.1.10</text>
+    <rect x="240" y="198" width="72" height="26" rx="6" fill="#f1f5f9" stroke="#e2e8f0"/>
+    <text x="250" y="215" font-size="10.5" fill="#64748b">1433</text>
+    <rect x="340" y="198" width="180" height="26" rx="6" fill="#f1f5f9" stroke="#e2e8f0"/>
+    <text x="350" y="215" font-size="10.5" fill="#64748b">SalesDW</text>
+    <text x="534" y="215" font-size="9.5" fill="#94a3b8">选择系统连接后自动带出</text>
+
+    <text x="40" y="248" font-size="10" fill="#64748b">用户名</text>
+    <text x="240" y="248" font-size="10" fill="#64748b">密码</text>
+    <rect x="40" y="256" width="180" height="26" rx="6" fill="#f1f5f9" stroke="#e2e8f0"/>
+    <text x="50" y="273" font-size="10.5" fill="#64748b">etl_reader</text>
+    <rect x="240" y="256" width="180" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="250" y="273" font-size="10.5" fill="#0f172a">******</text>
+    <text x="434" y="273" font-size="9.5" fill="#94a3b8">留空保存表示不修改原密码</text>
+
+    <line x1="40" y1="298" x2="680" y2="298" stroke="#f1f5f9"/>
+    <text x="40" y="318" font-size="10.5" fill="#64748b">取数方式</text>
+    <text x="110" y="318" font-size="11" fill="#2563eb">●</text>
+    <text x="122" y="318" font-size="10.5" fill="#334155">表 / 视图</text>
+    <rect x="196" y="306" width="240" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="206" y="323" font-size="10.5" fill="#0f172a">dbo.v_store_sales</text>
+    <text x="402" y="323" font-size="9" fill="#94a3b8">▾</text>
+    <text x="470" y="323" font-size="9.5" fill="#94a3b8">测试后列出库内对象</text>
+
+    <text x="110" y="344" font-size="11" fill="#94a3b8">○</text>
+    <text x="122" y="344" font-size="10.5" fill="#64748b">自定义 SQL</text>
+
+    <rect x="552" y="308" width="56" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="580" y="325" font-size="10.5" fill="#334155" text-anchor="middle">测试</text>
+    <rect x="616" y="308" width="64" height="26" rx="6" fill="#2563eb"/>
+    <text x="648" y="325" font-size="10.5" fill="#ffffff" text-anchor="middle">保存</text>
+
+    <!-- 输出节点折叠 -->
+    <rect x="24" y="360" width="672" height="56" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="40" y="384" font-size="12" font-weight="600" fill="#0f172a">输出节点「写回结果」</text>
+    <text x="182" y="384" font-size="10" fill="#94a3b8">已绑定：核心ERP · dbo.result</text>
+    <rect x="600" y="372" width="76" height="24" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="638" y="388" font-size="10" fill="#475569" text-anchor="middle">展开 ▾</text>
+
+    <text x="24" y="432" font-size="9.5" fill="#94a3b8">连接信息加密存储；工作流 JSON 中不含明文密码。</text>
+  </g>
+</svg>

@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 430" width="100%" height="auto" role="img" aria-label="资源库线框图">
+  <rect width="720" height="430" fill="#f8fafc"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="24" y="36" font-size="16" font-weight="600" fill="#0f172a">资源库</text>
+    <text x="80" y="36" font-size="10.5" fill="#94a3b8">当前</text>
+    <text x="112" y="36" font-size="10.5" fill="#475569">/ Sales / 2026 / 10</text>
+    <rect x="476" y="16" width="96" height="32" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="524" y="36" font-size="11.5" fill="#334155" text-anchor="middle">新建文件夹</text>
+    <rect x="584" y="16" width="88" height="32" rx="8" fill="#2563eb"/>
+    <text x="628" y="36" font-size="11.5" fill="#ffffff" text-anchor="middle">上传文件</text>
+
+    <rect x="24" y="60" width="672" height="296" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <line x1="216" y1="60" x2="216" y2="356" stroke="#e2e8f0"/>
+
+    <!-- 目录树 -->
+    <text x="40" y="86" font-size="10" fill="#94a3b8">目录</text>
+    <text x="40" y="112" font-size="11" fill="#334155">/</text>
+    <rect x="52" y="104" width="10" height="8" rx="1.5" fill="#fbbf24"/>
+    <text x="68" y="112" font-size="11" fill="#0f172a">根目录</text>
+
+    <rect x="58" y="128" width="10" height="8" rx="1.5" fill="#fbbf24"/>
+    <text x="74" y="136" font-size="11" fill="#334155">Sales</text>
+
+    <rect x="76" y="152" width="10" height="8" rx="1.5" fill="#fbbf24"/>
+    <text x="92" y="160" font-size="11" fill="#334155">2026</text>
+
+    <rect x="88" y="176" width="124" height="22" rx="5" fill="#eff6ff"/>
+    <rect x="94" y="176" width="10" height="8" rx="1.5" fill="#2563eb" transform="translate(0,4)"/>
+    <text x="110" y="190" font-size="11" font-weight="600" fill="#1d4ed8">10</text>
+    <text x="110" y="214" font-size="11" fill="#334155">09</text>
+    <rect x="94" y="208" width="10" height="8" rx="1.5" fill="#fbbf24"/>
+
+    <rect x="58" y="234" width="10" height="8" rx="1.5" fill="#fbbf24"/>
+    <text x="74" y="242" font-size="11" fill="#334155">Shared</text>
+
+    <text x="40" y="278" font-size="9.5" fill="#94a3b8">CSV / Excel / XLS</text>
+    <text x="40" y="294" font-size="9.5" fill="#94a3b8">单文件 ≤ 200MB</text>
+    <text x="40" y="322" font-size="9.5" fill="#94a3b8">同名文件返回 409</text>
+    <text x="40" y="338" font-size="9.5" fill="#94a3b8">目录不可移入自身子目录</text>
+
+    <!-- 文件列表 -->
+    <path d="M216 70a10 10 0 0 1 10-10h460a10 10 0 0 1 10 10v20H216z" fill="#f8fafc"/>
+    <line x1="216" y1="90" x2="696" y2="90" stroke="#e2e8f0"/>
+    <text x="232" y="81" font-size="10" fill="#64748b">名称</text>
+    <text x="452" y="81" font-size="10" fill="#64748b">大小</text>
+    <text x="530" y="81" font-size="10" fill="#64748b">修改时间</text>
+    <text x="642" y="81" font-size="10" fill="#64748b">操作</text>
+
+    <rect x="232" y="104" width="12" height="12" rx="2" fill="#dcfce7"/>
+    <text x="252" y="114" font-size="10.5" fill="#0f172a">store_10.csv</text>
+    <text x="452" y="114" font-size="10.5" fill="#64748b">12.3 MB</text>
+    <text x="530" y="114" font-size="10.5" fill="#64748b">10-25 09:02</text>
+    <text x="642" y="114" font-size="10.5" fill="#2563eb">更多 ▾</text>
+    <line x1="232" y1="128" x2="680" y2="128" stroke="#f1f5f9"/>
+
+    <rect x="232" y="142" width="12" height="12" rx="2" fill="#dbeafe"/>
+    <text x="252" y="152" font-size="10.5" fill="#0f172a">target_10.xlsx</text>
+    <text x="452" y="152" font-size="10.5" fill="#64748b">340 KB</text>
+    <text x="530" y="152" font-size="10.5" fill="#64748b">10-24 18:40</text>
+    <text x="642" y="152" font-size="10.5" fill="#2563eb">更多 ▾</text>
+    <line x1="232" y1="166" x2="680" y2="166" stroke="#f1f5f9"/>
+
+    <rect x="232" y="180" width="12" height="12" rx="2" fill="#dcfce7"/>
+    <text x="252" y="190" font-size="10.5" fill="#0f172a">store_09.csv</text>
+    <text x="452" y="190" font-size="10.5" fill="#64748b">11.8 MB</text>
+    <text x="530" y="190" font-size="10.5" fill="#64748b">09-30 22:15</text>
+    <text x="642" y="190" font-size="10.5" fill="#2563eb">更多 ▾</text>
+
+    <text x="232" y="228" font-size="9.5" fill="#94a3b8">点击 Excel 文件可查看工作表列表；行内菜单：预览工作表 / 下载 / 重命名 / 移动 / 删除。</text>
+    <text x="232" y="250" font-size="9.5" fill="#94a3b8">删除、移动、重命名均写入系统审计（资源类型：资源）。</text>
+
+    <rect x="232" y="276" width="444" height="60" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-dasharray="4 3"/>
+    <text x="246" y="298" font-size="9.5" fill="#94a3b8">行内菜单（▼）</text>
+    <rect x="246" y="306" width="76" height="20" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="284" y="320" font-size="9" fill="#475569" text-anchor="middle">预览工作表</text>
+    <rect x="330" y="306" width="48" height="20" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="354" y="320" font-size="9" fill="#475569" text-anchor="middle">下载</text>
+    <rect x="386" y="306" width="62" height="20" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="417" y="320" font-size="9" fill="#475569" text-anchor="middle">重命名…</text>
+    <rect x="456" y="306" width="54" height="20" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="483" y="320" font-size="9" fill="#475569" text-anchor="middle">移动…</text>
+    <rect x="518" y="306" width="54" height="20" rx="10" fill="#fef2f2" stroke="#fecaca"/>
+    <text x="545" y="320" font-size="9" fill="#dc2626" text-anchor="middle">删除…</text>
+
+    <text x="24" y="386" font-size="9.5" fill="#94a3b8">上传支持 CSV / Excel / XLS；上传后可直接作为工作流输入或数据模型来源。</text>
+    <text x="24" y="406" font-size="9.5" fill="#94a3b8">路径统一落在 ~/.hustserver/resources（桌面端与 Web 端共用同一目录）。</text>
+  </g>
+</svg>

@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 470" width="100%" height="auto" role="img" aria-label="数据模型页线框图">
+  <rect width="720" height="470" fill="#f8fafc"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="24" y="36" font-size="16" font-weight="600" fill="#0f172a">数据模型</text>
+    <text x="92" y="36" font-size="10.5" fill="#94a3b8">基于 DuckDB 单文件存储</text>
+    <rect x="512" y="16" width="72" height="32" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="548" y="36" font-size="11.5" fill="#334155" text-anchor="middle">刷新</text>
+    <rect x="592" y="16" width="96" height="32" rx="8" fill="#2563eb"/>
+    <text x="640" y="36" font-size="11.5" fill="#ffffff" text-anchor="middle">新建模型</text>
+
+    <!-- 模型列表 -->
+    <rect x="24" y="58" width="672" height="132" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <path d="M24 68a10 10 0 0 1 10-10h652a10 10 0 0 1 10 10v22H24z" fill="#f8fafc"/>
+    <line x1="24" y1="90" x2="696" y2="90" stroke="#e2e8f0"/>
+    <text x="40" y="79" font-size="10.5" fill="#64748b">模型</text>
+    <text x="200" y="79" font-size="10.5" fill="#64748b">来源</text>
+    <text x="360" y="79" font-size="10.5" fill="#64748b">行数</text>
+    <text x="450" y="79" font-size="10.5" fill="#64748b">列数</text>
+    <text x="520" y="79" font-size="10.5" fill="#64748b">加载时间</text>
+    <text x="640" y="79" font-size="10.5" fill="#64748b">操作</text>
+
+    <text x="40" y="114" font-size="11.5" fill="#0f172a">sales_monthly</text>
+    <rect x="200" y="102" width="66" height="18" rx="9" fill="#f5f3ff"/>
+    <text x="233" y="115" font-size="9" fill="#7c3aed" text-anchor="middle">工作流输出</text>
+    <text x="360" y="114" font-size="11" fill="#475569">12,300</text>
+    <text x="450" y="114" font-size="11" fill="#475569">9</text>
+    <text x="520" y="114" font-size="11" fill="#64748b">10-25 09:12</text>
+    <text x="640" y="114" font-size="10.5" fill="#2563eb">更多 ▾</text>
+    <line x1="40" y1="128" x2="680" y2="128" stroke="#f1f5f9"/>
+
+    <text x="40" y="150" font-size="11.5" fill="#0f172a">audit_logs</text>
+    <rect x="200" y="138" width="58" height="18" rx="9" fill="#f1f5f9"/>
+    <text x="229" y="151" font-size="9" fill="#475569" text-anchor="middle">系统审计</text>
+    <text x="360" y="150" font-size="11" fill="#475569">3,204</text>
+    <text x="450" y="150" font-size="11" fill="#475569">7</text>
+    <text x="520" y="150" font-size="11" fill="#64748b">10-24 20:00</text>
+    <text x="640" y="150" font-size="10.5" fill="#2563eb">更多 ▾</text>
+    <line x1="40" y1="164" x2="680" y2="164" stroke="#f1f5f9"/>
+
+    <text x="40" y="180" font-size="10" fill="#94a3b8">…</text>
+
+    <!-- 预览 -->
+    <rect x="24" y="204" width="672" height="176" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="40" y="230" font-size="12.5" font-weight="600" fill="#0f172a">数据预览 · sales_monthly</text>
+    <text x="236" y="230" font-size="9.5" fill="#94a3b8">默认显示 1000 行</text>
+    <text x="666" y="230" font-size="12" fill="#94a3b8">×</text>
+
+    <rect x="40" y="246" width="640" height="26" rx="5" fill="#f1f5f9"/>
+    <text x="52" y="263" font-size="9.5" fill="#64748b">月份</text>
+    <text x="150" y="263" font-size="9.5" fill="#64748b">门店</text>
+    <text x="260" y="263" font-size="9.5" fill="#64748b">销售额（数值）</text>
+    <text x="400" y="263" font-size="9.5" fill="#64748b">完成率（数值）</text>
+    <text x="530" y="263" font-size="9.5" fill="#64748b">区域</text>
+    <text x="600" y="263" font-size="9.5" fill="#64748b">日期</text>
+
+    <text x="52" y="294" font-size="10.5" fill="#0f172a">2026-10</text>
+    <text x="150" y="294" font-size="10.5" fill="#334155">汉口店</text>
+    <text x="260" y="294" font-size="10.5" fill="#334155">523,000</text>
+    <text x="400" y="294" font-size="10.5" fill="#334155">96.2%</text>
+    <text x="530" y="294" font-size="10.5" fill="#334155">华中</text>
+    <text x="600" y="294" font-size="10.5" fill="#64748b">10-25</text>
+    <line x1="40" y1="306" x2="680" y2="306" stroke="#f1f5f9"/>
+
+    <text x="52" y="324" font-size="10.5" fill="#0f172a">2026-10</text>
+    <text x="150" y="324" font-size="10.5" fill="#334155">武昌店</text>
+    <text x="260" y="324" font-size="10.5" fill="#334155">481,200</text>
+    <text x="400" y="324" font-size="10.5" fill="#334155">89.4%</text>
+    <text x="530" y="324" font-size="10.5" fill="#334155">华中</text>
+    <text x="600" y="324" font-size="10.5" fill="#64748b">10-25</text>
+    <line x1="40" y1="336" x2="680" y2="336" stroke="#f1f5f9"/>
+
+    <text x="52" y="354" font-size="10.5" fill="#0f172a">2026-09</text>
+    <text x="150" y="354" font-size="10.5" fill="#334155">汉口店</text>
+    <text x="260" y="354" font-size="10.5" fill="#334155">498,700</text>
+    <text x="400" y="354" font-size="10.5" fill="#334155">91.7%</text>
+    <text x="530" y="354" font-size="10.5" fill="#334155">华中</text>
+    <text x="600" y="354" font-size="10.5" fill="#64748b">09-30</text>
+
+    <!-- 行内菜单 -->
+    <text x="24" y="404" font-size="9.5" fill="#94a3b8">行内菜单</text>
+    <rect x="76" y="392" width="46" height="20" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="99" y="406" font-size="9" fill="#475569" text-anchor="middle">预览</text>
+    <rect x="130" y="392" width="62" height="20" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="161" y="406" font-size="9" fill="#475569" text-anchor="middle">数据标签</text>
+    <rect x="200" y="392" width="62" height="20" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="231" y="406" font-size="9" fill="#475569" text-anchor="middle">列配置</text>
+    <rect x="270" y="392" width="62" height="20" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="301" y="406" font-size="9" fill="#475569" text-anchor="middle">重命名…</text>
+    <rect x="340" y="392" width="48" height="20" rx="10" fill="#fef2f2" stroke="#fecaca"/>
+    <text x="364" y="406" font-size="9" fill="#dc2626" text-anchor="middle">删除…</text>
+
+    <text x="24" y="438" font-size="9.5" fill="#94a3b8">新建模型来源：资源文件（资源库 CSV / Excel）或 SQL Server（连接 + 表 / 视图 / SQL）；同名时可选择覆盖或报错。</text>
+    <text x="24" y="456" font-size="9.5" fill="#94a3b8">数据标签用 Markdown 描述字段口径，同时作为 AI 智能体的回答依据；重命名会同步迁移列配置与标签。</text>
+  </g>
+</svg>

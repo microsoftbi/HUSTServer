@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 520" width="100%" height="auto" role="img" aria-label="主页概览线框图">
+  <rect width="720" height="520" fill="#f8fafc"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="24" y="38" font-size="16" font-weight="600" fill="#0f172a">欢迎，admin</text>
+    <text x="556" y="37" font-size="9.5" fill="#64748b">统计天数</text>
+    <rect x="606" y="23" width="90" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="618" y="40" font-size="10" fill="#334155">30</text>
+    <text x="682" y="40" font-size="8" fill="#94a3b8">▾</text>
+
+    <!-- 六张数量卡片 -->
+    <rect x="24" y="56" width="107" height="78" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="38" y="78" font-size="10" fill="#64748b">工作流</text>
+    <text x="38" y="107" font-size="21" font-weight="600" fill="#0f172a">12</text>
+    <text x="38" y="123" font-size="8.5" fill="#94a3b8">近 30 天 +3</text>
+
+    <rect x="137" y="56" width="107" height="78" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="151" y="78" font-size="10" fill="#64748b">仪表板</text>
+    <text x="151" y="107" font-size="21" font-weight="600" fill="#0f172a">5</text>
+    <text x="151" y="123" font-size="8.5" fill="#94a3b8">近 30 天 +1</text>
+
+    <rect x="250" y="56" width="107" height="78" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="264" y="78" font-size="10" fill="#64748b">数据模型</text>
+    <text x="264" y="107" font-size="21" font-weight="600" fill="#0f172a">9</text>
+    <text x="264" y="123" font-size="8.5" fill="#94a3b8">近 30 天 0</text>
+
+    <rect x="363" y="56" width="107" height="78" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="377" y="78" font-size="10" fill="#64748b">连接</text>
+    <text x="377" y="107" font-size="21" font-weight="600" fill="#0f172a">4</text>
+    <text x="377" y="123" font-size="8.5" fill="#94a3b8">近 30 天 0</text>
+
+    <rect x="476" y="56" width="107" height="78" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="490" y="78" font-size="10" fill="#64748b">Job</text>
+    <text x="490" y="107" font-size="21" font-weight="600" fill="#0f172a">6</text>
+    <text x="490" y="123" font-size="8.5" fill="#94a3b8">近 30 天 +2</text>
+
+    <rect x="589" y="56" width="107" height="78" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="603" y="78" font-size="10" fill="#64748b">用户</text>
+    <text x="603" y="107" font-size="21" font-weight="600" fill="#0f172a">8</text>
+    <text x="603" y="123" font-size="8.5" fill="#94a3b8">活跃 5</text>
+
+    <!-- 新建趋势 -->
+    <text x="24" y="166" font-size="12.5" font-weight="600" fill="#0f172a">新建趋势（近 30 天）</text>
+    <text x="696" y="166" font-size="9.5" fill="#94a3b8" text-anchor="end">无数据日期按 0 绘制</text>
+    <rect x="24" y="180" width="672" height="294" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+
+    <!-- 第一行 -->
+    <rect x="40" y="196" width="200" height="88" rx="8" fill="#f8fafc"/>
+    <text x="52" y="216" font-size="10" fill="#475569">工作流</text>
+    <text x="228" y="216" font-size="10" fill="#0f172a" text-anchor="end">12</text>
+    <polygon points="52,262 74,250 96,258 118,236 140,247 162,231 184,241 206,228 228,236 228,272 52,272" fill="#2563eb" fill-opacity="0.09"/>
+    <polyline points="52,262 74,250 96,258 118,236 140,247 162,231 184,241 206,228 228,236" fill="none" stroke="#2563eb" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+
+    <rect x="258" y="196" width="200" height="88" rx="8" fill="#f8fafc"/>
+    <text x="270" y="216" font-size="10" fill="#475569">仪表板</text>
+    <text x="446" y="216" font-size="10" fill="#0f172a" text-anchor="end">5</text>
+    <polygon points="270,254 292,258 314,240 336,246 358,232 380,244 402,236 424,246 446,228 446,272 270,272" fill="#7c3aed" fill-opacity="0.09"/>
+    <polyline points="270,254 292,258 314,240 336,246 358,232 380,244 402,236 424,246 446,228" fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+
+    <rect x="476" y="196" width="200" height="88" rx="8" fill="#f8fafc"/>
+    <text x="488" y="216" font-size="10" fill="#475569">数据模型</text>
+    <text x="664" y="216" font-size="10" fill="#0f172a" text-anchor="end">9</text>
+    <polygon points="488,258 510,258 532,252 554,260 576,248 598,254 620,244 642,250 664,246 664,272 488,272" fill="#0891b2" fill-opacity="0.09"/>
+    <polyline points="488,258 510,258 532,252 554,260 576,248 598,254 620,244 642,250 664,246" fill="none" stroke="#0891b2" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+
+    <!-- 第二行 -->
+    <rect x="40" y="294" width="200" height="88" rx="8" fill="#f8fafc"/>
+    <text x="52" y="314" font-size="10" fill="#475569">连接</text>
+    <text x="228" y="314" font-size="10" fill="#0f172a" text-anchor="end">4</text>
+    <polyline points="52,358 74,362 96,340 118,348 140,330 162,342 184,326 206,334 228,330" fill="none" stroke="#16a34a" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+
+    <rect x="258" y="294" width="200" height="88" rx="8" fill="#f8fafc"/>
+    <text x="270" y="314" font-size="10" fill="#475569">Job</text>
+    <text x="446" y="314" font-size="10" fill="#0f172a" text-anchor="end">6</text>
+    <polyline points="270,352 292,356 314,336 336,344 358,330 380,340 402,334 424,342 446,326" fill="none" stroke="#d97706" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+
+    <rect x="476" y="294" width="200" height="88" rx="8" fill="#f8fafc"/>
+    <text x="488" y="314" font-size="10" fill="#475569">用户</text>
+    <text x="664" y="314" font-size="10" fill="#0f172a" text-anchor="end">8</text>
+    <polyline points="488,356 510,360 532,352 554,356 576,346 598,352 620,344 642,350 664,348" fill="none" stroke="#475569" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+
+    <!-- 审计独占一行 -->
+    <rect x="40" y="392" width="636" height="66" rx="8" fill="#f8fafc"/>
+    <text x="52" y="412" font-size="10" fill="#475569">审计</text>
+    <text x="664" y="412" font-size="9" fill="#94a3b8" text-anchor="end">操作记录条数（独占一行）</text>
+    <polyline points="52,444 110,426 168,438 226,416 284,432 342,414 400,426 458,408 516,420 574,404 632,416 664,410" fill="none" stroke="#b91c1c" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+
+    <text x="24" y="500" font-size="9.5" fill="#94a3b8">六张数量卡片与七个趋势图均按当前用户可见范围统计；切换统计天数后卡片与折线同步刷新。</text>
+  </g>
+</svg>

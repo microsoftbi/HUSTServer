@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 570" width="100%" height="auto" role="img" aria-label="运行历史与运行详情线框图">
+  <rect width="720" height="570" fill="#f8fafc"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="24" y="34" font-size="14" font-weight="600" fill="#0f172a">工作流 · 月度销售汇总</text>
+    <text x="24" y="66" font-size="11.5" fill="#64748b">概览</text>
+    <text x="72" y="66" font-size="11.5" fill="#64748b">设计器</text>
+    <text x="120" y="66" font-size="11.5" fill="#64748b">数据连接</text>
+    <text x="184" y="66" font-size="11.5" fill="#64748b">文件</text>
+    <text x="224" y="66" font-size="11.5" font-weight="600" fill="#1d4ed8">运行历史</text>
+    <line x1="224" y1="76" x2="284" y2="76" stroke="#2563eb" stroke-width="2"/>
+    <line x1="24" y1="78" x2="696" y2="78" stroke="#e2e8f0"/>
+
+    <!-- 运行历史列表 -->
+    <rect x="24" y="94" width="672" height="146" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="40" y="120" font-size="12.5" font-weight="600" fill="#0f172a">运行历史</text>
+    <text x="100" y="120" font-size="9.5" fill="#94a3b8">最近 20 条</text>
+    <rect x="592" y="106" width="90" height="24" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="637" y="122" font-size="10" fill="#334155" text-anchor="middle">刷新</text>
+    <line x1="40" y1="134" x2="680" y2="134" stroke="#f1f5f9"/>
+    <text x="40" y="152" font-size="9" fill="#94a3b8">状态</text>
+    <text x="120" y="152" font-size="9" fill="#94a3b8">触发方式</text>
+    <text x="220" y="152" font-size="9" fill="#94a3b8">触发人</text>
+    <text x="320" y="152" font-size="9" fill="#94a3b8">开始时间</text>
+    <text x="480" y="152" font-size="9" fill="#94a3b8">耗时</text>
+    <text x="600" y="152" font-size="9" fill="#94a3b8">操作</text>
+
+    <rect x="40" y="164" width="56" height="20" rx="10" fill="#ecfdf5"/>
+    <text x="68" y="178" font-size="9.5" fill="#15803d" text-anchor="middle">✔ 成功</text>
+    <text x="120" y="178" font-size="10.5" fill="#475569">手动</text>
+    <text x="220" y="178" font-size="10.5" fill="#475569">admin</text>
+    <text x="320" y="178" font-size="10.5" fill="#475569">10-25 09:00:12</text>
+    <text x="480" y="178" font-size="10.5" fill="#475569">1m12s</text>
+    <text x="600" y="178" font-size="10" fill="#2563eb">详情 →</text>
+    <line x1="40" y1="190" x2="680" y2="190" stroke="#f1f5f9"/>
+
+    <rect x="40" y="202" width="56" height="20" rx="10" fill="#fef2f2"/>
+    <text x="68" y="216" font-size="9.5" fill="#b91c1c" text-anchor="middle">✖ 失败</text>
+    <text x="120" y="216" font-size="10.5" fill="#475569">调度</text>
+    <text x="220" y="216" font-size="10.5" fill="#475569">系统</text>
+    <text x="320" y="216" font-size="10.5" fill="#475569">10-25 08:00:00</text>
+    <text x="480" y="216" font-size="10.5" fill="#475569">32s</text>
+    <text x="600" y="216" font-size="10" fill="#2563eb">详情 →</text>
+
+    <!-- 运行详情 -->
+    <rect x="24" y="258" width="672" height="292" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="40" y="286" font-size="12.5" font-weight="600" fill="#0f172a">运行详情</text>
+    <rect x="600" y="272" width="64" height="22" rx="11" fill="#fef2f2"/>
+    <text x="632" y="287" font-size="9.5" fill="#b91c1c" text-anchor="middle">✖ 失败</text>
+
+    <rect x="40" y="300" width="640" height="42" rx="8" fill="#fef2f2" stroke="#fecaca"/>
+    <text x="56" y="318" font-size="10.5" font-weight="600" fill="#b91c1c">⚠ 失败原因</text>
+    <text x="56" y="334" font-size="10" fill="#7f1d1d">SQL Server 连接超时（节点「联接」，重试 1 次后失败）</text>
+
+    <text x="40" y="366" font-size="10.5" font-weight="600" fill="#334155">节点结果</text>
+    <text x="40" y="388" font-size="9" fill="#94a3b8">节点</text>
+    <text x="300" y="388" font-size="9" fill="#94a3b8">状态</text>
+    <text x="440" y="388" font-size="9" fill="#94a3b8">输出行数</text>
+    <text x="560" y="388" font-size="9" fill="#94a3b8">耗时</text>
+    <line x1="40" y1="394" x2="680" y2="394" stroke="#f1f5f9"/>
+
+    <text x="40" y="412" font-size="10.5" fill="#0f172a">CSV 输入 · 门店明细</text>
+    <text x="300" y="412" font-size="10" fill="#15803d">✔ 成功</text>
+    <text x="440" y="412" font-size="10" fill="#475569">12,300 行</text>
+    <text x="560" y="412" font-size="10" fill="#475569">2.1s</text>
+    <line x1="40" y1="420" x2="680" y2="420" stroke="#f8fafc"/>
+
+    <text x="40" y="438" font-size="10.5" fill="#0f172a">筛选 · 销售额 &gt; 0</text>
+    <text x="300" y="438" font-size="10" fill="#15803d">✔ 成功</text>
+    <text x="440" y="438" font-size="10" fill="#475569">11,872 行</text>
+    <text x="560" y="438" font-size="10" fill="#475569">0.3s</text>
+    <line x1="40" y1="446" x2="680" y2="446" stroke="#f8fafc"/>
+
+    <text x="40" y="464" font-size="10.5" fill="#0f172a">联接 · inner join</text>
+    <text x="300" y="464" font-size="10" fill="#b91c1c">✖ 失败</text>
+    <text x="440" y="464" font-size="10" fill="#94a3b8">—</text>
+    <text x="560" y="464" font-size="10" fill="#475569">30s</text>
+
+    <text x="40" y="494" font-size="10.5" font-weight="600" fill="#334155">执行日志</text>
+    <rect x="472" y="480" width="94" height="22" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="484" y="495" font-size="9" fill="#475569">节点：全部 ▾</text>
+    <rect x="574" y="480" width="78" height="22" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="613" y="495" font-size="9" fill="#334155" text-anchor="middle">加载更多</text>
+
+    <rect x="40" y="508" width="640" height="30" rx="6" fill="#0f172a" opacity="0.03"/>
+    <text x="52" y="527" font-family="'SF Mono',Menlo,monospace" font-size="9" fill="#475569">09:00:01 [info]  开始执行工作流</text>
+    <text x="52" y="540" font-family="'SF Mono',Menlo,monospace" font-size="9" fill="#475569">09:00:03 [info]  节点「筛选」完成 11,872 行</text>
+    <text x="360" y="527" font-family="'SF Mono',Menlo,monospace" font-size="9" fill="#b91c1c">09:00:32 [error] 节点「联接」失败：连接超时</text>
+  </g>
+</svg>

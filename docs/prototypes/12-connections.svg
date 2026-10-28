@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 500" width="100%" height="auto" role="img" aria-label="数据连接页线框图">
+  <rect width="720" height="500" fill="#f8fafc"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="24" y="36" font-size="16" font-weight="600" fill="#0f172a">数据连接</text>
+    <text x="92" y="36" font-size="11" fill="#94a3b8">仅显示共享连接与自己创建的连接</text>
+    <rect x="600" y="16" width="96" height="32" rx="8" fill="#2563eb"/>
+    <text x="648" y="36" font-size="12" fill="#ffffff" text-anchor="middle">新建连接</text>
+
+    <!-- 连接列表 -->
+    <rect x="24" y="60" width="672" height="120" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <path d="M24 70a10 10 0 0 1 10-10h652a10 10 0 0 1 10 10v22H24z" fill="#f8fafc"/>
+    <line x1="24" y1="92" x2="696" y2="92" stroke="#e2e8f0"/>
+    <text x="40" y="81" font-size="10.5" fill="#64748b">名称</text>
+    <text x="180" y="81" font-size="10.5" fill="#64748b">服务器</text>
+    <text x="340" y="81" font-size="10.5" fill="#64748b">数据库</text>
+    <text x="460" y="81" font-size="10.5" fill="#64748b">共享</text>
+    <text x="560" y="81" font-size="10.5" fill="#64748b">操作</text>
+
+    <text x="40" y="116" font-size="11.5" fill="#0f172a">核心ERP</text>
+    <text x="180" y="116" font-size="11" fill="#475569">192.168.1.10:1433</text>
+    <text x="340" y="116" font-size="11" fill="#475569">SalesDW</text>
+    <circle cx="466" cy="112" r="4" fill="#16a34a"/>
+    <text x="476" y="116" font-size="9.5" fill="#15803d">共享</text>
+    <text x="560" y="116" font-size="10" fill="#2563eb">编辑</text>
+    <text x="596" y="116" font-size="10" fill="#dc2626">删除</text>
+    <line x1="40" y1="132" x2="680" y2="132" stroke="#f1f5f9"/>
+
+    <text x="40" y="156" font-size="11.5" fill="#0f172a">本地测试</text>
+    <text x="180" y="156" font-size="11" fill="#475569">127.0.0.1:1433</text>
+    <text x="340" y="156" font-size="11" fill="#475569">TestDB</text>
+    <text x="466" y="156" font-size="9.5" fill="#94a3b8">私有</text>
+    <text x="560" y="156" font-size="10" fill="#2563eb">编辑</text>
+    <text x="596" y="156" font-size="10" fill="#dc2626">删除</text>
+
+    <!-- 新建连接弹窗 -->
+    <rect x="24" y="196" width="392" height="268" rx="10" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="40" y="224" font-size="13" font-weight="600" fill="#0f172a">新建连接</text>
+    <text x="396" y="224" font-size="13" fill="#94a3b8">×</text>
+    <line x1="24" y1="238" x2="416" y2="238" stroke="#f1f5f9"/>
+
+    <text x="40" y="262" font-size="10.5" fill="#64748b">名称</text>
+    <rect x="96" y="250" width="300" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="106" y="267" font-size="10.5" fill="#0f172a">核心ERP</text>
+
+    <text x="40" y="294" font-size="10.5" fill="#64748b">服务器</text>
+    <rect x="96" y="282" width="300" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="106" y="299" font-size="10.5" fill="#0f172a">192.168.1.10</text>
+
+    <text x="40" y="326" font-size="10.5" fill="#64748b">端口</text>
+    <rect x="96" y="314" width="80" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="106" y="331" font-size="10.5" fill="#0f172a">1433</text>
+    <text x="192" y="326" font-size="10.5" fill="#64748b">数据库</text>
+    <rect x="240" y="314" width="156" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="250" y="331" font-size="10.5" fill="#0f172a">SalesDW</text>
+
+    <text x="40" y="358" font-size="10.5" fill="#64748b">用户名</text>
+    <rect x="96" y="346" width="300" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="106" y="363" font-size="10.5" fill="#0f172a">etl_reader</text>
+
+    <text x="40" y="390" font-size="10.5" fill="#64748b">密码</text>
+    <rect x="96" y="378" width="300" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="106" y="395" font-size="10.5" fill="#0f172a">**************</text>
+    <text x="402" y="395" font-size="9" fill="#94a3b8">掩码</text>
+
+    <rect x="40" y="418" width="10" height="10" rx="2" fill="#2563eb"/>
+    <path d="M42 423l2.2 2.4L48 420" stroke="#ffffff" stroke-width="1.3" fill="none"/>
+    <text x="58" y="427" font-size="10.5" fill="#334155">共享给所有用户（仅管理员）</text>
+
+    <rect x="248" y="430" width="64" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="280" y="447" font-size="10" fill="#334155" text-anchor="middle">测试连接</text>
+    <rect x="320" y="430" width="48" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="344" y="447" font-size="10" fill="#475569" text-anchor="middle">取消</text>
+    <rect x="376" y="430" width="48" height="26" rx="6" fill="#2563eb"/>
+    <text x="400" y="447" font-size="10" fill="#ffffff" text-anchor="middle">保存</text>
+
+    <!-- 测试结果 -->
+    <rect x="432" y="196" width="264" height="150" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="448" y="210" width="232" height="34" rx="7" fill="#ecfdf5"/>
+    <text x="462" y="232" font-size="10.5" fill="#15803d">✔ 连接成功 · 耗时 128ms</text>
+    <text x="448" y="266" font-size="10" fill="#64748b">可用数据库</text>
+    <text x="452" y="288" font-size="9.5" fill="#2563eb">●</text>
+    <text x="466" y="288" font-size="10.5" fill="#334155">SalesDW</text>
+    <text x="452" y="310" font-size="9.5" fill="#94a3b8">○</text>
+    <text x="466" y="310" font-size="10.5" fill="#475569">master</text>
+    <text x="452" y="332" font-size="9.5" fill="#94a3b8">○</text>
+    <text x="466" y="332" font-size="10.5" fill="#475569">tempdb</text>
+
+    <!-- 权限说明 -->
+    <rect x="432" y="364" width="264" height="100" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="448" y="388" font-size="11" font-weight="600" fill="#0f172a">权限与安全</text>
+    <text x="448" y="410" font-size="9.5" fill="#64748b">· 非管理员不可修改他人连接</text>
+    <text x="448" y="428" font-size="9.5" fill="#64748b">· 密码加密存储，编辑留空表示不修改</text>
+    <text x="448" y="446" font-size="9.5" fill="#64748b">· 删除需二次确认并记入审计</text>
+  </g>
+</svg>

@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 570" width="100%" height="auto" role="img" aria-label="Job 运行与日志线框图">
+  <rect width="720" height="570" fill="#f8fafc"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="24" y="34" font-size="14" font-weight="600" fill="#0f172a">Job 日志</text>
+    <text x="86" y="34" font-size="9.5" fill="#94a3b8">非管理员仅可见自己触发的运行</text>
+
+    <!-- Job 运行列表 -->
+    <rect x="24" y="52" width="672" height="132" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <path d="M24 62a10 10 0 0 1 10-10h652a10 10 0 0 1 10 10v22H24z" fill="#f8fafc"/>
+    <line x1="24" y1="84" x2="696" y2="84" stroke="#e2e8f0"/>
+    <text x="40" y="73" font-size="10.5" fill="#64748b">Job</text>
+    <text x="196" y="73" font-size="10.5" fill="#64748b">触发方式</text>
+    <text x="296" y="73" font-size="10.5" fill="#64748b">状态</text>
+    <text x="396" y="73" font-size="10.5" fill="#64748b">开始时间</text>
+    <text x="530" y="73" font-size="10.5" fill="#64748b">耗时</text>
+    <text x="616" y="73" font-size="10.5" fill="#64748b">操作</text>
+
+    <text x="40" y="110" font-size="11.5" fill="#0f172a">月度出数</text>
+    <text x="196" y="110" font-size="11" fill="#475569">手动</text>
+    <rect x="296" y="98" width="56" height="20" rx="10" fill="#ecfdf5"/>
+    <text x="324" y="112" font-size="9.5" fill="#15803d" text-anchor="middle">✔ 成功</text>
+    <text x="396" y="110" font-size="11" fill="#475569">10-25 09:00</text>
+    <text x="530" y="110" font-size="11" fill="#475569">3m05s</text>
+    <text x="616" y="110" font-size="10" fill="#2563eb">详情 →</text>
+    <line x1="40" y1="122" x2="680" y2="122" stroke="#f1f5f9"/>
+
+    <text x="40" y="144" font-size="11.5" fill="#0f172a">日增量</text>
+    <text x="196" y="144" font-size="11" fill="#475569">调度</text>
+    <rect x="296" y="132" width="56" height="20" rx="10" fill="#fef2f2"/>
+    <text x="324" y="146" font-size="9.5" fill="#b91c1c" text-anchor="middle">✖ 失败</text>
+    <text x="396" y="144" font-size="11" fill="#475569">10-25 08:00</text>
+    <text x="530" y="144" font-size="11" fill="#475569">41s</text>
+    <text x="616" y="144" font-size="10" fill="#2563eb">详情 →</text>
+    <line x1="40" y1="156" x2="680" y2="156" stroke="#f1f5f9"/>
+    <text x="40" y="174" font-size="10" fill="#94a3b8">…</text>
+
+    <!-- Job 运行详情 -->
+    <rect x="24" y="204" width="672" height="342" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="40" y="232" font-size="12.5" font-weight="600" fill="#0f172a">Job 运行详情</text>
+    <rect x="598" y="218" width="66" height="22" rx="11" fill="#fef2f2"/>
+    <text x="631" y="233" font-size="9.5" fill="#b91c1c" text-anchor="middle">✖ 失败</text>
+
+    <!-- 运行概览 -->
+    <rect x="40" y="248" width="640" height="52" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="56" y="268" font-size="9" fill="#94a3b8">状态</text>
+    <text x="56" y="286" font-size="10.5" font-weight="600" fill="#b91c1c">失败</text>
+    <text x="180" y="268" font-size="9" fill="#94a3b8">开始时间</text>
+    <text x="180" y="286" font-size="10.5" fill="#334155">10-25 08:00:00</text>
+    <text x="340" y="268" font-size="9" fill="#94a3b8">耗时</text>
+    <text x="340" y="286" font-size="10.5" fill="#334155">41s</text>
+    <text x="450" y="268" font-size="9" fill="#94a3b8">失败原因</text>
+    <text x="450" y="286" font-size="10.5" fill="#7f1d1d">SQL Server 连接超时</text>
+    <text x="620" y="286" font-size="9.5" fill="#2563eb">取消</text>
+
+    <!-- 运行流程 -->
+    <text x="40" y="326" font-size="10.5" font-weight="600" fill="#334155">运行流程</text>
+    <rect x="40" y="338" width="112" height="36" rx="7" fill="#ecfdf5" stroke="#86efac"/>
+    <text x="96" y="353" font-size="9.5" fill="#15803d" text-anchor="middle">取销售明细 ✔</text>
+    <text x="96" y="367" font-size="8.5" fill="#16a34a" text-anchor="middle">工作流 · 2m12s</text>
+    <line x1="152" y1="356" x2="170" y2="356" stroke="#94a3b8" stroke-width="1.3"/>
+    <path d="M166 352l5 4-5 4" stroke="#94a3b8" stroke-width="1.3" fill="none"/>
+
+    <rect x="176" y="338" width="120" height="36" rx="7" fill="#fef2f2" stroke="#fecaca"/>
+    <text x="236" y="353" font-size="9.5" fill="#b91c1c" text-anchor="middle">汇总月度销售 ✖</text>
+    <text x="236" y="367" font-size="8.5" fill="#dc2626" text-anchor="middle">工作流 · 30s</text>
+    <line x1="296" y1="356" x2="314" y2="356" stroke="#94a3b8" stroke-width="1.3"/>
+    <path d="M310 352l5 4-5 4" stroke="#94a3b8" stroke-width="1.3" fill="none"/>
+
+    <rect x="320" y="338" width="112" height="36" rx="7" fill="#f1f5f9" stroke="#e2e8f0"/>
+    <text x="376" y="353" font-size="9.5" fill="#64748b" text-anchor="middle">清理临时表 –</text>
+    <text x="376" y="367" font-size="8.5" fill="#94a3b8" text-anchor="middle">SQL · 已跳过</text>
+
+    <text x="452" y="360" font-size="9" fill="#94a3b8">未开始步骤统一标记为跳过</text>
+
+    <!-- 步骤明细 -->
+    <text x="40" y="404" font-size="10.5" font-weight="600" fill="#334155">步骤明细</text>
+    <line x1="40" y1="414" x2="680" y2="414" stroke="#f1f5f9"/>
+    <text x="40" y="432" font-size="9" fill="#94a3b8">#</text>
+    <text x="64" y="432" font-size="9" fill="#94a3b8">步骤</text>
+    <text x="240" y="432" font-size="9" fill="#94a3b8">类型</text>
+    <text x="330" y="432" font-size="9" fill="#94a3b8">状态</text>
+    <text x="430" y="432" font-size="9" fill="#94a3b8">耗时</text>
+    <text x="510" y="432" font-size="9" fill="#94a3b8">说明</text>
+
+    <text x="40" y="454" font-size="10" fill="#94a3b8">1</text>
+    <text x="64" y="454" font-size="10.5" fill="#0f172a">取销售明细</text>
+    <text x="240" y="454" font-size="10" fill="#475569">工作流</text>
+    <text x="330" y="454" font-size="10" fill="#15803d">✔ 成功</text>
+    <text x="430" y="454" font-size="10" fill="#475569">2m12s</text>
+    <text x="510" y="454" font-size="10" fill="#2563eb">查看工作流运行 →</text>
+    <line x1="40" y1="464" x2="680" y2="464" stroke="#f8fafc"/>
+
+    <text x="40" y="482" font-size="10" fill="#94a3b8">2</text>
+    <text x="64" y="482" font-size="10.5" fill="#0f172a">汇总月度销售</text>
+    <text x="240" y="482" font-size="10" fill="#475569">工作流</text>
+    <text x="330" y="482" font-size="10" fill="#b91c1c">✖ 失败</text>
+    <text x="430" y="482" font-size="10" fill="#475569">30s</text>
+    <text x="510" y="482" font-size="10" fill="#7f1d1d">连接超时（重试 1 次）</text>
+    <line x1="40" y1="492" x2="680" y2="492" stroke="#f8fafc"/>
+
+    <text x="40" y="510" font-size="10" fill="#94a3b8">3</text>
+    <text x="64" y="510" font-size="10.5" fill="#94a3b8">清理临时表</text>
+    <text x="240" y="510" font-size="10" fill="#64748b">SQL</text>
+    <text x="330" y="510" font-size="10" fill="#94a3b8">– 跳过</text>
+    <text x="430" y="510" font-size="10" fill="#94a3b8">—</text>
+    <text x="510" y="510" font-size="10" fill="#94a3b8">上游失败，未执行</text>
+
+    <text x="40" y="536" font-size="9" fill="#94a3b8">失败策略为「中止下游」时，其余分支继续执行；未开始步骤全部标记为跳过。</text>
+  </g>
+</svg>

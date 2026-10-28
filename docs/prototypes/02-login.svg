@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" width="100%" height="auto" role="img" aria-label="登录页线框图">
+  <rect width="720" height="420" fill="#f8fafc"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <!-- 卡片阴影 -->
+    <rect x="152" y="54" width="360" height="320" rx="14" fill="#0f172a" opacity="0.05"/>
+    <rect x="148" y="48" width="360" height="320" rx="14" fill="#ffffff" stroke="#e2e8f0"/>
+
+    <rect x="180" y="76" width="32" height="32" rx="9" fill="#2563eb"/>
+    <rect x="188" y="84" width="16" height="4" rx="2" fill="#ffffff" opacity="0.95"/>
+    <rect x="188" y="91" width="16" height="4" rx="2" fill="#ffffff" opacity="0.7"/>
+    <rect x="188" y="98" width="10" height="4" rx="2" fill="#ffffff" opacity="0.5"/>
+    <text x="180" y="142" font-size="17" font-weight="600" fill="#0f172a">个人数据工作台</text>
+    <text x="180" y="162" font-size="11" fill="#64748b">登录以管理工作流、运行记录与系统设置。</text>
+
+    <text x="180" y="198" font-size="11" fill="#475569">用户名</text>
+    <rect x="180" y="206" width="296" height="34" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="192" y="228" font-size="11" fill="#cbd5e1">请输入用户名</text>
+
+    <text x="180" y="264" font-size="11" fill="#475569">密码</text>
+    <rect x="180" y="272" width="296" height="34" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="192" y="294" font-size="11" fill="#cbd5e1">请输入密码</text>
+
+    <rect x="180" y="324" width="296" height="38" rx="8" fill="#2563eb"/>
+    <text x="328" y="348" font-size="13" font-weight="600" fill="#ffffff" text-anchor="middle">登 录</text>
+
+    <!-- 标注 -->
+    <line x1="508" y1="120" x2="536" y2="120" stroke="#cbd5e1" stroke-dasharray="3 3"/>
+    <circle cx="546" cy="120" r="9" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="546" y="124" font-size="10" fill="#2563eb" text-anchor="middle">1</text>
+    <text x="562" y="118" font-size="10.5" fill="#334155">用户名、密码</text>
+    <text x="562" y="132" font-size="10.5" fill="#94a3b8">均为必填项</text>
+
+    <line x1="508" y1="222" x2="536" y2="222" stroke="#cbd5e1" stroke-dasharray="3 3"/>
+    <circle cx="546" cy="222" r="9" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="546" y="226" font-size="10" fill="#2563eb" text-anchor="middle">2</text>
+    <text x="562" y="220" font-size="10.5" fill="#334155">失败统一提示</text>
+    <text x="562" y="234" font-size="10.5" fill="#94a3b8">「用户名或密码错误」</text>
+
+    <line x1="508" y1="324" x2="536" y2="324" stroke="#cbd5e1" stroke-dasharray="3 3"/>
+    <circle cx="546" cy="324" r="9" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="546" y="328" font-size="10" fill="#2563eb" text-anchor="middle">3</text>
+    <text x="562" y="322" font-size="10.5" fill="#334155">提交中按钮禁用</text>
+    <text x="562" y="336" font-size="10.5" fill="#94a3b8">文案变为「登录中…」</text>
+
+    <line x1="508" y1="92" x2="536" y2="92" stroke="#cbd5e1" stroke-dasharray="3 3"/>
+    <circle cx="546" cy="92" r="9" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="546" y="96" font-size="10" fill="#2563eb" text-anchor="middle">4</text>
+    <text x="562" y="90" font-size="10.5" fill="#334155">已登录访问</text>
+    <text x="562" y="104" font-size="10.5" fill="#94a3b8">跳转 /workflows</text>
+
+    <text x="148" y="396" font-size="10" fill="#94a3b8">提示：网络异常时提示「无法连接到后端服务，请确认服务已启动后重试」。</text>
+    <text x="148" y="412" font-size="10" fill="#94a3b8">首次部署：启动日志仅打印一次随机管理员初始密码。</text>
+  </g>
+</svg>

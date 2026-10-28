@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 470" width="100%" height="auto" role="img" aria-label="macOS 桌面端线框图">
+  <rect width="720" height="470" fill="#f8fafc"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <!-- macOS 菜单栏 -->
+    <rect x="0" y="0" width="720" height="30" fill="#eef2f7"/>
+    <line x1="0" y1="30" x2="720" y2="30" stroke="#dbe3ec"/>
+    <text x="16" y="20" font-size="10.5" font-weight="600" fill="#0f172a">HUSTServer</text>
+    <text x="92" y="20" font-size="10" fill="#334155">文件</text>
+    <text x="130" y="20" font-size="10" fill="#334155">编辑</text>
+    <text x="168" y="20" font-size="10" fill="#334155">视图</text>
+    <text x="206" y="20" font-size="10" fill="#334155">窗口</text>
+    <text x="244" y="20" font-size="10" fill="#334155">帮助</text>
+    <text x="704" y="20" font-size="10" fill="#475569" text-anchor="end">周二 10:24</text>
+
+    <!-- 窗口投影 -->
+    <rect x="63" y="63" width="600" height="334" rx="12" fill="#cbd5e1" opacity="0.55"/>
+
+    <!-- 窗口 -->
+    <rect x="60" y="56" width="600" height="334" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+    <path d="M60 68a12 12 0 0 1 12-12h576a12 12 0 0 1 12 12v20H60z" fill="#f1f5f9"/>
+    <line x1="60" y1="88" x2="660" y2="88" stroke="#dbe3ec"/>
+    <circle cx="80" cy="72" r="5" fill="#ff5f57"/>
+    <circle cx="98" cy="72" r="5" fill="#febc2e"/>
+    <circle cx="116" cy="72" r="5" fill="#28c840"/>
+    <text x="360" y="76" font-size="10.5" fill="#475569" text-anchor="middle">HUSTServer</text>
+
+    <!-- 内嵌 Web：侧栏 -->
+    <rect x="60" y="88" width="104" height="274" fill="#f8fafc"/>
+    <line x1="164" y1="88" x2="164" y2="362" stroke="#e2e8f0"/>
+    <rect x="76" y="102" width="16" height="16" rx="5" fill="#2563eb"/>
+    <text x="84" y="114" font-size="7" font-weight="600" fill="#ffffff" text-anchor="middle">HS</text>
+    <rect x="70" y="134" width="84" height="22" rx="6" fill="#eff6ff"/>
+    <text x="84" y="149" font-size="9" fill="#1d4ed8">工作流</text>
+    <text x="84" y="171" font-size="9" fill="#64748b">仪表板</text>
+    <text x="84" y="193" font-size="9" fill="#64748b">数据模型</text>
+    <text x="84" y="215" font-size="9" fill="#64748b">连接</text>
+    <text x="84" y="237" font-size="9" fill="#64748b">Job</text>
+    <text x="84" y="259" font-size="9" fill="#64748b">用户</text>
+    <text x="84" y="281" font-size="9" fill="#64748b">设置</text>
+    <line x1="70" y1="316" x2="154" y2="316" stroke="#e2e8f0"/>
+    <text x="76" y="336" font-size="9" fill="#334155">admin</text>
+    <rect x="116" y="325" width="34" height="15" rx="7" fill="#eff6ff"/>
+    <text x="133" y="336" font-size="7.5" fill="#1d4ed8" text-anchor="middle">管理员</text>
+
+    <!-- 内嵌 Web：内容区 -->
+    <text x="184" y="118" font-size="12.5" font-weight="600" fill="#0f172a">工作流</text>
+    <rect x="460" y="100" width="76" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="498" y="117" font-size="9" fill="#334155" text-anchor="middle">上传工作流</text>
+    <rect x="544" y="100" width="80" height="26" rx="6" fill="#2563eb"/>
+    <text x="584" y="117" font-size="9" fill="#ffffff" text-anchor="middle">新建画布</text>
+
+    <rect x="184" y="136" width="146" height="52" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="194" y="154" font-size="8.5" fill="#64748b">工作流总数</text>
+    <text x="194" y="176" font-size="15" font-weight="600" fill="#0f172a">12</text>
+    <rect x="340" y="136" width="146" height="52" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="350" y="154" font-size="8.5" fill="#64748b">本周运行</text>
+    <text x="350" y="176" font-size="15" font-weight="600" fill="#0f172a">37</text>
+    <rect x="496" y="136" width="128" height="52" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="506" y="154" font-size="8.5" fill="#64748b">失败运行</text>
+    <text x="506" y="176" font-size="15" font-weight="600" fill="#dc2626">2</text>
+
+    <rect x="184" y="200" width="440" height="146" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <path d="M184 208a8 8 0 0 1 8-8h424a8 8 0 0 1 8 8v18H184z" fill="#f8fafc"/>
+    <line x1="184" y1="226" x2="624" y2="226" stroke="#e2e8f0"/>
+    <text x="196" y="218" font-size="8.5" fill="#64748b">名称</text>
+    <text x="360" y="218" font-size="8.5" fill="#64748b">步骤</text>
+    <text x="440" y="218" font-size="8.5" fill="#64748b">最近修改</text>
+    <text x="196" y="248" font-size="9" fill="#0f172a">月度销售汇总</text>
+    <text x="360" y="248" font-size="9" fill="#475569">12</text>
+    <text x="440" y="248" font-size="9" fill="#475569">10-25 09:12</text>
+    <line x1="196" y1="260" x2="612" y2="260" stroke="#f1f5f9"/>
+    <text x="196" y="280" font-size="9" fill="#0f172a">门店明细清洗</text>
+    <text x="360" y="280" font-size="9" fill="#475569">7</text>
+    <text x="440" y="280" font-size="9" fill="#475569">10-24 20:03</text>
+    <line x1="196" y1="292" x2="612" y2="292" stroke="#f1f5f9"/>
+    <text x="196" y="312" font-size="9" fill="#0f172a">ERP 数据同步</text>
+    <text x="360" y="312" font-size="9" fill="#475569">5</text>
+    <text x="440" y="312" font-size="9" fill="#475569">10-23 18:40</text>
+
+    <!-- 状态栏 -->
+    <line x1="60" y1="362" x2="660" y2="362" stroke="#e2e8f0"/>
+    <rect x="60" y="362" width="600" height="28" fill="#f8fafc"/>
+    <circle cx="80" cy="376" r="3.5" fill="#16a34a"/>
+    <text x="90" y="380" font-size="9" fill="#15803d">服务运行中</text>
+    <text x="164" y="380" font-size="9" fill="#475569" font-family="'SF Mono',Menlo,monospace">127.0.0.1:51234</text>
+    <text x="644" y="380" font-size="8.5" fill="#94a3b8" text-anchor="end">数据目录 ~/.hustserver</text>
+
+    <!-- 注记 -->
+    <circle cx="24" cy="418" r="7" fill="#eff6ff"/>
+    <text x="24" y="421" font-size="8" fill="#1d4ed8" text-anchor="middle">1</text>
+    <text x="38" y="421" font-size="9.5" fill="#475569">首次启动时在应用日志输出「初始管理员密码: xxxxxxxx」，仅显示一次。</text>
+
+    <circle cx="24" cy="442" r="7" fill="#eff6ff"/>
+    <text x="24" y="445" font-size="8" fill="#1d4ed8" text-anchor="middle">2</text>
+    <text x="38" y="445" font-size="9.5" fill="#475569">关闭窗口即完全退出，后台服务随之中止，无残留进程；账号与 Web 版共用。</text>
+  </g>
+</svg>

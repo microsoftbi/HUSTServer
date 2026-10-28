@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 450" width="100%" height="auto" role="img" aria-label="系统审计页线框图">
+  <rect width="720" height="450" fill="#f8fafc"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="24" y="36" font-size="16" font-weight="600" fill="#0f172a">系统审计</text>
+
+    <!-- 筛选 -->
+    <text x="24" y="70" font-size="9.5" fill="#64748b">动作</text>
+    <rect x="54" y="58" width="96" height="24" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="64" y="74" font-size="9.5" fill="#334155">全部</text>
+    <text x="136" y="74" font-size="8" fill="#94a3b8">▾</text>
+    <text x="168" y="70" font-size="9.5" fill="#64748b">资源</text>
+    <rect x="198" y="58" width="110" height="24" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="208" y="74" font-size="9.5" fill="#334155">全部</text>
+    <text x="294" y="74" font-size="8" fill="#94a3b8">▾</text>
+
+    <rect x="486" y="56" width="72" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="522" y="74" font-size="10" fill="#334155" text-anchor="middle">刷新</text>
+    <rect x="566" y="56" width="122" height="28" rx="6" fill="#2563eb"/>
+    <text x="627" y="74" font-size="10" fill="#ffffff" text-anchor="middle">加载为模型</text>
+
+    <!-- 审计表格 -->
+    <rect x="24" y="94" width="672" height="272" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <path d="M24 104a10 10 0 0 1 10-10h652a10 10 0 0 1 10 10v22H24z" fill="#f8fafc"/>
+    <line x1="24" y1="126" x2="696" y2="126" stroke="#e2e8f0"/>
+    <text x="40" y="115" font-size="10" fill="#64748b">时间</text>
+    <text x="200" y="115" font-size="10" fill="#64748b">操作人</text>
+    <text x="280" y="115" font-size="10" fill="#64748b">动作</text>
+    <text x="370" y="115" font-size="10" fill="#64748b">资源类型</text>
+    <text x="470" y="115" font-size="10" fill="#64748b">资源名 / 描述</text>
+
+    <text x="40" y="150" font-size="10" fill="#475569">10-25 09:12:03</text>
+    <text x="200" y="150" font-size="10" fill="#334155">admin</text>
+    <rect x="280" y="138" width="40" height="18" rx="9" fill="#fef2f2"/>
+    <text x="300" y="151" font-size="8.5" fill="#b91c1c" text-anchor="middle">删除</text>
+    <text x="370" y="150" font-size="10" fill="#475569">工作流</text>
+    <text x="470" y="150" font-size="10" fill="#0f172a">旧版月报</text>
+    <line x1="40" y1="162" x2="680" y2="162" stroke="#f1f5f9"/>
+
+    <text x="40" y="184" font-size="10" fill="#475569">10-25 09:00:01</text>
+    <text x="200" y="184" font-size="10" fill="#334155">alice</text>
+    <rect x="280" y="172" width="40" height="18" rx="9" fill="#eff6ff"/>
+    <text x="300" y="185" font-size="8.5" fill="#1d4ed8" text-anchor="middle">登录</text>
+    <text x="370" y="184" font-size="10" fill="#475569">认证</text>
+    <text x="470" y="184" font-size="10" fill="#0f172a">登录成功</text>
+    <line x1="40" y1="196" x2="680" y2="196" stroke="#f1f5f9"/>
+
+    <text x="40" y="218" font-size="10" fill="#475569">10-25 08:59:50</text>
+    <text x="200" y="218" font-size="10" fill="#334155">bob</text>
+    <rect x="280" y="206" width="56" height="18" rx="9" fill="#fef2f2"/>
+    <text x="308" y="219" font-size="8.5" fill="#b91c1c" text-anchor="middle">登录失败</text>
+    <text x="370" y="218" font-size="10" fill="#475569">认证</text>
+    <text x="470" y="218" font-size="10" fill="#0f172a">密码错误</text>
+    <line x1="40" y1="230" x2="680" y2="230" stroke="#f1f5f9"/>
+
+    <text x="40" y="252" font-size="10" fill="#475569">10-25 08:40:12</text>
+    <text x="200" y="252" font-size="10" fill="#334155">admin</text>
+    <rect x="280" y="240" width="40" height="18" rx="9" fill="#f0fdf4"/>
+    <text x="300" y="253" font-size="8.5" fill="#15803d" text-anchor="middle">创建</text>
+    <text x="370" y="252" font-size="10" fill="#475569">连接</text>
+    <text x="470" y="252" font-size="10" fill="#0f172a">核心ERP（共享）</text>
+    <line x1="40" y1="264" x2="680" y2="264" stroke="#f1f5f9"/>
+
+    <text x="40" y="286" font-size="10" fill="#475569">10-24 22:15:40</text>
+    <text x="200" y="286" font-size="10" fill="#334155">alice</text>
+    <rect x="280" y="274" width="40" height="18" rx="9" fill="#fffbeb"/>
+    <text x="300" y="287" font-size="8.5" fill="#b45309" text-anchor="middle">更新</text>
+    <text x="370" y="286" font-size="10" fill="#475569">仪表板</text>
+    <text x="470" y="286" font-size="10" fill="#0f172a">月度销售分析</text>
+
+    <text x="40" y="314" font-size="10" fill="#475569">10-24 20:00:00</text>
+    <text x="200" y="314" font-size="10" fill="#334155">admin</text>
+    <rect x="280" y="302" width="40" height="18" rx="9" fill="#f0fdf4"/>
+    <text x="300" y="315" font-size="8.5" fill="#15803d" text-anchor="middle">创建</text>
+    <text x="370" y="314" font-size="10" fill="#475569">模型</text>
+    <text x="470" y="314" font-size="10" fill="#0f172a">audit_logs</text>
+
+    <!-- 分页 -->
+    <text x="264" y="392" font-size="9.5" fill="#94a3b8">共 3,204 条 · 每页 20 条</text>
+    <rect x="560" y="378" width="58" height="24" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="589" y="394" font-size="9.5" fill="#475569" text-anchor="middle">上一页</text>
+    <rect x="626" y="378" width="58" height="24" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="655" y="394" font-size="9.5" fill="#475569" text-anchor="middle">下一页</text>
+
+    <text x="24" y="430" font-size="9.5" fill="#94a3b8">「加载为模型」把审计记录写入固定模型 audit_logs，可用于仪表板分析；动作与资源类型支持组合筛选。</text>
+  </g>
+</svg>

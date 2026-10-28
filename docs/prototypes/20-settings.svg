@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 604" width="100%" height="auto" role="img" aria-label="系统设置页线框图">
+  <rect width="720" height="604" fill="#f8fafc"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="24" y="38" font-size="16" font-weight="600" fill="#0f172a">设置</text>
+    <rect x="600" y="20" width="96" height="30" rx="7" fill="#2563eb"/>
+    <text x="648" y="39" font-size="10.5" fill="#ffffff" text-anchor="middle">保存</text>
+
+    <!-- 运行 -->
+    <rect x="24" y="56" width="672" height="76" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <path d="M24 66a10 10 0 0 1 10-10h652a10 10 0 0 1 10 10v20H24z" fill="#f8fafc"/>
+    <line x1="24" y1="86" x2="696" y2="86" stroke="#e2e8f0"/>
+    <text x="40" y="76" font-size="10.5" font-weight="600" fill="#334155">运行</text>
+    <text x="40" y="110" font-size="9.5" fill="#475569">最大并发运行</text>
+    <rect x="128" y="96" width="56" height="24" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="138" y="112" font-size="9.5" fill="#0f172a">2</text>
+    <text x="208" y="110" font-size="9.5" fill="#475569">日志保留天数</text>
+    <rect x="286" y="96" width="64" height="24" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="296" y="112" font-size="9.5" fill="#0f172a">90</text>
+    <text x="380" y="111" font-size="9" fill="#94a3b8">超出并发时新的运行请求进入排队；日志过期自动清理</text>
+
+    <!-- 存储 -->
+    <rect x="24" y="140" width="672" height="76" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <path d="M24 150a10 10 0 0 1 10-10h652a10 10 0 0 1 10 10v20H24z" fill="#f8fafc"/>
+    <line x1="24" y1="170" x2="696" y2="170" stroke="#e2e8f0"/>
+    <text x="40" y="160" font-size="10.5" font-weight="600" fill="#334155">存储</text>
+    <text x="286" y="160" font-size="9" fill="#94a3b8">每行一个绝对路径，供工作流读写服务端文件</text>
+    <rect x="40" y="178" width="640" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="48" y="191" font-size="9" fill="#0f172a" font-family="'SF Mono',Menlo,monospace">/data/shared</text>
+    <text x="48" y="203" font-size="9" fill="#0f172a" font-family="'SF Mono',Menlo,monospace">/Users/wadesong/.hustserver/resources</text>
+
+    <!-- 时间 -->
+    <rect x="24" y="224" width="672" height="64" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <path d="M24 234a10 10 0 0 1 10-10h652a10 10 0 0 1 10 10v20H24z" fill="#f8fafc"/>
+    <line x1="24" y1="254" x2="696" y2="254" stroke="#e2e8f0"/>
+    <text x="40" y="244" font-size="10.5" font-weight="600" fill="#334155">时间</text>
+    <text x="40" y="276" font-size="9.5" fill="#475569">时区</text>
+    <rect x="76" y="262" width="168" height="24" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="86" y="278" font-size="9.5" fill="#0f172a">Asia/Shanghai</text>
+    <text x="228" y="278" font-size="8" fill="#94a3b8">▾</text>
+    <text x="264" y="277" font-size="9" fill="#94a3b8">影响定时调度的触发时间与日志时间显示</text>
+
+    <!-- 界面外观 -->
+    <rect x="24" y="296" width="672" height="76" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <path d="M24 306a10 10 0 0 1 10-10h652a10 10 0 0 1 10 10v20H24z" fill="#f8fafc"/>
+    <line x1="24" y1="326" x2="696" y2="326" stroke="#e2e8f0"/>
+    <text x="40" y="316" font-size="10.5" font-weight="600" fill="#334155">界面外观</text>
+    <text x="96" y="316" font-size="9" fill="#94a3b8">影响全站配色，保存后即时切换</text>
+    <rect x="40" y="336" width="86" height="26" rx="7" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+    <text x="60" y="353" font-size="9.5" fill="#1d4ed8">● 经典</text>
+    <rect x="136" y="336" width="86" height="26" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="164" y="353" font-size="9.5" fill="#475569">午夜</text>
+    <rect x="232" y="336" width="86" height="26" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="260" y="353" font-size="9.5" fill="#475569">石墨</text>
+    <rect x="328" y="336" width="86" height="26" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="356" y="353" font-size="9.5" fill="#475569">日光</text>
+    <rect x="424" y="336" width="86" height="26" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="452" y="353" font-size="9.5" fill="#475569">海洋</text>
+
+    <!-- 画布外观 -->
+    <rect x="24" y="380" width="672" height="76" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <path d="M24 390a10 10 0 0 1 10-10h652a10 10 0 0 1 10 10v20H24z" fill="#f8fafc"/>
+    <line x1="24" y1="410" x2="696" y2="410" stroke="#e2e8f0"/>
+    <text x="40" y="400" font-size="10.5" font-weight="600" fill="#334155">画布外观</text>
+    <text x="96" y="400" font-size="9" fill="#94a3b8">仅作用于设计器与 Job 画布</text>
+    <rect x="40" y="420" width="86" height="26" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="68" y="437" font-size="9.5" fill="#475569">午夜</text>
+    <rect x="136" y="420" width="86" height="26" rx="7" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+    <text x="156" y="437" font-size="9.5" fill="#1d4ed8">● 石墨</text>
+    <rect x="232" y="420" width="86" height="26" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="260" y="437" font-size="9.5" fill="#475569">日光</text>
+    <rect x="328" y="420" width="86" height="26" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="356" y="437" font-size="9.5" fill="#475569">海洋</text>
+
+    <!-- AI 智能体 -->
+    <rect x="24" y="464" width="672" height="112" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <path d="M24 474a10 10 0 0 1 10-10h652a10 10 0 0 1 10 10v20H24z" fill="#f8fafc"/>
+    <line x1="24" y1="494" x2="696" y2="494" stroke="#e2e8f0"/>
+    <text x="40" y="484" font-size="10.5" font-weight="600" fill="#334155">AI 智能体</text>
+    <text x="106" y="484" font-size="9" fill="#94a3b8">API 地址须以 http(s) 开头，保存时自动去尾斜杠</text>
+
+    <text x="40" y="518" font-size="9.5" fill="#475569">API 地址</text>
+    <rect x="96" y="504" width="252" height="24" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="106" y="520" font-size="9.5" fill="#0f172a">https://api.deepseek.com</text>
+    <text x="372" y="518" font-size="9.5" fill="#475569">模型</text>
+    <rect x="408" y="504" width="160" height="24" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="418" y="520" font-size="9.5" fill="#0f172a">deepseek-chat</text>
+
+    <text x="40" y="554" font-size="9.5" fill="#475569">API Key</text>
+    <rect x="96" y="540" width="300" height="24" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="106" y="556" font-size="9.5" fill="#0f172a" font-family="'SF Mono',Menlo,monospace">••••••••••••••••</text>
+    <text x="412" y="556" font-size="9" fill="#94a3b8">已加密存储；留空表示不修改</text>
+
+    <text x="24" y="594" font-size="9.5" fill="#94a3b8">点击「保存」立即生效：并发数影响运行排队，主题即时切换，时区影响调度触发。</text>
+  </g>
+</svg>

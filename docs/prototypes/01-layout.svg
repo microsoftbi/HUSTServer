@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 560" width="100%" height="auto" role="img" aria-label="整体界面框架线框图">
+  <rect width="720" height="560" fill="#f8fafc"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <!-- 左侧导航 -->
+    <rect x="0" y="0" width="176" height="560" fill="#ffffff"/>
+    <line x1="176" y1="0" x2="176" y2="560" stroke="#e2e8f0"/>
+    <rect x="16" y="18" width="28" height="28" rx="8" fill="#2563eb"/>
+    <rect x="23" y="25" width="14" height="3.5" rx="1.75" fill="#ffffff" opacity="0.95"/>
+    <rect x="23" y="31" width="14" height="3.5" rx="1.75" fill="#ffffff" opacity="0.7"/>
+    <rect x="23" y="37" width="9" height="3.5" rx="1.75" fill="#ffffff" opacity="0.5"/>
+    <text x="52" y="37" font-size="13" font-weight="600" fill="#0f172a">个人数据工作台</text>
+    <line x1="12" y1="62" x2="164" y2="62" stroke="#e2e8f0"/>
+
+    <!-- 导航项 -->
+    <rect x="8" y="112" width="160" height="28" rx="8" fill="#eff6ff"/>
+    <rect x="18" y="82" width="14" height="14" rx="4" fill="#cbd5e1"/>
+    <text x="44" y="94" font-size="12" fill="#475569">主页</text>
+    <rect x="18" y="112" width="14" height="14" rx="4" fill="#2563eb"/>
+    <text x="44" y="124" font-size="12" font-weight="600" fill="#1d4ed8">工作流</text>
+    <rect x="18" y="142" width="14" height="14" rx="4" fill="#cbd5e1"/>
+    <text x="44" y="154" font-size="12" fill="#475569">仪表板</text>
+    <rect x="18" y="172" width="14" height="14" rx="4" fill="#cbd5e1"/>
+    <text x="44" y="184" font-size="12" fill="#475569">数据模型</text>
+    <rect x="18" y="202" width="14" height="14" rx="4" fill="#cbd5e1"/>
+    <text x="44" y="214" font-size="12" fill="#475569">数据探索</text>
+    <rect x="18" y="232" width="14" height="14" rx="4" fill="#cbd5e1"/>
+    <text x="44" y="244" font-size="12" fill="#475569">AI 智能体</text>
+    <rect x="18" y="262" width="14" height="14" rx="4" fill="#cbd5e1"/>
+    <text x="44" y="274" font-size="12" fill="#475569">资源管理</text>
+    <rect x="18" y="292" width="14" height="14" rx="4" fill="#cbd5e1"/>
+    <text x="44" y="304" font-size="12" fill="#475569">连接</text>
+    <rect x="18" y="322" width="14" height="14" rx="4" fill="#cbd5e1"/>
+    <text x="44" y="334" font-size="12" fill="#475569">Job</text>
+
+    <line x1="12" y1="352" x2="164" y2="352" stroke="#e2e8f0"/>
+    <rect x="18" y="368" width="14" height="14" rx="4" fill="#cbd5e1"/>
+    <text x="44" y="380" font-size="12" fill="#475569">系统审计</text>
+    <rect x="18" y="398" width="14" height="14" rx="4" fill="#cbd5e1"/>
+    <text x="44" y="410" font-size="12" fill="#475569">用户</text>
+    <rect x="18" y="428" width="14" height="14" rx="4" fill="#cbd5e1"/>
+    <text x="44" y="440" font-size="12" fill="#475569">设置</text>
+
+    <line x1="12" y1="460" x2="164" y2="460" stroke="#e2e8f0"/>
+    <text x="18" y="486" font-size="12" font-weight="600" fill="#0f172a">admin</text>
+    <rect x="18" y="494" width="50" height="18" rx="9" fill="#f1f5f9"/>
+    <text x="43" y="507" font-size="10" fill="#475569" text-anchor="middle">管理员</text>
+    <rect x="18" y="522" width="68" height="26" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="52" y="539" font-size="11" fill="#dc2626" text-anchor="middle">退出</text>
+    <rect x="94" y="522" width="64" height="26" rx="7" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="126" y="539" font-size="11" fill="#475569" text-anchor="middle">收起</text>
+
+    <!-- 内容区 -->
+    <text x="208" y="45" font-size="18" font-weight="600" fill="#0f172a">工作流</text>
+    <rect x="496" y="24" width="104" height="32" rx="8" fill="#2563eb"/>
+    <text x="548" y="44" font-size="12" fill="#ffffff" text-anchor="middle">上传工作流</text>
+    <rect x="608" y="24" width="88" height="32" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="652" y="44" font-size="12" fill="#334155" text-anchor="middle">新建画布</text>
+    <line x1="208" y1="72" x2="696" y2="72" stroke="#e2e8f0"/>
+
+    <rect x="208" y="92" width="488" height="164" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="208" y="92" width="488" height="32" rx="12" fill="#f8fafc"/>
+    <rect x="208" y="112" width="488" height="12" fill="#f8fafc"/>
+    <line x1="208" y1="124" x2="696" y2="124" stroke="#e2e8f0"/>
+    <text x="224" y="112" font-size="10.5" fill="#64748b">名称</text>
+    <text x="470" y="112" font-size="10.5" fill="#64748b">节点数</text>
+    <text x="536" y="112" font-size="10.5" fill="#64748b">更新时间</text>
+    <text x="624" y="112" font-size="10.5" fill="#64748b">操作</text>
+
+    <text x="224" y="146" font-size="12" fill="#0f172a">月度销售汇总</text>
+    <text x="482" y="146" font-size="12" fill="#475569">12</text>
+    <text x="536" y="146" font-size="12" fill="#475569">10-25 09:12</text>
+    <text x="624" y="146" font-size="11" fill="#2563eb">打开</text>
+    <text x="660" y="146" font-size="11" fill="#dc2626">删除</text>
+    <line x1="224" y1="160" x2="680" y2="160" stroke="#f1f5f9"/>
+
+    <text x="224" y="182" font-size="12" fill="#0f172a">门店客流清洗</text>
+    <text x="482" y="182" font-size="12" fill="#475569">8</text>
+    <text x="536" y="182" font-size="12" fill="#475569">10-24 18:40</text>
+    <text x="624" y="182" font-size="11" fill="#2563eb">打开</text>
+    <text x="660" y="182" font-size="11" fill="#dc2626">删除</text>
+    <line x1="224" y1="196" x2="680" y2="196" stroke="#f1f5f9"/>
+
+    <text x="224" y="218" font-size="12" fill="#0f172a">会员分层打标</text>
+    <text x="482" y="218" font-size="12" fill="#475569">15</text>
+    <text x="536" y="218" font-size="12" fill="#475569">10-23 11:05</text>
+    <text x="624" y="218" font-size="11" fill="#2563eb">打开</text>
+    <text x="660" y="218" font-size="11" fill="#dc2626">删除</text>
+
+    <!-- 说明卡片 -->
+    <rect x="208" y="284" width="236" height="150" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="224" y="308" font-size="11.5" font-weight="600" fill="#0f172a">布局规则</text>
+    <text x="224" y="330" font-size="10.5" fill="#64748b">· 侧栏展开 224px / 收起 68px</text>
+    <text x="224" y="350" font-size="10.5" fill="#64748b">· 内容区最大宽度 1152px 居中</text>
+    <text x="224" y="370" font-size="10.5" fill="#64748b">· 页头：标题 + 右对齐操作按钮</text>
+    <text x="224" y="390" font-size="10.5" fill="#64748b">· 主体统一使用圆角卡片承载</text>
+    <text x="224" y="412" font-size="10" fill="#94a3b8">收起状态记忆在浏览器本地</text>
+
+    <rect x="460" y="284" width="236" height="150" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="476" y="308" font-size="11.5" font-weight="600" fill="#0f172a">能力与导航</text>
+    <text x="476" y="330" font-size="10.5" fill="#64748b">· 无权限的导航项不渲染</text>
+    <text x="476" y="350" font-size="10.5" fill="#64748b">· 直接输入 URL 由能力守卫拦截</text>
+    <text x="476" y="370" font-size="10.5" fill="#64748b">· 管理员分组以分隔线隔开</text>
+    <text x="476" y="390" font-size="10.5" fill="#64748b">· 多角色能力取并集</text>
+    <text x="476" y="412" font-size="10" fill="#94a3b8">四角色：管理员 / 工作流作者 / 仪表板作者 / 视图者</text>
+  </g>
+</svg>

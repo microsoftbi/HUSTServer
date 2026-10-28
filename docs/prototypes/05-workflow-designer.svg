@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 470" width="100%" height="auto" role="img" aria-label="工作流设计器线框图">
+  <defs>
+    <pattern id="dots05" width="16" height="16" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="1" fill="#dbe3ec"/>
+    </pattern>
+    <marker id="ar05" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto">
+      <path d="M1 1 L7 4 L1 7 Z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+  <rect width="720" height="470" fill="#ffffff"/>
+  <g font-family="-apple-system,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <!-- 顶部工具栏 -->
+    <rect x="0" y="0" width="720" height="44" fill="#ffffff"/>
+    <line x1="0" y1="44" x2="720" y2="44" stroke="#e2e8f0"/>
+    <path d="M20 22H32M20 22l5-5M20 22l5 5" stroke="#64748b" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <text x="42" y="27" font-size="12.5" font-weight="600" fill="#0f172a">月度销售汇总</text>
+    <text x="132" y="27" font-size="10" fill="#94a3b8">已保存</text>
+    <rect x="520" y="8" width="64" height="28" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="552" y="26" font-size="11" fill="#334155" text-anchor="middle">保存</text>
+    <rect x="592" y="8" width="76" height="28" rx="7" fill="#2563eb"/>
+    <text x="630" y="26" font-size="11" fill="#ffffff" text-anchor="middle">运行</text>
+    <rect x="672" y="8" width="28" height="28" rx="7" fill="#2563eb"/>
+    <text x="686" y="26" font-size="9" fill="#ffffff" text-anchor="middle">▾</text>
+
+    <!-- 节点面板 -->
+    <rect x="0" y="44" width="150" height="426" fill="#ffffff"/>
+    <line x1="150" y1="44" x2="150" y2="470" stroke="#e2e8f0"/>
+    <text x="16" y="68" font-size="9.5" fill="#94a3b8">输入</text>
+    <rect x="14" y="78" width="9" height="9" rx="2" fill="#bfdbfe"/>
+    <text x="31" y="86" font-size="11" fill="#475569">CSV 输入</text>
+    <rect x="14" y="102" width="9" height="9" rx="2" fill="#bfdbfe"/>
+    <text x="31" y="110" font-size="11" fill="#475569">Excel 输入</text>
+    <rect x="14" y="126" width="9" height="9" rx="2" fill="#bfdbfe"/>
+    <text x="31" y="134" font-size="11" fill="#475569">SQL Server</text>
+
+    <text x="16" y="164" font-size="9.5" fill="#94a3b8">准备</text>
+    <rect x="6" y="174" width="138" height="24" rx="6" fill="#eff6ff"/>
+    <rect x="14" y="182" width="9" height="9" rx="2" fill="#2563eb"/>
+    <text x="31" y="190" font-size="11" font-weight="600" fill="#1d4ed8">筛选</text>
+    <rect x="14" y="206" width="9" height="9" rx="2" fill="#cbd5e1"/>
+    <text x="31" y="214" font-size="11" fill="#475569">选择</text>
+    <rect x="14" y="230" width="9" height="9" rx="2" fill="#cbd5e1"/>
+    <text x="31" y="238" font-size="11" fill="#475569">联接</text>
+    <rect x="14" y="254" width="9" height="9" rx="2" fill="#cbd5e1"/>
+    <text x="31" y="262" font-size="11" fill="#475569">公式</text>
+
+    <text x="16" y="292" font-size="9.5" fill="#94a3b8">聚合</text>
+    <rect x="14" y="302" width="9" height="9" rx="2" fill="#cbd5e1"/>
+    <text x="31" y="310" font-size="11" fill="#475569">汇总</text>
+    <rect x="14" y="326" width="9" height="9" rx="2" fill="#cbd5e1"/>
+    <text x="31" y="334" font-size="11" fill="#475569">排序</text>
+
+    <text x="16" y="364" font-size="9.5" fill="#94a3b8">输出</text>
+    <rect x="14" y="374" width="9" height="9" rx="2" fill="#ddd6fe"/>
+    <text x="31" y="382" font-size="11" fill="#475569">数据模型</text>
+    <rect x="14" y="398" width="9" height="9" rx="2" fill="#ddd6fe"/>
+    <text x="31" y="406" font-size="11" fill="#475569">CSV 输出</text>
+
+    <text x="16" y="444" font-size="9.5" fill="#94a3b8">拖拽节点到画布</text>
+
+    <!-- 画布 -->
+    <rect x="150" y="44" width="390" height="426" fill="#fbfdff"/>
+    <rect x="150" y="44" width="390" height="426" fill="url(#dots05)"/>
+
+    <line x1="250" y1="154" x2="250" y2="206" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#ar05)"/>
+    <line x1="310" y1="232" x2="352" y2="232" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#ar05)"/>
+    <line x1="416" y1="254" x2="416" y2="316" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#ar05)"/>
+
+    <rect x="190" y="110" width="120" height="44" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="250" y="128" font-size="11.5" font-weight="600" fill="#334155" text-anchor="middle">CSV 输入</text>
+    <text x="250" y="143" font-size="9.5" fill="#94a3b8" text-anchor="middle">门店明细</text>
+
+    <rect x="190" y="210" width="120" height="44" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1.8"/>
+    <text x="250" y="228" font-size="11.5" font-weight="600" fill="#1d4ed8" text-anchor="middle">筛选</text>
+    <text x="250" y="243" font-size="9.5" fill="#2563eb" text-anchor="middle">销售额 &gt; 0</text>
+
+    <rect x="356" y="210" width="120" height="44" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="416" y="228" font-size="11.5" font-weight="600" fill="#334155" text-anchor="middle">联接</text>
+    <text x="416" y="243" font-size="9.5" fill="#94a3b8" text-anchor="middle">inner join</text>
+
+    <rect x="356" y="320" width="120" height="44" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="416" y="338" font-size="11.5" font-weight="600" fill="#334155" text-anchor="middle">数据模型</text>
+    <text x="416" y="353" font-size="9.5" fill="#7c3aed" text-anchor="middle">sales_monthly</text>
+
+    <rect x="486" y="430" width="44" height="22" rx="11" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="508" y="445" font-size="9.5" fill="#64748b" text-anchor="middle">100%</text>
+
+    <!-- 属性面板 -->
+    <rect x="540" y="44" width="180" height="426" fill="#ffffff"/>
+    <line x1="540" y1="44" x2="540" y2="470" stroke="#e2e8f0"/>
+    <text x="556" y="70" font-size="12.5" font-weight="600" fill="#0f172a">筛选</text>
+    <rect x="600" y="58" width="48" height="18" rx="9" fill="#eff6ff"/>
+    <text x="624" y="71" font-size="9" fill="#2563eb" text-anchor="middle">启用</text>
+
+    <text x="556" y="96" font-size="10" fill="#64748b">名称</text>
+    <rect x="556" y="104" width="148" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="566" y="121" font-size="10.5" fill="#0f172a">筛选</text>
+
+    <text x="556" y="150" font-size="10" fill="#64748b">条件（SQL 布尔表达式）</text>
+    <rect x="556" y="158" width="148" height="56" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="566" y="178" font-family="'SF Mono',Menlo,monospace" font-size="10" fill="#0f172a">销售额 &gt; 0</text>
+    <text x="556" y="232" font-size="9" fill="#94a3b8">引用字段名需与上游输出一致</text>
+
+    <rect x="556" y="244" width="148" height="26" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="630" y="261" font-size="10.5" fill="#334155" text-anchor="middle">预览输出</text>
+
+    <rect x="556" y="282" width="148" height="86" rx="6" fill="#fbfdff" stroke="#e2e8f0"/>
+    <rect x="556" y="282" width="148" height="22" rx="6" fill="#f1f5f9"/>
+    <text x="566" y="297" font-size="9" fill="#64748b">门店ID</text>
+    <text x="620" y="297" font-size="9" fill="#64748b">销售额</text>
+    <text x="566" y="320" font-size="9" fill="#334155">S001</text>
+    <text x="620" y="320" font-size="9" fill="#334155">52,300</text>
+    <line x1="556" y1="328" x2="704" y2="328" stroke="#f1f5f9"/>
+    <text x="566" y="344" font-size="9" fill="#334155">S002</text>
+    <text x="620" y="344" font-size="9" fill="#334155">48,120</text>
+    <text x="556" y="386" font-size="9" fill="#94a3b8">预览取前 100 行</text>
+
+    <text x="556" y="424" font-size="9.5" fill="#94a3b8">右键节点可重命名 /</text>
+    <text x="556" y="438" font-size="9.5" fill="#94a3b8">禁用（旁路）/ 删除</text>
+  </g>
+</svg>
