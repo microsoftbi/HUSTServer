@@ -144,6 +144,8 @@ export interface SlicerRelative {
   direction: SlicerRelativeDirection;
   count: number;
   unit: SlicerRelativeUnit;
+  /** 是否启用相对日期筛选；false 表示「全部」（未设置视为启用） */
+  enabled?: boolean;
 }
 
 /** 切片器的筛选状态（随仪表板一起落库，与 Power BI 一致） */

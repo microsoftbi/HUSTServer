@@ -1195,10 +1195,6 @@ export function DashboardView({
     backgroundRepeat: "no-repeat",
   } as const;
 
-  /** 右侧停靠面板总宽度：随筛选器 / 选择 / 书签窗格开关累加 */
-  const paneWidth =
-    480 + (filtersOpen ? 220 : 0) + (selectionOpen ? 240 : 0) + (bookmarksOpen ? 200 : 0);
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Ribbon 菜单（Power BI 风格：Tab 条 + 图标在上文字在下的命令组） */}
@@ -1603,10 +1599,7 @@ export function DashboardView({
 
         {/* 右侧面板（Power BI 风格：筛选器 / 可视化 / 数据 / 选择 并列停靠） */}
         {!readOnly && (
-          <aside
-            className="flex shrink-0 border-l"
-            style={{ width: paneWidth, maxWidth: "72vw" }}
-          >
+          <aside className="flex shrink-0 border-l" style={{ maxWidth: "72vw" }}>
             {filtersOpen && (
               <FiltersPane
                 reportFilters={reportFilters}
@@ -1626,7 +1619,6 @@ export function DashboardView({
             )}
             <VisualizationsPane
               className="min-h-0 min-w-0 border-r"
-              grow={1}
               widget={selected}
               dataset={selectedDataset}
               onChange={(patch) => selected && updateWidget(selected.id, patch)}
@@ -1635,7 +1627,6 @@ export function DashboardView({
             />
             <FieldsPane
               className="min-h-0 min-w-0"
-              grow={1}
               datasets={datasets}
               datasetId={browseDataset?.id ?? null}
               onSelectDataset={handleSelectDataset}
@@ -1660,7 +1651,6 @@ export function DashboardView({
                 onTabOrderChange={(items) => {
                   for (const it of items) updateWidget(it.id, { tabOrder: it.tabOrder });
                 }}
-                onClose={() => setSelectionOpen(false)}
               />
             )}
             {bookmarksOpen && (
@@ -1671,7 +1661,6 @@ export function DashboardView({
                 onUpdate={updateBookmark}
                 onRename={renameBookmark}
                 onDelete={deleteBookmark}
-                onClose={() => setBookmarksOpen(false)}
               />
             )}
           </aside>

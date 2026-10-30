@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Toaster, toast } from 'sonner';
-import { ArrowLeft, Database, Eye, LayoutDashboard, Pencil, RefreshCw, Save } from 'lucide-react';
+import { ArrowLeft, Database, Eye, LayoutDashboard, Pencil, RefreshCw, Save, Sparkles } from 'lucide-react';
 import { api, ApiClientError } from '../../api.js';
 import { useAuth } from '../../auth.js';
 import { Badge } from '../../components/ui/badge.js';
@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/button.js';
 import { UnsavedChangesDialog } from '../../components/ui/unsaved-changes-dialog.js';
 import { DashboardView } from './DashboardView';
 import { DataView } from './DataView';
+import { AgentDashboardDrawer } from './agent/AgentDashboardDrawer';
 import {
   Tooltip,
   TooltipContent,
@@ -88,6 +89,8 @@ export function DashboardEditorPage({ readOnly = false }: { readOnly?: boolean }
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [view, setView] = useState<ViewKey>('dashboard');
+  /** AI 生成仪表板抽屉是否展开 */
+  const [agentOpen, setAgentOpen] = useState(false);
   /** 服务端最近一次已知状态：保存时作为 datasets 合并的底（保留失败/未 hydrate 数据集的定义） */
   const loadedRef = useRef<DashboardPayload | null>(null);
   /** 最近一次加载 / 保存时的 payload 比较键，用于判断是否有未保存更改 */
@@ -354,10 +357,21 @@ export function DashboardEditorPage({ readOnly = false }: { readOnly?: boolean }
                 </Link>
               </Button>
               {canEdit && (
-                <Button disabled={saving} onClick={() => void save()}>
-                  <Save />
-                  {saving ? '保存中…' : '保存'}
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-pressed={agentOpen}
+                    onClick={() => setAgentOpen((open) => !open)}
+                  >
+                    <Sparkles />
+                    AI 生成
+                  </Button>
+                  <Button disabled={saving} onClick={() => void save()}>
+                    <Save />
+                    {saving ? '保存中…' : '保存'}
+                  </Button>
+                </>
               )}
             </>
           )}
@@ -411,13 +425,16 @@ export function DashboardEditorPage({ readOnly = false }: { readOnly?: boolean }
             </nav>
           </TooltipProvider>
         )}
-        <div className="min-h-0 min-w-0 flex-1">
+        <div className="relative min-h-0 min-w-0 flex-1">
           {readOnly ? (
             <DashboardView readOnly />
           ) : view === 'dashboard' ? (
             <DashboardView onAddDataset={() => setView('data')} />
           ) : (
             <DataView />
+          )}
+          {canEdit && view === 'dashboard' && id && (
+            <AgentDashboardDrawer open={agentOpen} onClose={() => setAgentOpen(false)} />
           )}
         </div>
       </div>

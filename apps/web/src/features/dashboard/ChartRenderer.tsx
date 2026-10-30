@@ -52,6 +52,7 @@ import { PivotTable } from "./PivotTable";
 import { TreemapChart } from "./TreemapChart";
 import { DecompositionTree } from "./DecompositionTree";
 import { formatCell, formatNumber } from "@bi/lib/format";
+import { formatDateLabel } from "@bi/lib/slicer";
 import {
   appliesTo,
   cellDecor,
@@ -162,6 +163,15 @@ function ChartRendererBody({
   const filtered = filterDataset(applyValueFilters(dataset, filters), crossFilter);
   // 当前层级分组字段（与下推规格保持一致：X 轴多字段自动成层 / 钻取 / 展开）
   const dimensions = effectiveDimensions(widget.encoding, widget.drill);
+  /**
+   * 单字段日期维度：坐标轴与工具提示展示短日期，
+   * 避免把 `2010-12-29T00:00:00.000Z` 原样铺到轴上（对齐 Power BI）。
+   */
+  const categoryLabel =
+    dimensions.length === 1 &&
+    filtered.columns.find((c) => c.name === dimensions[0])?.type === "date"
+      ? formatDateLabel
+      : undefined;
   // 截断数据集用服务端聚合结果（本地只有前 N 行）；其余情况保持本地聚合
   const base = pushed ?? aggregate(filtered, widget.encoding, dimensions);
   // 排序 / Top N 属于展示层口径：本地与服务端两种聚合结果共用同一套后处理
@@ -263,22 +273,37 @@ function ChartRendererBody({
   }
 
   if (widget.type === "kpi") {
+    // 扁平卡片（高度较小）时数值与标签并排，避免上下堆叠被标题栏和内边距裁切
+    const flat = widget.layout.h < 110;
     return (
-      <div className="flex h-full items-center justify-center gap-8">
+      <div
+        className={`flex h-full items-center justify-center ${flat ? "gap-3" : "gap-8"}`}
+      >
         {keys.map((k, i) => {
           const total = agg.data.reduce((acc, d) => {
             const v = d[k];
             return acc + (typeof v === "number" ? v : 0);
           }, 0);
           return (
-            <div key={k} className="text-center">
+            <div
+              key={k}
+              className={flat ? "flex items-baseline gap-1.5" : "text-center"}
+            >
               <div
-                className="text-3xl font-bold tabular-nums"
+                className={`font-bold tabular-nums ${flat ? "text-xl" : "text-3xl"}`}
                 style={{ color: colorAt(i) }}
               >
                 {formatCell(total, formatOf(k))}
               </div>
-              <div className="mt-1 text-xs text-muted-foreground">{k}</div>
+              <div
+                className={
+                  flat
+                    ? "text-[11px] text-muted-foreground"
+                    : "mt-1 text-xs text-muted-foreground"
+                }
+              >
+                {k}
+              </div>
             </div>
           );
         })}
@@ -402,6 +427,7 @@ function ChartRendererBody({
           formatOf={formatOf}
           totalOf={totalOf}
           percent={type === "stackedBar100"}
+          labelOf={categoryLabel}
         />
       }
     />
@@ -416,6 +442,7 @@ function ChartRendererBody({
           keys={[valueKey]}
           formatOf={formatOf}
           totalOf={totalOf}
+          labelOf={categoryLabel}
         />
       }
     />
@@ -557,6 +584,7 @@ function ChartRendererBody({
       key="x"
       dataKey={categoryKey}
       tick={{ fontSize: 11 }}
+      tickFormatter={categoryLabel}
       interval="preserveStartEnd"
     />,
     <YAxis key="y" tick={{ fontSize: 11 }} width={yAxisWidth} tickFormatter={tickFormat} />,
@@ -573,6 +601,7 @@ function ChartRendererBody({
       type="category"
       dataKey={categoryKey}
       tick={{ fontSize: 11 }}
+      tickFormatter={categoryLabel}
       width={72}
     />,
     categoryTooltip("tooltip"),
@@ -930,6 +959,8 @@ interface ChartTooltipProps {
   totalOf: (key: string) => number;
   /** 百分比堆叠图：数值已是百分比 */
   percent?: boolean;
+  /** 类别标签格式化（日期维度转短日期） */
+  labelOf?: (value: string) => string;
 }
 
 /** 统一工具提示：类别 + 各数值 + 占该列合计的百分比（单数值列时显示） */
@@ -942,13 +973,15 @@ function ChartTooltip({
   formatOf,
   totalOf,
   percent,
+  labelOf,
 }: ChartTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
   const datum = (payload[0]?.payload ?? {}) as Record<string, string | number | null>;
-  const category =
+  const rawCategory =
     label === undefined || label === null
       ? String(datum[categoryKey] ?? "")
       : String(label);
+  const category = rawCategory && labelOf ? labelOf(rawCategory) : rawCategory;
 
   const entries = keys
     .map((key) => ({ key, value: datum[key] }))

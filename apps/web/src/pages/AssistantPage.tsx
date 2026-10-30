@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bot, Copy, Minimize2, Play, Plus, Ruler, Send, Trash2 } from 'lucide-react';
+import { Bot, Bug, Copy, Minimize2, Play, Plus, Ruler, Send, Trash2 } from 'lucide-react';
 import { DataTable } from '@bi/components/DataTable';
 import { api, ApiClientError } from '../api.js';
 import { useAuth } from '../auth.js';
@@ -50,6 +50,25 @@ interface ModelItem {
 interface ChatResponse {
   conversationId: string;
   message: AssistantMessage;
+  debug: AssistantDebug;
+}
+
+/** 一轮模型调用的快照：实际下发的消息与模型返回。 */
+interface AssistantDebugRound {
+  attempt: number;
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+  response?: string;
+  error?: string;
+}
+
+/** 最近一次问答的调试信息。 */
+interface AssistantDebug {
+  model: string;
+  apiBase: string;
+  rounds: AssistantDebugRound[];
+  sql: string | null;
+  answer: string;
+  error: string | null;
 }
 
 /** 会话体量统计（字节数均按 UTF-8 计算） */
@@ -97,6 +116,9 @@ export function AssistantPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [stats, setStats] = useState<ConversationStats | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
+  /** 最近一次问答实际下发给模型的完整内容，供调试弹窗查看 */
+  const [debug, setDebug] = useState<AssistantDebug | null>(null);
+  const [debugOpen, setDebugOpen] = useState(false);
   const [compressing, setCompressing] = useState(false);
   /** 压缩结果在弹窗内展示，避免被遮罩挡住 */
   const [compressError, setCompressError] = useState<string | null>(null);
@@ -223,6 +245,7 @@ export function AssistantPage() {
       });
       setActiveId(res.conversationId);
       setMessages((prev) => [...prev.filter((m) => m.id !== tempId), res.message]);
+      setDebug(res.debug);
       await loadConversations();
       void loadStats(res.conversationId);
     } catch (err) {
@@ -254,6 +277,12 @@ export function AssistantPage() {
     } finally {
       setCompressing(false);
     }
+  }
+
+  /** 把调试信息整体复制成 JSON，便于对照修改提示词 */
+  function copyDebug(): void {
+    if (!debug) return;
+    void navigator.clipboard?.writeText(JSON.stringify(debug, null, 2)).catch(() => undefined);
   }
 
   async function rerunSql(messageId: string, sql: string): Promise<void> {
@@ -321,12 +350,22 @@ export function AssistantPage() {
             <Bot className="h-4 w-4 shrink-0 text-primary" />
             <span className="truncate text-sm font-medium">{activeTitle}</span>
           </div>
-          {status && (
-            <span className="shrink-0 text-xs text-muted-foreground">
-              {status.model}
-              {status.configured ? '' : '（未配置）'}
-            </span>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {status && (
+              <span className="text-xs text-muted-foreground">
+                {status.model}
+                {status.configured ? '' : '（未配置）'}
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              title="查看最近一次发送给智能体的完整内容"
+              onClick={() => setDebugOpen(true)}
+            >
+              <Bug /> 调试
+            </Button>
+          </div>
         </header>
 
         {status && !status.configured && (
@@ -501,6 +540,79 @@ export function AssistantPage() {
           <p className="rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
             {compressNotice}
           </p>
+        )}
+      </Modal>
+
+      <Modal
+        open={debugOpen}
+        onClose={() => setDebugOpen(false)}
+        title="调试：发送给智能体的内容"
+        className="max-w-4xl"
+        footer={
+          <Button variant="outline" size="sm" disabled={!debug} onClick={copyDebug}>
+            <Copy /> 复制 JSON
+          </Button>
+        }
+      >
+        {debug ? (
+          <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
+            <dl className="grid grid-cols-[5rem_1fr] gap-x-3 gap-y-1 text-sm">
+              <dt className="text-muted-foreground">模型</dt>
+              <dd>{debug.model}</dd>
+              <dt className="text-muted-foreground">接口地址</dt>
+              <dd className="break-all">{debug.apiBase}</dd>
+              <dt className="text-muted-foreground">调用轮次</dt>
+              <dd>{debug.rounds.length} 次</dd>
+              {debug.error && (
+                <>
+                  <dt className="text-muted-foreground">最终错误</dt>
+                  <dd className="text-destructive">{debug.error}</dd>
+                </>
+              )}
+            </dl>
+            {debug.rounds.map((round) => (
+              <section key={round.attempt} className="rounded-md border border-border">
+                <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-1.5">
+                  <span className="text-xs font-medium">第 {round.attempt} 次调用</span>
+                  <span className="text-xs text-muted-foreground">{round.messages.length} 条消息</span>
+                </div>
+                <div className="space-y-2 p-3">
+                  {round.messages.map((m, idx) => (
+                    <div key={`${m.role}-${idx}`} className="space-y-1">
+                      <span
+                        className={cn(
+                          'inline-block rounded px-1.5 py-0.5 text-[11px] font-medium',
+                          m.role === 'system'
+                            ? 'bg-accent text-accent-foreground'
+                            : m.role === 'user'
+                              ? 'bg-primary/10 text-primary'
+                              : 'bg-muted text-muted-foreground',
+                        )}
+                      >
+                        {m.role === 'system' ? '系统提示词' : m.role === 'user' ? '用户' : '助手'}
+                      </span>
+                      <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/50 px-2 py-1.5 text-xs leading-relaxed">
+                        <code>{m.content}</code>
+                      </pre>
+                    </div>
+                  ))}
+                  {round.response && (
+                    <div className="space-y-1">
+                      <span className="inline-block rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                        模型返回
+                      </span>
+                      <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/50 px-2 py-1.5 text-xs leading-relaxed">
+                        <code>{round.response}</code>
+                      </pre>
+                    </div>
+                  )}
+                  {round.error && <p className="text-xs text-destructive">本轮错误：{round.error}</p>}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">还没有发送过消息，先提一个问题再查看。</p>
         )}
       </Modal>
     </div>

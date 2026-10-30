@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Calendar,
-  ChevronDown,
+  ChevronsRight,
   Hash,
   Plus,
   Search,
@@ -37,8 +37,8 @@ interface FieldsPaneProps {
   /** 点击命名度量（度量管理里定义的可复用表达式） */
   onPickMeasure?: (measure: NamedMeasure) => void;
   onAddDataset?: () => void;
-  /** 展开时占据的 flex 比例（折叠后仅保留标题栏） */
-  grow?: number;
+  /** 展开时占用的宽度（折叠后仅保留标题栏，右侧面板总宽随之减少） */
+  width?: number;
   className?: string;
 }
 
@@ -50,7 +50,7 @@ export function FieldsPane({
   onPickField,
   onPickMeasure,
   onAddDataset,
-  grow = 2,
+  width = 240,
   className,
 }: FieldsPaneProps) {
   const [query, setQuery] = useState("");
@@ -71,23 +71,37 @@ export function FieldsPane({
     return q ? all.filter((m) => m.name.toLowerCase().includes(q)) : all;
   }, [dataset, query]);
 
-  return (
-    <div
-      className={cn("flex min-h-0 flex-col", className)}
-      style={{ flex: open ? `${grow} 1 0%` : "0 0 auto" }}
-    >
-      <div className="flex shrink-0 items-center gap-1 border-b px-2 py-1.5">
+  // 折叠态：只保留竖排标题，点击整条标题栏展开
+  if (!open) {
+    return (
+      <div
+        className={cn("flex min-h-0 flex-col bg-background", className)}
+        style={{ width: 32, flex: "0 0 auto" }}
+      >
         <button
           type="button"
-          aria-label={open ? "折叠" : "展开"}
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-          className="rounded p-1 text-muted-foreground hover:bg-accent"
+          aria-label="展开数据窗格"
+          title="展开"
+          onClick={() => setOpen(true)}
+          className="flex w-8 flex-1 items-start justify-center py-2 text-muted-foreground hover:bg-accent hover:text-foreground"
         >
-          <ChevronDown
-            className={cn("h-4 w-4 transition-transform", !open && "-rotate-90")}
-          />
+          <span
+            className="text-sm font-semibold text-foreground"
+            style={{ writingMode: "vertical-rl" }}
+          >
+            数据
+          </span>
         </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn("flex min-h-0 min-w-0 flex-col", className)}
+      style={{ width, flex: "0 0 auto" }}
+    >
+      <div className="flex shrink-0 items-center gap-1 border-b px-2 py-1.5">
         <span className="flex-1 text-sm font-semibold">数据</span>
         <button
           type="button"
@@ -103,6 +117,15 @@ export function FieldsPane({
             {dataset.rows.length} 行
           </span>
         ) : null}
+        <button
+          type="button"
+          aria-label="折叠"
+          title="折叠"
+          onClick={() => setOpen(false)}
+          className="rounded p-1 text-muted-foreground hover:bg-accent"
+        >
+          <ChevronsRight className="h-4 w-4" />
+        </button>
       </div>
 
       {!open ? null : (

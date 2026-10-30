@@ -23,9 +23,14 @@ electronDownload:
 
 mac:
   category: public.app-category.productivity
+  icon: build-resources/icon.icns
   identity: null
   hardenedRuntime: false
   gatekeeperAssess: false
+  extendInfo:
+    # macOS 15+ 访问局域网设备（如内网 SQL Server）需要本地网络权限，
+    # 缺少该用途声明时系统会直接拒绝，表现为 connect EHOSTUNREACH。
+    NSLocalNetworkUsageDescription: 需要访问局域网内的数据库服务器，以执行工作流与仪表板查询。
   target:
     - target: dmg
       arch:

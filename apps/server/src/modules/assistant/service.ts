@@ -17,7 +17,7 @@ const SUMMARY_MAX_CHARS = 800;
 /** 压缩时单条消息进入摘要提示词的最大字符数。 */
 const TRANSCRIPT_MESSAGE_MAX = 400;
 
-interface ChatCompletionMessage {
+export interface ChatCompletionMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
 }
@@ -46,9 +46,31 @@ export interface AssistantChatInput {
   cfg: AssistantConfig;
 }
 
+/** 一轮模型调用的调试快照：实际下发的消息与模型返回。 */
+export interface AssistantDebugRound {
+  attempt: number;
+  /** 本次调用下发给模型的消息（含系统提示词、摘要、历史与重试追加内容） */
+  messages: ChatCompletionMessage[];
+  /** 模型原始返回，调用失败时为空 */
+  response?: string;
+  /** 本轮解析或执行产生的错误 */
+  error?: string;
+}
+
+/** 最近一次问答的调试信息，用于人工核对提示词与上下文。 */
+export interface AssistantDebug {
+  model: string;
+  apiBase: string;
+  rounds: AssistantDebugRound[];
+  sql: string | null;
+  answer: string;
+  error: string | null;
+}
+
 export interface AssistantChatResult {
   conversationId: string;
   message: AssistantMessageView;
+  debug: AssistantDebug;
 }
 
 export interface AssistantCompressInput {
@@ -275,7 +297,8 @@ function parsePlan(raw: string): LlmPlan {
   };
 }
 
-async function callLlm(cfg: AssistantConfig, messages: ChatCompletionMessage[]): Promise<string> {
+/** 调用 OpenAI 兼容的 /chat/completions（仪表板智能体复用同一套调用方式）。 */
+export async function callLlm(cfg: AssistantConfig, messages: ChatCompletionMessage[]): Promise<string> {
   if (!cfg.apiKey) throw new Error('尚未配置 API Key');
   const url = `${cfg.apiBase.replace(/\/+$/, '')}/chat/completions`;
   const controller = new AbortController();
@@ -360,15 +383,23 @@ export function createAssistantService(deps: {
       let sql: string | null = null;
       let result: QueryResult | null = null;
       let lastError: string | null = null;
+      const rounds: AssistantDebugRound[] = [];
 
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+        const round: AssistantDebugRound = {
+          attempt,
+          messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        };
+        rounds.push(round);
         const raw = await callLlm(input.cfg, messages);
+        round.response = raw;
 
         let plan: LlmPlan;
         try {
           plan = parsePlan(raw);
         } catch (err) {
           lastError = (err as Error).message;
+          round.error = lastError;
           if (attempt === MAX_ATTEMPTS) break;
           messages.push({ role: 'assistant', content: raw });
           messages.push({
@@ -387,6 +418,7 @@ export function createAssistantService(deps: {
 
         if (!plan.sql) {
           lastError = '模型没有给出 SQL 语句';
+          round.error = lastError;
           answer = plan.answer;
           if (attempt === MAX_ATTEMPTS) break;
           messages.push({ role: 'assistant', content: raw });
@@ -405,6 +437,7 @@ export function createAssistantService(deps: {
           break;
         } catch (err) {
           lastError = err instanceof Error ? err.message : String(err);
+          round.error = lastError;
           result = null;
           if (attempt === MAX_ATTEMPTS) break;
           messages.push({ role: 'assistant', content: raw });
@@ -428,7 +461,18 @@ export function createAssistantService(deps: {
       });
       repo.touchConversation(conversation.id);
 
-      return { conversationId: conversation.id, message: toMessageView(persisted) };
+      return {
+        conversationId: conversation.id,
+        message: toMessageView(persisted),
+        debug: {
+          model: input.cfg.model,
+          apiBase: input.cfg.apiBase,
+          rounds,
+          sql,
+          answer,
+          error: lastError,
+        },
+      };
     },
 
     async compress(input) {

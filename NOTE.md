@@ -22,3 +22,6 @@ Dashboard的交互还需要测试完善下。
 UI可在设置里更改主题界面样式，跟工作流和仪表板的功能一样，但是配置是分开的。
 
 
+[EnglishPromotionName]
+[EnglishPromotionCategory]
+[EnglishPromotionType]

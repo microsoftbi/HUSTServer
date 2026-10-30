@@ -61,6 +61,16 @@ export function defaultSlicer(): SlicerConfig {
   };
 }
 
+/**
+ * 按字段类型给出切片器默认类型（对齐 Power BI）：
+ * 日期列直接落成「介于」区间切片器，避免把上千个日期铺成列表。
+ */
+export function defaultSlicerFor(type: ColumnType): SlicerConfig {
+  const base = defaultSlicer();
+  if (type !== "date") return base;
+  return { ...base, type: "between", searchable: false, showSelectAll: false };
+}
+
 /** 读取切片器配置：旧仪表板只有 filterFields，这里补齐默认值 */
 export function slicerOf(widget: ChartWidget): SlicerConfig {
   const base = defaultSlicer();
@@ -99,6 +109,79 @@ function parseNumber(value: string | undefined): number | undefined {
 
 /** 仅含日期的输入（yyyy-mm-dd）按整天处理，包含当天全部时刻 */
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 零时刻的 ISO 字符串（日期列被统一转成 `yyyy-mm-ddT00:00:00.000Z`）。
+ * 这类值取日期部分直接展示，避免因浏览器时区偏移错一天。
+ */
+const MIDNIGHT_ISO_RE =
+  /^(\d{4}-\d{2}-\d{2})(?:[T ](?:00:00(?::00(?:\.0+)?)?)?Z?)?$/;
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/** 时间戳 → `yyyy-MM-dd`（需要时追加 HH:mm，本地时区） */
+export function formatEpoch(t: number, withTime = false): string {
+  const d = new Date(t);
+  const day = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  return withTime ? `${day} ${pad2(d.getHours())}:${pad2(d.getMinutes())}` : day;
+}
+
+/**
+ * 日期单元格 → 展示标签（与 Power BI 的短日期一致）。
+ * 日期列的值统一是零时刻 ISO，直接截取日期部分；带时分秒的值保留 HH:mm。
+ */
+export function formatDateLabel(value: string): string {
+  const text = String(value ?? "").trim();
+  if (text === "") return text;
+  const midnight = MIDNIGHT_ISO_RE.exec(text);
+  if (midnight) return midnight[1];
+  const t = toEpoch(text);
+  if (t === null) return text;
+  const d = new Date(t);
+  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0;
+  return formatEpoch(t, hasTime);
+}
+
+/** 时间戳（或日期标签）→ 日期输入框的值 `yyyy-MM-dd` */
+export function toDateInputValue(value: string | number | undefined): string {
+  if (value === undefined || value === null || value === "") return "";
+  if (typeof value === "number") return new Date(value).toISOString().slice(0, 10);
+  const label = formatDateLabel(value);
+  return DATE_ONLY_RE.test(label) ? label : label.slice(0, 10);
+}
+
+/** 日期列的取值区间（用于「介于」的日期滑块与输入框上下限） */
+export function dateBounds(
+  dataset: Dataset | undefined,
+  field: string,
+): { min: number; max: number; minLabel: string; maxLabel: string } | null {
+  if (!dataset) return null;
+  const col = dataset.columns.findIndex((c) => c.name === field);
+  if (col < 0) return null;
+  if (dataset.columns[col].type !== "date") return null;
+  let min = Infinity;
+  let max = -Infinity;
+  let minLabel = "";
+  let maxLabel = "";
+  for (const row of dataset.rows) {
+    const raw = row[col];
+    if (raw === null || raw === undefined || raw === "") continue;
+    const t = toEpoch(raw);
+    if (t === null) continue;
+    if (t < min) {
+      min = t;
+      minLabel = formatDateLabel(String(raw));
+    }
+    if (t > max) {
+      max = t;
+      maxLabel = formatDateLabel(String(raw));
+    }
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  return { min, max, minLabel, maxLabel };
+}
 
 function parseRangeDate(value: string | undefined, endOfDay = false): number | undefined {
   const t = toEpoch(value);
@@ -218,7 +301,8 @@ export function clearSlicerState(state: SlicerState): SlicerState {
   return {
     selections: {},
     ranges: {},
-    relative: state.relative,
+    // 相对日期无法用「空选择」表达，清除即关闭，等价于「全部」
+    relative: { ...state.relative, enabled: false },
   };
 }
 
@@ -267,7 +351,7 @@ export function rangeHasValue(range: SlicerRange | undefined): boolean {
 /** 切片器是否正在过滤（用于显示「清除筛选」按钮） */
 export function slicerActive(cfg: SlicerConfig, fields: string[]): boolean {
   if (fields.length === 0) return false;
-  if (cfg.type === "relativeDate") return true;
+  if (cfg.type === "relativeDate") return cfg.state.relative.enabled !== false;
   if (fields.some((f) => (cfg.state.selections[f]?.length ?? 0) > 0)) return true;
   if (
     (cfg.type === "between" ||
@@ -297,6 +381,7 @@ export function slicerFilters(
     if (cfg.type === "relativeDate") {
       // 相对日期仅对日期列生效；列类型未知时也按日期尝试
       if (type === "number") continue;
+      if (cfg.state.relative.enabled === false) continue;
       const { from, to } = relativeRange(cfg.state.relative, now);
       out.push({ kind: "dateRange", field, from, to });
       continue;

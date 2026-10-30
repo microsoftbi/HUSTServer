@@ -7,12 +7,12 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronsRight,
   MonitorPlay,
   MoreHorizontal,
   Pencil,
   RefreshCw,
   Trash2,
-  X,
 } from "lucide-react";
 import { cn } from "@bi/lib/utils";
 import type { Bookmark } from "@bi/types";
@@ -27,7 +27,6 @@ interface BookmarksPaneProps {
   onUpdate: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
-  onClose: () => void;
   className?: string;
 }
 
@@ -76,9 +75,10 @@ export function BookmarksPane({
   onUpdate,
   onRename,
   onDelete,
-  onClose,
   className,
 }: BookmarksPaneProps) {
+  /** 折叠 / 展开（折叠后只保留标题栏） */
+  const [open, setOpen] = useState(true);
   /** 正在重命名的书签 id 与草稿名称 */
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -176,24 +176,53 @@ export function BookmarksPane({
 
   const presentation = mode === "presentation";
 
+  // 折叠态：只保留竖排标题，点击整条标题栏展开
+  if (!open) {
+    return (
+      <aside
+        className={cn(
+          "flex min-h-0 flex-col border-l bg-background",
+          className,
+        )}
+        style={{ width: 32, flex: "0 0 auto" }}
+      >
+        <button
+          type="button"
+          aria-label="展开书签窗格"
+          title="展开"
+          onClick={() => setOpen(true)}
+          className="flex w-8 flex-1 items-start justify-center py-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <span
+            className="text-sm font-semibold text-foreground"
+            style={{ writingMode: "vertical-rl" }}
+          >
+            书签
+          </span>
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside
       className={cn(
-        "flex min-h-0 w-[200px] shrink-0 flex-col border-l bg-background",
+        "flex min-h-0 min-w-0 flex-col border-l bg-background",
         className,
       )}
+      style={{ width: 200, flex: "0 0 auto" }}
     >
       <div className="flex shrink-0 items-center gap-1 border-b px-2 py-1.5">
         <BookmarkIcon className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="flex-1 text-sm font-semibold">书签</span>
         <button
           type="button"
-          aria-label="关闭书签窗格"
-          title="关闭"
-          onClick={onClose}
-          className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          aria-label="折叠"
+          aria-expanded
+          onClick={() => setOpen(false)}
+          className="rounded p-1 text-muted-foreground hover:bg-accent"
         >
-          <X className="h-3.5 w-3.5" />
+          <ChevronsRight className="h-4 w-4" />
         </button>
       </div>
 

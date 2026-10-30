@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   clearSlicerState,
+  dateBounds,
   defaultSlicer,
+  defaultSlicerFor,
   defaultSlicerState,
   distinctValues,
+  formatDateLabel,
   numericBounds,
   relativeRange,
   selectAllValues,
@@ -281,6 +284,53 @@ describe('slicerFilters', () => {
       { kind: 'values', field: 'province', values: ['湖北'] },
       { kind: 'values', field: 'city', values: ['武汉'] },
     ]);
+  });
+});
+
+describe('日期支持（对齐 Power BI）', () => {
+  it('零时刻 ISO 展示为短日期', () => {
+    expect(formatDateLabel('2010-12-29T00:00:00.000Z')).toBe('2010-12-29');
+    expect(formatDateLabel('2010-12-29T00:00:00Z')).toBe('2010-12-29');
+    expect(formatDateLabel('2026-01-05')).toBe('2026-01-05');
+    expect(formatDateLabel('(空)')).toBe('(空)');
+  });
+
+  it('非零时刻保留时分', () => {
+    const label = formatDateLabel(new Date(2026, 0, 5, 9, 30).toISOString());
+    expect(label).toBe('2026-01-05 09:30');
+  });
+
+  it('日期列默认「介于」区间切片器，其它列仍为列表', () => {
+    expect(defaultSlicerFor('date').type).toBe('between');
+    expect(defaultSlicerFor('string').type).toBe('list');
+    expect(defaultSlicerFor('number').type).toBe('list');
+  });
+
+  it('dateBounds 取日期列的最小 / 最大日期', () => {
+    const bounds = dateBounds(dataset, 'date');
+    expect(bounds?.minLabel).toBe('2026-01-05');
+    expect(bounds?.maxLabel).toBe('2026-06-01');
+    expect(dateBounds(dataset, 'amount')).toBeNull();
+  });
+
+  it('相对日期可关闭，关闭后不生成筛选', () => {
+    const widget = makeWidget(
+      {
+        type: 'relativeDate',
+        state: {
+          ...defaultSlicerState(),
+          relative: { direction: 'last', count: 7, unit: 'day', enabled: false },
+        },
+      },
+      ['date'],
+    );
+    expect(slicerFilters(widget, dataset)).toEqual([]);
+    expect(slicerActive(slicerOf(widget), ['date'])).toBe(false);
+  });
+
+  it('清除筛选会关闭相对日期', () => {
+    const cleared = clearSlicerState(defaultSlicerState());
+    expect(cleared.relative.enabled).toBe(false);
   });
 });
 

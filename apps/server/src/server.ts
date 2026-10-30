@@ -13,6 +13,7 @@ import { sessionsRepo } from './modules/auth/sessions.js';
 import { connectionRoutes } from './modules/connections/routes.js';
 import { dataRoutes } from './modules/data/routes.js';
 import { dashboardRoutes } from './modules/dashboards/routes.js';
+import { dashboardAgentRoutes } from './modules/dashboardAgent/routes.js';
 import { exploreRoutes } from './modules/explore/routes.js';
 import { jobsRepo } from './modules/jobs/repo.js';
 import { jobRoutes } from './modules/jobs/routes.js';
@@ -185,6 +186,15 @@ export async function buildServer(deps: AppDeps): Promise<FastifyInstance> {
     sessions,
     settings,
     modelStore,
+  });
+
+  dashboardAgentRoutes(app, {
+    db: deps.db,
+    config: deps.config,
+    users,
+    sessions,
+    settings,
+    audit,
   });
 
   overviewRoutes(app, { db: deps.db, users, sessions });

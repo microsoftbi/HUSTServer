@@ -34,7 +34,9 @@ import {
   SLICER_UNIT_LABELS,
   clearSlicerState,
   columnTypeOf,
+  dateBounds,
   distinctValues,
+  formatDateLabel,
   numericBounds,
   relativeRange,
   selectAllValues,
@@ -42,6 +44,7 @@ import {
   setSlicerRelative,
   slicerActive,
   slicerOf,
+  toDateInputValue,
   toggleSlicerValue,
 } from "@bi/lib/slicer";
 
@@ -136,6 +139,8 @@ export function SlicerWidgetView({
           cfg={cfg}
           dataset={dataset}
           fields={fields}
+          // 高度不足时省略「数据范围」辅助行，避免被卡片裁切
+          roomy={widget.layout.h >= 110}
           onChange={patch}
         />
       </div>
@@ -147,11 +152,14 @@ function SlicerBody({
   cfg,
   dataset,
   fields,
+  roomy,
   onChange,
 }: {
   cfg: SlicerConfig;
   dataset: Dataset | undefined;
   fields: string[];
+  /** 视觉对象高度是否允许显示辅助信息行 */
+  roomy: boolean;
   onChange: (patch: Partial<SlicerConfig>) => void;
 }) {
   const state = cfg.state;
@@ -176,6 +184,7 @@ function SlicerBody({
             dataset={dataset}
             field={field}
             showFieldLabel={fields.length > 1}
+            roomy={roomy}
             onChange={onChange}
           />
         ))}
@@ -197,6 +206,9 @@ function SlicerBody({
   const field = fields[0];
   const values = pushedValues ?? distinctValues(dataset, field);
   const selected = state.selections[field] ?? [];
+  // 日期列的值是零时刻 ISO，展示时统一成短日期（与 Power BI 一致）
+  const labelOf =
+    columnTypeOf(dataset, field) === "date" ? formatDateLabel : undefined;
   const toggle = (value: string, additive: boolean) =>
     onChange({
       state: toggleSlicerValue(
@@ -215,6 +227,7 @@ function SlicerBody({
         cfg={cfg}
         values={values}
         selected={selected}
+        labelOf={labelOf}
         onToggle={toggle}
         onSelectAll={selectAll}
       />
@@ -225,6 +238,7 @@ function SlicerBody({
     <ValueList
       values={values}
       selected={selected}
+      labelOf={labelOf}
       multi={cfg.selectionMode === "multi"}
       showSelectAll={cfg.showSelectAll}
       searchable={cfg.searchable}
@@ -242,6 +256,7 @@ function SlicerBody({
 function ValueList({
   values,
   selected,
+  labelOf,
   multi,
   showSelectAll,
   searchable,
@@ -253,6 +268,8 @@ function ValueList({
 }: {
   values: string[];
   selected: string[];
+  /** 值的展示标签（日期列转短日期），不传则直接展示原值 */
+  labelOf?: (value: string) => string;
   multi: boolean;
   showSelectAll: boolean;
   searchable: boolean;
@@ -263,9 +280,10 @@ function ValueList({
   onSelectAll: () => void;
 }) {
   const [query, setQuery] = useState("");
+  const label = labelOf ?? ((v: string) => v);
   const q = query.trim().toLowerCase();
   const visible = q
-    ? values.filter((v) => v.toLowerCase().includes(q))
+    ? values.filter((v) => label(v).toLowerCase().includes(q))
     : values;
 
   return (
@@ -303,7 +321,7 @@ function ValueList({
         {visible.map((value) => (
           <SlicerItem
             key={value}
-            label={value}
+            label={label(value)}
             checked={selected.includes(value)}
             accentColor={accentColor}
             fontSize={fontSize}
@@ -369,12 +387,14 @@ function DropdownBody({
   cfg,
   values,
   selected,
+  labelOf,
   onToggle,
   onSelectAll,
 }: {
   cfg: SlicerConfig;
   values: string[];
   selected: string[];
+  labelOf?: (value: string) => string;
   onToggle: (value: string, additive: boolean) => void;
   onSelectAll: () => void;
 }) {
@@ -417,11 +437,12 @@ function DropdownBody({
     setOpen(true);
   }
 
+  const label = labelOf ?? ((v: string) => v);
   const summary =
     selected.length === 0
       ? "全部"
       : selected.length === 1
-        ? selected[0]
+        ? label(selected[0])
         : `已选 ${selected.length} 项`;
 
   return (
@@ -459,6 +480,7 @@ function DropdownBody({
               <ValueList
                 values={values}
                 selected={selected}
+                labelOf={labelOf}
                 multi={cfg.selectionMode === "multi"}
                 showSelectAll={cfg.showSelectAll}
                 searchable={cfg.searchable}
@@ -490,12 +512,15 @@ function RangeBody({
   dataset,
   field,
   showFieldLabel,
+  roomy,
   onChange,
 }: {
   cfg: SlicerConfig;
   dataset: Dataset | undefined;
   field: string;
   showFieldLabel: boolean;
+  /** 视觉对象高度是否允许显示辅助信息行 */
+  roomy: boolean;
   onChange: (patch: Partial<SlicerConfig>) => void;
 }) {
   const type = columnTypeOf(dataset, field);
@@ -511,6 +536,11 @@ function RangeBody({
     () => (type === "number" ? numericBounds(dataset, field) : null),
     [dataset, field, type],
   );
+  // 日期列的取值区间：为输入框提供上下限，并支持按天的区间滑块（对齐 Power BI）
+  const dates = useMemo(
+    () => (type === "date" ? dateBounds(dataset, field) : null),
+    [dataset, field, type],
+  );
 
   const lo = range?.min !== undefined && range.min !== "" && bounds
     ? Math.max(bounds.min, Number(range.min))
@@ -518,6 +548,33 @@ function RangeBody({
   const hi = range?.max !== undefined && range.max !== "" && bounds
     ? Math.min(bounds.max, Number(range.max))
     : bounds?.max;
+
+  /** 区间滑块使用「天」为步长，值仍以 yyyy-MM-dd 落库 */
+  const dayLo = dates
+    ? Math.min(
+        dates.max,
+        Math.max(dates.min, range?.min ? Date.parse(range.min) : dates.min),
+      )
+    : undefined;
+  const dayHi = dates
+    ? Math.min(
+        dates.max,
+        Math.max(dates.min, range?.max ? Date.parse(range.max) : dates.max),
+      )
+    : undefined;
+
+  /** 输入框显示值收敛到数据范围内，否则原生校验会把日期标成非法 */
+  const clampedDate = (
+    raw: string | undefined,
+    lower: number | undefined,
+    upper: number | undefined,
+  ) => {
+    const t = raw ? Date.parse(raw) : NaN;
+    if (Number.isNaN(t) || !dates) return toDateInputValue(raw);
+    return toDateInputValue(
+      Math.min(upper ?? dates.max, Math.max(lower ?? dates.min, t)),
+    );
+  };
 
   return (
     <div className="space-y-1">
@@ -531,31 +588,65 @@ function RangeBody({
       ) : null}
 
       {isDate ? (
-        <div className="flex items-center gap-1">
-          {showMin ? (
-            <input
-              type="date"
-              aria-label="起始日期"
-              value={range?.min ?? ""}
-              onChange={(e) => setRange({ ...range, min: e.target.value })}
-              className="h-6 min-w-0 flex-1 rounded border border-border bg-background px-1 outline-none"
-              style={{ fontSize: cfg.fontSize }}
+        <>
+          <div className="flex items-center gap-1">
+            {showMin ? (
+              <input
+                type="date"
+                aria-label="起始日期"
+                min={dates?.minLabel}
+                max={dates?.maxLabel}
+                value={clampedDate(range?.min, dates?.min, dayHi)}
+                onChange={(e) => setRange({ ...range, min: e.target.value })}
+                className="h-6 min-w-0 flex-1 rounded border border-border bg-background px-1 outline-none"
+                style={{ fontSize: cfg.fontSize }}
+              />
+            ) : null}
+            {showMin && showMax ? (
+              <span className="text-muted-foreground">~</span>
+            ) : null}
+            {showMax ? (
+              <input
+                type="date"
+                aria-label="结束日期"
+                min={dates?.minLabel}
+                max={dates?.maxLabel}
+                value={clampedDate(range?.max, dayLo, dates?.max)}
+                onChange={(e) => setRange({ ...range, max: e.target.value })}
+                className="h-6 min-w-0 flex-1 rounded border border-border bg-background px-1 outline-none"
+                style={{ fontSize: cfg.fontSize }}
+              />
+            ) : null}
+          </div>
+
+          {dates && dates.min < dates.max ? (
+            <DualDateSlider
+              min={dates.min}
+              max={dates.max}
+              value={[dayLo ?? dates.min, dayHi ?? dates.max]}
+              // 单侧模式（之前/之后）只回写可见的一端
+              onChange={([nextLo, nextHi]) =>
+                setRange({
+                  ...range,
+                  ...(showMin ? { min: toDateInputValue(nextLo) } : {}),
+                  ...(showMax ? { max: toDateInputValue(nextHi) } : {}),
+                })
+              }
+              labels={["起始日期滑块", "结束日期滑块"]}
+              active={[showMin, showMax]}
+              title={`数据范围 ${dates.minLabel} ~ ${dates.maxLabel}`}
             />
           ) : null}
-          {showMin && showMax ? (
-            <span className="text-muted-foreground">~</span>
+          {dates && roomy ? (
+            <div
+              className="flex items-center justify-between gap-1 text-muted-foreground"
+              style={{ fontSize: Math.max(10, cfg.fontSize - 2) }}
+            >
+              <span className="truncate">{dates.minLabel}</span>
+              <span className="truncate">{dates.maxLabel}</span>
+            </div>
           ) : null}
-          {showMax ? (
-            <input
-              type="date"
-              aria-label="结束日期"
-              value={range?.max ?? ""}
-              onChange={(e) => setRange({ ...range, max: e.target.value })}
-              className="h-6 min-w-0 flex-1 rounded border border-border bg-background px-1 outline-none"
-              style={{ fontSize: cfg.fontSize }}
-            />
-          ) : null}
-        </div>
+        </>
       ) : (
         <>
           <div className="flex items-center gap-1">
@@ -618,6 +709,117 @@ function RangeBody({
   );
 }
 
+/**
+ * 单轨道双滑块（对齐 Power BI 的区间切片器）：轨道自己画，
+ * 两个原生 range 叠在上层只让滑块响应指针；点轨道则由命中层把最近的滑块移过去。
+ */
+function DualDateSlider({
+  min,
+  max,
+  value,
+  onChange,
+  labels,
+  active = [true, true],
+  title,
+}: {
+  min: number;
+  max: number;
+  value: [number, number];
+  onChange: (next: [number, number]) => void;
+  labels: [string, string];
+  /** 单侧模式（之前/之后）只有一端可动 */
+  active?: [boolean, boolean];
+  title?: string;
+}) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const span = Math.max(1, max - min);
+  const pct = (v: number) => Math.min(100, Math.max(0, ((v - min) / span) * 100));
+  const [lo, hi] = value;
+  const loPct = pct(lo);
+  const hiPct = pct(hi);
+  // 两个滑块重合时，靠前的滑块需在上层才拖得动
+  const loOnTop = loPct + hiPct > 100;
+
+  /** 点击轨道：吸附到最近的那一端，避免圆点太小不好抓 */
+  const moveNearest = (clientX: number) => {
+    const box = boxRef.current?.getBoundingClientRect();
+    if (!box || box.width === 0) return;
+    const ratio = Math.min(1, Math.max(0, (clientX - box.left) / box.width));
+    const raw = min + ratio * span;
+    const snapped = min + Math.round((raw - min) / 86_400_000) * 86_400_000;
+    const next = Math.min(max, Math.max(min, snapped));
+    const [loActive, hiActive] = active;
+    const moveLo =
+      loActive && (!hiActive || Math.abs(next - lo) <= Math.abs(next - hi));
+    if (moveLo) {
+      onChange([Math.min(next, hi), hi]);
+    } else {
+      onChange([lo, Math.max(next, lo)]);
+    }
+  };
+
+  const thumb = [
+    "pointer-events-none absolute inset-x-0 top-0 h-4 w-full appearance-none bg-transparent",
+    "[&::-webkit-slider-runnable-track]:h-4 [&::-webkit-slider-runnable-track]:bg-transparent",
+    "[&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:box-border",
+    "[&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none",
+    "[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2",
+    "[&::-webkit-slider-thumb]:border-[#2563eb] [&::-webkit-slider-thumb]:bg-white",
+    "[&::-moz-range-track]:h-4 [&::-moz-range-track]:bg-transparent",
+    "[&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5",
+    "[&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2",
+    "[&::-moz-range-thumb]:border-[#2563eb] [&::-moz-range-thumb]:bg-white",
+  ].join(" ");
+
+  return (
+    <div ref={boxRef} className="relative h-4 w-full min-w-0" title={title}>
+      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-[#dbeafe]" />
+      <div
+        className="pointer-events-none absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-[#2563eb]"
+        style={{ left: `${loPct}%`, right: `${100 - hiPct}%` }}
+      />
+      {/* 轨道命中层：比圆点大得多，点哪就把最近的一端移过去 */}
+      <div
+        role="presentation"
+        className="absolute inset-x-0 bottom-0 top-0 cursor-pointer"
+        style={{ zIndex: 1 }}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          moveNearest(e.clientX);
+        }}
+      />
+      <input
+        type="range"
+        aria-label={labels[0]}
+        min={min}
+        max={max}
+        step={86_400_000}
+        value={lo}
+        onChange={(e) => {
+          const next = Number(e.target.value);
+          onChange([Math.min(next, hi), hi]);
+        }}
+        className={thumb}
+        style={{ zIndex: loOnTop ? 3 : 2 }}
+      />
+      <input
+        type="range"
+        aria-label={labels[1]}
+        min={min}
+        max={max}
+        step={86_400_000}
+        value={hi}
+        onChange={(e) => {
+          const next = Number(e.target.value);
+          onChange([lo, Math.max(next, lo)]);
+        }}
+        className={thumb}
+        style={{ zIndex: 2 }}
+      />
+    </div>
+  );
+}
+
 /* ------------------------------ 相对日期 ------------------------------ */
 
 function RelativeDateBody({
@@ -628,6 +830,7 @@ function RelativeDateBody({
   onChange: (patch: Partial<SlicerConfig>) => void;
 }) {
   const rel = cfg.state.relative;
+  const enabled = rel.enabled !== false;
   const preview = useMemo(() => relativeRange(rel), [rel]);
 
   const setRel = (patch: Partial<typeof rel>) =>
@@ -635,6 +838,16 @@ function RelativeDateBody({
 
   return (
     <div className="space-y-1.5">
+      <label className="flex items-center gap-1 text-muted-foreground" style={{ fontSize: cfg.fontSize }}>
+        <input
+          type="checkbox"
+          aria-label="启用相对日期筛选"
+          checked={enabled}
+          onChange={(e) => setRel({ enabled: e.target.checked })}
+          className="h-3 w-3 accent-[#2563eb]"
+        />
+        启用相对日期
+      </label>
       <div className="flex items-center gap-1">
         <Select
           value={rel.direction}
@@ -694,7 +907,7 @@ function RelativeDateBody({
         className="truncate text-muted-foreground"
         style={{ fontSize: Math.max(10, cfg.fontSize - 1) }}
       >
-        {formatDate(preview.from)} ~ {formatDate(preview.to)}
+        {enabled ? `${formatDate(preview.from)} ~ ${formatDate(preview.to)}` : "全部日期（不筛选）"}
       </p>
     </div>
   );
@@ -767,6 +980,7 @@ function HierarchyBody({
     return nodes.map((node) => {
       const key = `${parentKey}/${depth}:${node.value}`;
       const field = fields[depth];
+      const isDate = columnTypeOf(dataset, field) === "date";
       const checked = (cfg.state.selections[field] ?? []).includes(node.value);
       return (
         <div key={key}>
@@ -789,7 +1003,7 @@ function HierarchyBody({
               <span className="w-3.5 shrink-0" />
             )}
             <SlicerItem
-              label={node.value}
+              label={isDate ? formatDateLabel(node.value) : node.value}
               checked={checked}
               accentColor={cfg.accentColor}
               fontSize={cfg.fontSize}

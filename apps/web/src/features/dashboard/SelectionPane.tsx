@@ -3,11 +3,11 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronsDown,
+  ChevronsRight,
   ChevronsUp,
   Eye,
   EyeOff,
   GripVertical,
-  X,
 } from "lucide-react";
 import { autoTitle, CHART_TYPE_LABELS } from "@bi/lib/chart";
 import { cn } from "@bi/lib/utils";
@@ -19,7 +19,6 @@ interface SelectionPaneProps {
   onSelect: (id: string, additive?: boolean) => void;
   /** 新的图层顺序：数组越靠后越靠前 */
   onReorder: (ids: string[]) => void;
-  onClose: () => void;
   /** 切换视觉对象隐藏状态（眼睛按钮） */
   onToggleHidden?: (id: string) => void;
   /** 提交新的 Tab 顺序（按数组序号写入 1..n） */
@@ -62,7 +61,6 @@ export function SelectionPane({
   selectedIds,
   onSelect,
   onReorder,
-  onClose,
   onToggleHidden,
   onTabOrderChange,
   className,
@@ -70,6 +68,7 @@ export function SelectionPane({
   /** 显示顺序 = 存储顺序取反（存储中越靠后越靠前） */
   const ordered = useMemo(() => [...widgets].reverse(), [widgets]);
   const tabOrdered = useMemo(() => byTabOrder(widgets), [widgets]);
+  const [open, setOpen] = useState(true);
   const [mode, setMode] = useState<PaneMode>("layer");
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -124,23 +123,52 @@ export function SelectionPane({
     setOverId(null);
   }
 
+  // 折叠态：只保留竖排标题，点击整条标题栏展开
+  if (!open) {
+    return (
+      <aside
+        className={cn(
+          "flex min-h-0 flex-col border-l bg-background",
+          className,
+        )}
+        style={{ width: 32, flex: "0 0 auto" }}
+      >
+        <button
+          type="button"
+          aria-label="展开选择窗格"
+          title="展开"
+          onClick={() => setOpen(true)}
+          className="flex w-8 flex-1 items-start justify-center py-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <span
+            className="text-sm font-semibold text-foreground"
+            style={{ writingMode: "vertical-rl" }}
+          >
+            选择
+          </span>
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside
       className={cn(
-        "flex min-h-0 w-[240px] shrink-0 flex-col border-l bg-background",
+        "flex min-h-0 min-w-0 flex-col border-l bg-background",
         className,
       )}
+      style={{ width: 240, flex: "0 0 auto" }}
     >
       <div className="flex shrink-0 items-center gap-1 border-b px-2 py-1.5">
         <span className="flex-1 text-sm font-semibold">选择</span>
         <button
           type="button"
-          aria-label="关闭选择窗格"
-          title="关闭"
-          onClick={onClose}
-          className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          aria-label="折叠"
+          aria-expanded
+          onClick={() => setOpen(false)}
+          className="rounded p-1 text-muted-foreground hover:bg-accent"
         >
-          <X className="h-3.5 w-3.5" />
+          <ChevronsRight className="h-4 w-4" />
         </button>
       </div>
 

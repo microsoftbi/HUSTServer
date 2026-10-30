@@ -2,11 +2,12 @@ import { useState, type ReactNode } from "react";
 import {
   BarChart3,
   ChevronDown,
-  ChevronsLeft,
   ChevronsRight,
   MoreHorizontal,
   Paintbrush,
   Plus,
+  Search,
+  TrendingUp,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -23,11 +24,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@bi/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@bi/components/ui/tooltip";
 import { cn, uid } from "@bi/lib/utils";
 import { AGG_LABELS, autoTitle, CHART_TYPE_LABELS, wellLabels } from "@bi/lib/chart";
 import { axisFields, measureKey } from "@bi/lib/aggregate";
 import {
   SLICER_TYPE_LABELS,
+  columnTypeOf,
   slicerOf,
 } from "@bi/lib/slicer";
 import { treemapOf } from "@bi/lib/treemap";
@@ -119,7 +127,7 @@ const REFERENCE_TYPES: ChartType[] = [
 ];
 
 type WellKind = "dimension" | "series" | "measure";
-type PaneTab = "build" | "format";
+type PaneTab = "build" | "format" | "analytics";
 
 interface VisualizationsPaneProps {
   widget: ChartWidget | null;
@@ -128,8 +136,8 @@ interface VisualizationsPaneProps {
   /** 无选中图表时，点击图表类型以该类型新建 */
   onCreate: (type: ChartType) => void;
   canCreate: boolean;
-  /** 展开时占据的 flex 比例（折叠后仅保留标题栏） */
-  grow?: number;
+  /** 展开时占用的宽度（折叠后仅保留标题栏，右侧面板总宽随之减少） */
+  width?: number;
   className?: string;
 }
 
@@ -140,11 +148,13 @@ export function VisualizationsPane({
   onChange,
   onCreate,
   canCreate,
-  grow = 3,
+  width = 240,
   className,
 }: VisualizationsPaneProps) {
   const [open, setOpen] = useState(true);
   const [tab, setTab] = useState<PaneTab>("build");
+  /** 「分析」页签内搜索框：按名称过滤分析选项 */
+  const [analyticsQuery, setAnalyticsQuery] = useState("");
 
   function setEncoding(patch: Partial<ChartWidget["encoding"]>) {
     if (!widget) return;
@@ -234,9 +244,19 @@ export function VisualizationsPane({
     // 与 Power BI 一致：拖入第二个字段时自动切换为层次结构切片器
     const autoHierarchy =
       next.length > 1 && (cfg.type === "list" || cfg.type === "dropdown");
+    // 日期字段默认落成「介于」区间切片器，避免上千个日期铺成列表
+    const autoDateRange =
+      next.length === 1 &&
+      !autoHierarchy &&
+      (cfg.type === "list" || cfg.type === "dropdown") &&
+      columnTypeOf(dataset, field) === "date";
     onChange({
       filterFields: next,
-      ...(autoHierarchy ? { slicer: { ...cfg, type: "hierarchy" } } : {}),
+      ...(autoHierarchy
+        ? { slicer: { ...cfg, type: "hierarchy" as const } }
+        : autoDateRange
+          ? { slicer: { ...cfg, type: "between" as const, searchable: false } }
+          : {}),
     });
   }
 
@@ -318,35 +338,60 @@ export function VisualizationsPane({
   const multiAxis = Boolean(widget && MULTI_AXIS.includes(widget.type));
   const axisFieldList = widget ? axisFields(widget.encoding) : [];
 
+  // 折叠态：只保留竖排标题，点击整条标题栏展开
+  if (!open) {
+    return (
+      <div
+        className={cn("flex min-h-0 flex-col bg-background", className)}
+        style={{ width: 32, flex: "0 0 auto" }}
+      >
+        <button
+          type="button"
+          aria-label="展开可视化窗格"
+          title="展开"
+          onClick={() => setOpen(true)}
+          className="flex w-8 flex-1 items-start justify-center py-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <span
+            className="text-sm font-semibold text-foreground"
+            style={{ writingMode: "vertical-rl" }}
+          >
+            可视化
+          </span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={cn("flex min-h-0 flex-col", className)}
-      style={{ flex: open ? `${grow} 1 0%` : "0 0 auto" }}
+      className={cn("flex min-h-0 min-w-0 flex-col", className)}
+      style={{ width, flex: "0 0 auto" }}
     >
       {/* 窗格标题栏（Power BI：标题在左、折叠箭头在右） */}
       <div className="flex shrink-0 items-center gap-1 border-b px-2 py-1.5">
         <span className="flex-1 text-sm font-semibold">可视化</span>
         <button
           type="button"
-          aria-label={open ? "折叠" : "展开"}
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
+          aria-label="折叠"
+          title="折叠"
+          onClick={() => setOpen(false)}
           className="rounded p-1 text-muted-foreground hover:bg-accent"
         >
-          {open ? (
-            <ChevronsRight className="h-4 w-4" />
-          ) : (
-            <ChevronsLeft className="h-4 w-4" />
-          )}
+          <ChevronsRight className="h-4 w-4" />
         </button>
       </div>
 
       {open ? (
         <>
-          {/* 生成 / 格式页签（Power BI 视觉对象窗格顶部） */}
+          {/* 生成 / 格式 / 分析页签（Power BI 视觉对象窗格顶部） */}
           <div className="shrink-0 px-2 pt-2">
             <div className="pb-1.5 text-xs font-semibold text-foreground">
-              {tab === "build" ? "生成视觉对象" : "设置视觉对象格式"}
+              {tab === "build"
+                ? "生成视觉对象"
+                : tab === "format"
+                  ? "设置视觉对象格式"
+                  : "分析"}
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -375,74 +420,96 @@ export function VisualizationsPane({
               >
                 <Paintbrush className="h-4 w-4" />
               </button>
+              <button
+                type="button"
+                title="分析（参考线与目标带）"
+                aria-label="分析"
+                aria-pressed={tab === "analytics"}
+                onClick={() => setTab("analytics")}
+                className={cn(
+                  "flex h-7 w-9 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                  tab === "analytics" && "bg-muted text-foreground",
+                )}
+              >
+                <TrendingUp className="h-4 w-4" />
+              </button>
             </div>
           </div>
 
           {tab === "build" ? (
             <div className="mt-2 min-h-0 flex-1 overflow-auto">
               {/* 视觉对象类型画廊：Power BI 的图标网格（带边框、可滚动） */}
-              <div className="border-y p-2">
-                <div className="max-h-[184px] overflow-y-auto rounded-md border bg-card p-1.5">
-                  <div className="grid grid-cols-6 gap-1">
-                    {CHART_TYPES.map((t) => {
-                      const Icon = CHART_ICONS[t];
-                      const active = widget?.type === t;
-                      const isFilter = t === "filter";
-                      // 装饰元素不依赖数据集，始终可新建
-                      const isDecor = isDecoration(t);
-                      const disabled = !widget && !canCreate && !isDecor;
-                      return (
-                        <button
-                          key={t}
-                          type="button"
-                          title={
-                            isFilter
-                              ? "切片器（拖到画布）"
-                              : isDecor
-                                ? `${CHART_TYPE_LABELS[t]}（拖到画布）`
-                                : CHART_TYPE_LABELS[t]
-                          }
-                          aria-label={CHART_TYPE_LABELS[t]}
-                          aria-pressed={active}
-                          disabled={disabled}
-                          draggable={(isFilter || isDecor) && canCreate}
-                          onDragStart={(e) => {
-                            if (!isFilter && !isDecor) return;
-                            e.dataTransfer.setData("application/x-bi-visual", t);
-                            e.dataTransfer.effectAllowed = "copy";
-                          }}
-                          onClick={() => {
-                            // 切片器 / 装饰元素始终新建，避免把已有图表改造掉
-                            if (isFilter || isDecor || !widget) onCreate(t);
-                            else onChange({ type: t });
-                          }}
-                          className={cn(
-                            "flex h-8 items-center justify-center rounded border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground",
-                            active && "border-primary/50 bg-primary/10 text-primary",
-                            disabled &&
-                              "cursor-not-allowed opacity-40 hover:border-transparent hover:bg-transparent hover:text-muted-foreground",
-                          )}
-                        >
-                          <Icon className="h-5 w-5" />
-                        </button>
-                      );
-                    })}
-                    <button
-                      type="button"
-                      title="更多视觉对象"
-                      aria-label="更多视觉对象"
-                      onClick={() =>
-                        toast("更多视觉对象即将支持", {
-                          description: "后续将接入更多图表类型。",
-                        })
-                      }
-                      className="flex h-8 items-center justify-center rounded border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground"
-                    >
-                      <MoreHorizontal className="h-5 w-5" />
-                    </button>
+              <TooltipProvider delayDuration={150}>
+                <div className="border-y p-2">
+                  <div className="max-h-[184px] overflow-y-auto rounded-md border bg-card p-1.5">
+                    <div className="grid grid-cols-6 gap-1">
+                      {CHART_TYPES.map((t) => {
+                        const Icon = CHART_ICONS[t];
+                        const active = widget?.type === t;
+                        const isFilter = t === "filter";
+                        // 装饰元素不依赖数据集，始终可新建
+                        const isDecor = isDecoration(t);
+                        const disabled = !widget && !canCreate && !isDecor;
+                        // 悬停提示：图标的含义（Power BI 同样以名称提示）
+                        const hint =
+                          isFilter || isDecor
+                            ? `${CHART_TYPE_LABELS[t]}（可拖到画布）`
+                            : CHART_TYPE_LABELS[t];
+                        return (
+                          <Tooltip key={t}>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label={CHART_TYPE_LABELS[t]}
+                                aria-pressed={active}
+                                aria-disabled={disabled}
+                                draggable={(isFilter || isDecor) && canCreate}
+                                onDragStart={(e) => {
+                                  if (!isFilter && !isDecor) return;
+                                  e.dataTransfer.setData("application/x-bi-visual", t);
+                                  e.dataTransfer.effectAllowed = "copy";
+                                }}
+                                onClick={() => {
+                                  if (disabled) return;
+                                  // 切片器 / 装饰元素始终新建，避免把已有图表改造掉
+                                  if (isFilter || isDecor || !widget) onCreate(t);
+                                  else onChange({ type: t });
+                                }}
+                                className={cn(
+                                  "flex h-8 items-center justify-center rounded border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground",
+                                  active && "border-primary/50 bg-primary/10 text-primary",
+                                  disabled &&
+                                    "cursor-not-allowed opacity-40 hover:border-transparent hover:bg-transparent hover:text-muted-foreground",
+                                )}
+                              >
+                                <Icon className="h-5 w-5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">{hint}</TooltipContent>
+                          </Tooltip>
+                        );
+                      })}
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label="更多视觉对象"
+                            onClick={() =>
+                              toast("更多视觉对象即将支持", {
+                                description: "后续将接入更多图表类型。",
+                              })
+                            }
+                            className="flex h-8 items-center justify-center rounded border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground"
+                          >
+                            <MoreHorizontal className="h-5 w-5" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">更多视觉对象</TooltipContent>
+                      </Tooltip>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </TooltipProvider>
 
               {/* 字段：字段井（按图表类型命名，顺序对齐 Power BI：轴 → 值 → 图例） */}
               <div className="p-3">
@@ -610,7 +677,7 @@ export function VisualizationsPane({
                               value={m.field}
                               onValueChange={(field) => updateMeasure(i, { field })}
                             >
-                              <SelectTrigger className="h-6 flex-1 border-0 bg-transparent px-1.5 text-xs shadow-none">
+                              <SelectTrigger className="h-6 min-w-0 flex-1 overflow-hidden border-0 bg-transparent px-1.5 text-xs shadow-none [&>span]:truncate">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -688,9 +755,34 @@ export function VisualizationsPane({
                 )}
               </div>
             </div>
-          ) : (
+          ) : tab === "format" ? (
             <div className="mt-2 min-h-0 flex-1 overflow-auto p-3">
               <FormatSection widget={widget} onChange={onChange} />
+            </div>
+          ) : (
+            /* 分析页签：搜索框 + 参考线 / 目标带分区（对齐 Power BI「分析」） */
+            <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-auto p-2">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={analyticsQuery}
+                  onChange={(e) => setAnalyticsQuery(e.target.value)}
+                  placeholder="搜索"
+                  aria-label="搜索分析选项"
+                  className="h-7 w-full rounded border border-border bg-background pl-7 pr-2 text-xs outline-none focus:border-[#2563eb]"
+                />
+              </div>
+              {widget && REFERENCE_TYPES.includes(widget.type) ? (
+                <ReferenceSection
+                  widget={widget}
+                  onChange={onChange}
+                  query={analyticsQuery}
+                />
+              ) : (
+                <p className="px-1 text-xs leading-relaxed text-muted-foreground">
+                  当前视觉对象暂无可用的分析功能，参考线与目标带适用于柱形图、折线图、面积图等图表。
+                </p>
+              )}
             </div>
           )}
         </>
@@ -1075,9 +1167,6 @@ function FormatSection({
           measureOptions={measureOptions}
         />
       ) : null}
-      {REFERENCE_TYPES.includes(widget.type) ? (
-        <ReferenceSection widget={widget} onChange={onChange} />
-      ) : null}
       {sortable ? (
         <FormatGroup title="排序与 Top N">
           <SelectRow
@@ -1400,13 +1489,16 @@ const LINE_KIND_OPTIONS: Array<{ value: ReferenceLine["kind"]; label: string }> 
   { value: "value", label: "固定值" },
 ];
 
-/** 参考线与目标带分区（均值线 / 目标值 / 区间阴影） */
+/** 参考线与目标带分区（均值线 / 目标值 / 区间阴影），按「分析」页签的搜索词过滤 */
 function ReferenceSection({
   widget,
   onChange,
+  query = "",
 }: {
   widget: ChartWidget;
   onChange: (patch: Partial<ChartWidget>) => void;
+  /** 搜索词：命中分区名称时保留该分区 */
+  query?: string;
 }) {
   const cfg: WidgetReference = widget.reference ?? { lines: [], bands: [] };
   const update = (patch: Partial<WidgetReference>) =>
@@ -1422,8 +1514,14 @@ function ReferenceSection({
   const needsValue = (kind: ReferenceLine["kind"]) =>
     kind === "target" || kind === "value";
 
+  const q = query.trim();
+  const showLines = !q || "参考线".includes(q);
+  const showBands = !q || "目标带".includes(q);
+
   return (
-    <FormatGroup title="参考线与目标带">
+    <>
+    {showLines ? (
+    <FormatGroup title="参考线" defaultOpen>
       {cfg.lines.map((line) => (
         <div key={line.id} className="space-y-1 rounded border p-1.5">
           <div className="flex items-center justify-between">
@@ -1522,7 +1620,10 @@ function ReferenceSection({
         <Plus className="h-3.5 w-3.5" />
         添加参考线
       </Button>
-
+    </FormatGroup>
+    ) : null}
+    {showBands ? (
+    <FormatGroup title="目标带" defaultOpen>
       {cfg.bands.map((band) => (
         <div key={band.id} className="space-y-1 rounded border p-1.5">
           <div className="flex items-center justify-between">
@@ -1622,12 +1723,14 @@ function ReferenceSection({
         <Plus className="h-3.5 w-3.5" />
         添加目标带
       </Button>
-      {cfg.lines.length === 0 && cfg.bands.length === 0 ? (
-        <p className="pt-1 text-[11px] leading-relaxed text-muted-foreground">
+    </FormatGroup>
+    ) : null}
+      {cfg.lines.length === 0 && cfg.bands.length === 0 && !q ? (
+        <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
           参考线按当前聚合数据计算统计量；目标值 / 固定值直接使用输入的数值。
         </p>
       ) : null}
-    </FormatGroup>
+    </>
   );
 }
 
@@ -2128,7 +2231,7 @@ function SelectRow({
         {label}
       </Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={id} className="h-6 w-20 text-xs">
+        <SelectTrigger id={id} className="h-6 w-24 text-xs">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
